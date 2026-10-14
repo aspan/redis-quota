@@ -25,6 +25,19 @@ quotaManager.getUsage("user-123", QuotaPeriod.MONTHLY); // 250
 
 A rejected request does not consume quota, and its status reports the usage and remaining quota as they actually are.
 
+### Stored quota definitions
+
+Instead of passing a `QuotaConfig`, limits can be stored per id with `QuotaDefinitionRepository` (a Spring Data Redis repository, kept under `quota-definitions:<id>`):
+
+```java
+quotaDefinitionRepository.save(new QuotaDefinition("user-123",
+        Map.of(QuotaPeriod.HOURLY, 100, QuotaPeriod.MONTHLY, 10_000)));
+
+var status = quotaManager.checkAndIncrement("user-123", QuotaPeriod.HOURLY, 1);
+```
+
+If no limit is stored for the id and period, this throws `IllegalArgumentException`. Changing a stored limit takes effect on the next request; usage already counted is kept.
+
 ### Changing usage
 
 ```java
@@ -51,7 +64,7 @@ Reset times use the time zone of the injected `java.time.Clock` (the system defa
 
 ### Failing open
 
-If Redis cannot be reached, `checkAndIncrement` logs an error and allows the request with full remaining quota, and `getUsage` returns 0. A Redis outage never blocks traffic, but quotas are not enforced while it lasts, so watch for `Redis error in checkAndIncrement` in the logs.
+If Redis cannot be reached, `checkAndIncrement` logs an error and allows the request with full remaining quota, and `getUsage` returns 0. When the limit comes from a stored definition that cannot be read, the request is also allowed, with `limit`, `used` and `remaining` all reported as 0. A Redis outage never blocks traffic, but quotas are not enforced while it lasts, so watch for `Redis error in checkAndIncrement` in the logs.
 
 `resetQuota`, `adjustUsage` and `setUsage` do not fail open: they throw the Redis exception, so callers know the change was not made.
 

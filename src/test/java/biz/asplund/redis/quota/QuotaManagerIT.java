@@ -50,6 +50,9 @@ class QuotaManagerIT {
 	@Autowired
 	private StringRedisTemplate redisTemplate;
 
+	@Autowired
+	private QuotaDefinitionRepository quotaDefinitionRepository;
+
 	// Wednesday 2026-10-14 10:15:30 CEST; DST ends 2026-10-25, so later resets are in CET
 	private static final ZonedDateTime NOW = ZonedDateTime.of(2026, 10, 14, 10, 15, 30, 0, ZoneId.of("Europe/Stockholm"));
 
@@ -219,8 +222,8 @@ class QuotaManagerIT {
 		var zone = ZoneId.of("Europe/Stockholm");
 		var firstPass = OffsetDateTime.parse("2026-10-25T02:30+02:00").toInstant();
 		var secondPass = OffsetDateTime.parse("2026-10-25T02:30+01:00").toInstant();
-		var beforeChange = new QuotaManager(redisTemplate, Clock.fixed(firstPass, zone));
-		var afterChange = new QuotaManager(redisTemplate, Clock.fixed(secondPass, zone));
+		var beforeChange = new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.fixed(firstPass, zone));
+		var afterChange = new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.fixed(secondPass, zone));
 		var id = uniqueId();
 		var config = new QuotaConfig(10, QuotaPeriod.HOURLY);
 

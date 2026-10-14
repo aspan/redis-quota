@@ -68,6 +68,13 @@ class QuotaManagerFailOpenIT {
 	}
 
 	@Test
+	void checkAndIncrementWithStoredDefinitionAllowsRequestWhenRedisIsDown() {
+		var status = quotaManager.checkAndIncrement("user", QuotaPeriod.DAILY, 10);
+
+		assertThat(status).isEqualTo(new QuotaStatus(true, 0, 0, 0, Instant.parse("2026-10-15T00:00:00Z")));
+	}
+
+	@Test
 	void getUsageReturnsZeroWhenRedisIsDown() {
 		assertThat(quotaManager.getUsage("user", QuotaPeriod.DAILY)).isZero();
 	}

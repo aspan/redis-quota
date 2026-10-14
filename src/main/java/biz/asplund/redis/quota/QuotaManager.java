@@ -18,6 +18,7 @@ package biz.asplund.redis.quota;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -56,11 +57,29 @@ public class QuotaManager {
             """, Long.class);
 
     private final RedisTemplate<String, String> redisTemplate;
+    private final QuotaDefinitionRepository quotaDefinitionRepository;
     private final Clock clock;
 
-    public QuotaManager(RedisTemplate<String, String> redisTemplate, Clock clock) {
+    public QuotaManager(RedisTemplate<String, String> redisTemplate,
+            QuotaDefinitionRepository quotaDefinitionRepository, Clock clock) {
         this.redisTemplate = redisTemplate;
+        this.quotaDefinitionRepository = quotaDefinitionRepository;
         this.clock = clock;
+    }
+
+    public QuotaStatus checkAndIncrement(String id, QuotaPeriod period, int amount) {
+        int limit;
+        try {
+            limit = quotaDefinitionRepository.findById(id)
+                .map(definition -> definition.limits().get(period))
+                .orElseThrow(() -> new IllegalArgumentException(
+                    "No " + period + " quota defined for id " + id));
+        } catch (DataAccessException e) {
+            // Fail open in case of Redis issues; the limit is unknown
+            LOGGER.error("Redis error loading quota definition for id {}, failing open", id, e);
+            return new QuotaStatus(true, 0, 0, 0, getResetTime(period));
+        }
+        return checkAndIncrement(id, new QuotaConfig(limit, period), amount);
     }
 
     public QuotaStatus checkAndIncrement(String id, QuotaConfig config, int amount) {
