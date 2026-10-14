@@ -108,9 +108,14 @@ class I18nIT extends SpringBrowserlessTest {
 	void offersEachLanguageInItsOwnName() {
 		navigate(QuotaView.class);
 
-		var select = test(find(LanguageSelect.class).single());
-		assertThat(select.getSuggestions()).containsExactly("English", "Svenska");
-		assertThat(select.getSelected()).isEqualTo(Locale.ENGLISH);
+		var button = find(LanguageMenuButton.class).single();
+		var menu = test(button.menu());
+		menu.open();
+		assertThat(menu.getItemTexts()).containsExactly("English", "Svenska");
+		assertThat(menu.isItemChecked("English")).isTrue();
+		assertThat(menu.isItemChecked("Svenska")).isFalse();
+		menu.close();
+		assertThat(button.getText()).isEqualTo("EN");
 	}
 
 	@Test
@@ -125,7 +130,10 @@ class I18nIT extends SpringBrowserlessTest {
 	}
 
 	private void pickLanguage(String language) {
-		test(find(LanguageSelect.class).single()).selectItem(language);
+		var menu = test(find(LanguageMenuButton.class).single().menu());
+		menu.open();
+		menu.clickItem(language);
+		menu.close();
 	}
 
 	private static Properties translations(String name) throws IOException {

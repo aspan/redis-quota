@@ -57,7 +57,12 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
         setPrimarySection(Section.DRAWER);
 
         viewTitle.getStyle().set("font-size", "1.125rem").set("margin", "0");
-        addToNavbar(new DrawerToggle(), viewTitle);
+        // Language and appearance menus sit at the right end of the navbar
+        var preferences = new HorizontalLayout(new LanguageMenuButton(languagePreference),
+                new ColorSchemeMenuButton(colorSchemePreference));
+        preferences.setSpacing(false);
+        preferences.getStyle().set("margin-inline-start", "auto").set("padding-inline-end", "0.5rem");
+        addToNavbar(new DrawerToggle(), viewTitle, preferences);
 
         appName.getStyle().set("font-weight", "600").set("font-size", "1.125rem");
         var header = new HorizontalLayout(VaadinIcon.DASHBOARD.create(), appName);
@@ -67,16 +72,7 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
         nav.setWidthFull();
         var scroller = new Scroller(nav);
 
-        var languageSelect = new LanguageSelect(languagePreference);
-        var colorSchemeSelect = new ColorSchemeSelect(colorSchemePreference);
-        var preferences = new HorizontalLayout(languageSelect, colorSchemeSelect);
-        preferences.setWidthFull();
-        preferences.setPadding(true);
-        preferences.setFlexGrow(1, languageSelect, colorSchemeSelect);
-        languageSelect.setMinWidth("0");
-        colorSchemeSelect.setMinWidth("0");
-
-        var drawer = new VerticalLayout(header, scroller, preferences, createUserFooter(authenticationContext));
+        var drawer = new VerticalLayout(header, scroller, createUserFooter(authenticationContext));
         drawer.setSizeFull();
         drawer.setPadding(false);
         drawer.setSpacing(false);

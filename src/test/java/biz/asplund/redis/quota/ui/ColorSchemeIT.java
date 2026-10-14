@@ -19,6 +19,8 @@ package biz.asplund.redis.quota.ui;
 import biz.asplund.redis.TestcontainersConfiguration;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.contextmenu.ContextMenu;
+import com.vaadin.flow.component.contextmenu.ContextMenuTester;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.page.ColorScheme;
 import com.vaadin.flow.server.VaadinSession;
@@ -30,6 +32,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.test.context.support.WithMockUser;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -45,7 +49,7 @@ class ColorSchemeIT extends SpringBrowserlessTest {
 	void followsSystemByDefault() {
 		navigate(QuotaView.class);
 
-		assertThat(test(find(ColorSchemeSelect.class).single()).getSelected()).isEqualTo(ColorSchemeChoice.SYSTEM);
+		assertThat(isChecked("System")).isTrue();
 		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.LIGHT_DARK);
 	}
 
@@ -57,7 +61,9 @@ class ColorSchemeIT extends SpringBrowserlessTest {
 
 		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.DARK);
 		assertThat(VaadinSession.getCurrent().getAttribute(ColorSchemeChoice.class)).isEqualTo(ColorSchemeChoice.DARK);
-		assertThat(((Icon) find(ColorSchemeSelect.class).single().getPrefixComponent()).getIcon()).isEqualTo("vaadin:moon");
+		assertThat(((Icon) find(ColorSchemeMenuButton.class).single().getIcon()).getIcon()).isEqualTo("vaadin:moon");
+		assertThat(isChecked("Dark")).isTrue();
+		assertThat(isChecked("System")).isFalse();
 
 		pick("Light");
 
@@ -71,15 +77,19 @@ class ColorSchemeIT extends SpringBrowserlessTest {
 
 		navigate(LoginView.class);
 
-		assertThat(test(find(ColorSchemeSelect.class).single()).getSelected()).isEqualTo(ColorSchemeChoice.DARK);
+		assertThat(isChecked("Dark")).isTrue();
 	}
 
 	@Test
 	void translatesChoices() {
 		navigate(QuotaView.class);
-		test(find(LanguageSelect.class).single()).selectItem("Svenska");
+		var languageMenu = test(find(LanguageMenuButton.class).single().menu());
+		languageMenu.open();
+		languageMenu.clickItem("Svenska");
+		languageMenu.close();
 
-		assertThat(test(find(ColorSchemeSelect.class).single()).getSuggestions()).containsExactly("System", "Ljust", "Mörkt");
+		assertThat(itemTexts()).containsExactly("System", "Ljust", "Mörkt");
+		assertThat(find(ColorSchemeMenuButton.class).single().getAriaLabel()).contains("Utseende");
 	}
 
 	@Test
@@ -104,7 +114,31 @@ class ColorSchemeIT extends SpringBrowserlessTest {
 	}
 
 	private void pick(String choice) {
-		test(find(ColorSchemeSelect.class).single()).selectItem(choice);
+		var menu = menu();
+		menu.open();
+		menu.clickItem(choice);
+		menu.close();
+	}
+
+	// Menu items can only be read while the menu is open, as in the browser
+	private boolean isChecked(String choice) {
+		var menu = menu();
+		menu.open();
+		var checked = menu.isItemChecked(choice);
+		menu.close();
+		return checked;
+	}
+
+	private List<String> itemTexts() {
+		var menu = menu();
+		menu.open();
+		var texts = menu.getItemTexts();
+		menu.close();
+		return texts;
+	}
+
+	private ContextMenuTester<ContextMenu> menu() {
+		return test(find(ColorSchemeMenuButton.class).single().menu());
 	}
 
 	private static MockHttpServletRequest request(Cookie... cookies) {

@@ -17,35 +17,50 @@
 package biz.asplund.redis.quota.ui;
 
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.select.Select;
-import com.vaadin.flow.i18n.LocaleChangeEvent;
-import com.vaadin.flow.i18n.LocaleChangeObserver;
+
+import java.util.List;
 import java.util.Locale;
 
 // Picks the UI language; the choice applies to every open tab of the session and is remembered in a cookie
-class LanguageSelect extends Select<Locale> implements LocaleChangeObserver {
+class LanguageMenuButton extends PreferenceMenuButton<Locale> {
 
-    LanguageSelect(LanguagePreference languagePreference) {
-        setItems(languagePreference.locales());
-        setItemLabelGenerator(LanguageSelect::displayName);
-        setPrefixComponent(VaadinIcon.GLOBE.create());
-        addValueChangeListener(event -> {
-            if (event.isFromClient() && event.getValue() != null) {
-                languagePreference.select(event.getValue());
-            }
-        });
+    private final LanguagePreference languagePreference;
+
+    LanguageMenuButton(LanguagePreference languagePreference) {
+        this.languagePreference = languagePreference;
+        setIcon(VaadinIcon.GLOBE.create());
     }
 
     @Override
-    public void localeChange(LocaleChangeEvent event) {
-        setAriaLabel(getTranslation("language.label"));
-        setTooltipText(getTranslation("language.label"));
-        setValue(I18nConfiguration.supported(event.getLocale()));
+    List<Locale> choices() {
+        return languagePreference.locales();
+    }
+
+    @Override
+    Locale current() {
+        return I18nConfiguration.supported(getLocale());
     }
 
     // Each language is named in itself, so it can be found whatever the current language is
-    private static String displayName(Locale locale) {
+    @Override
+    String label(Locale locale) {
         var name = locale.getDisplayLanguage(locale);
         return name.isEmpty() ? locale.toLanguageTag() : name.substring(0, 1).toUpperCase(locale) + name.substring(1);
+    }
+
+    // Switching the language calls localeChange, which updates this button
+    @Override
+    void select(Locale locale) {
+        languagePreference.select(locale);
+    }
+
+    @Override
+    void showOnButton(Locale current) {
+        setText(current.getLanguage().toUpperCase(Locale.ROOT));
+    }
+
+    @Override
+    String labelKey() {
+        return "language.label";
     }
 }
