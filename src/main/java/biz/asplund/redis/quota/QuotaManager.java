@@ -34,6 +34,7 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 @Component
 public class QuotaManager {
@@ -129,7 +130,7 @@ public class QuotaManager {
             case YEARLY -> String.valueOf(today.getYear());
         };
 
-        return String.format("%s:%s:%s:%s", QUOTA_PREFIX, userId, period.name().toLowerCase(), periodId);
+        return String.format(Locale.ROOT, "%s:%s:%s:%s", QUOTA_PREFIX, userId, period.name().toLowerCase(Locale.ROOT), periodId);
     }
 
     private int getTTL(QuotaPeriod period) {
