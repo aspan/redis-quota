@@ -27,6 +27,7 @@ import com.vaadin.flow.component.badge.BadgeVariant;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.card.Card;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
+import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridTester;
 import com.vaadin.flow.component.html.H1;
@@ -294,6 +295,20 @@ class QuotaViewIT extends SpringBrowserlessTest {
 		var badge = (Badge) grid.getCellComponent(rowOf(grid, exactlyTwenty), 2);
 
 		assertThat(badge.getThemeNames()).contains(BadgeVariant.SUCCESS.getVariantName());
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
+	void stretchesFormFieldsAcrossEditor() {
+		navigate(QuotaView.class);
+		test(find(Button.class).withText("New quota").single()).click();
+
+		var form = find(FormLayout.class, find(QuotaEditor.class).single()).single();
+
+		assertThat(form.getWidth()).isEqualTo("100%");
+		assertThat(form.getMaxColumns()).isEqualTo(1);
+		assertThat(form.isExpandColumns()).isTrue();
+		assertThat(form.isExpandFields()).isTrue();
 	}
 
 	@Test

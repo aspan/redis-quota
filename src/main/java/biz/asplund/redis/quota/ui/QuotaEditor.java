@@ -103,13 +103,17 @@ class QuotaEditor extends VerticalLayout {
     }
 
     private Component createQuotaForm() {
+        // One column across the editor, with each field filling it
         var form = new FormLayout();
         form.setAutoResponsive(true);
+        form.setMaxColumns(1);
+        form.setExpandColumns(true);
+        form.setExpandFields(true);
+        form.setWidthFull();
 
         if (row == null) {
             idField.setLabel(getTranslation("editor.id"));
             idField.setRequired(true);
-            idField.setWidthFull();
             form.add(idField);
         }
 
@@ -141,6 +145,7 @@ class QuotaEditor extends VerticalLayout {
         }
 
         var layout = new VerticalLayout(new H4(getTranslation("editor.quota")), form, buttons);
+        layout.setWidthFull();
         layout.setPadding(false);
         return layout;
     }
