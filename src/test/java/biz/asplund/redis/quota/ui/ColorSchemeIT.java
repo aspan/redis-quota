@@ -57,7 +57,7 @@ class ColorSchemeIT extends SpringBrowserlessTest {
 
 		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.DARK);
 		assertThat(VaadinSession.getCurrent().getAttribute(ColorSchemeChoice.class)).isEqualTo(ColorSchemeChoice.DARK);
-		assertThat(((Icon) find(ColorSchemeSelect.class).single().getPrefixComponent()).getIcon()).isEqualTo("vaadin:moon-o");
+		assertThat(((Icon) find(ColorSchemeSelect.class).single().getPrefixComponent()).getIcon()).isEqualTo("vaadin:moon");
 
 		pick("Light");
 

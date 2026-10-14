@@ -24,9 +24,9 @@ import java.util.Locale;
 
 // The color schemes a user can pick; SYSTEM follows the operating system, like @ColorScheme on QuotaApplication
 enum ColorSchemeChoice {
-    SYSTEM(ColorScheme.Value.LIGHT_DARK, VaadinIcon.ADJUST),
-    LIGHT(ColorScheme.Value.LIGHT, VaadinIcon.SUN_O),
-    DARK(ColorScheme.Value.DARK, VaadinIcon.MOON_O);
+    SYSTEM(ColorScheme.Value.LIGHT_DARK, VaadinIcon.CONTRAST),
+    LIGHT(ColorScheme.Value.LIGHT, VaadinIcon.SUN),
+    DARK(ColorScheme.Value.DARK, VaadinIcon.MOON);
 
     private final ColorScheme.Value value;
     private final VaadinIcon icon;
