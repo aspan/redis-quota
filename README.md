@@ -117,6 +117,8 @@ All tests are integration tests (`*IT`) and run with the Maven Failsafe plugin d
 
 - `QuotaManagerIT` runs against a real Redis in Testcontainers with a fixed clock (Wednesday 2026-10-14, Europe/Stockholm), so reset times, key names and expiry times are checked against exact values.
 - `QuotaManagerFailOpenIT` points the application at a Redis port with nothing listening on it, and checks that quotas fail open. It logs the expected connection errors.
+- `QuotaViewIT` tests the admin UI with Vaadin browserless tests: the views run on the server against a real Redis, and Spring Security's `@WithMockUser` sets the logged-in user. It covers access control, the menu, listing and filtering quotas, creating, editing and deleting definitions, and setting and resetting usage.
+- `SecurityConfigurationIT` checks the HTTP security rules with MockMvc: the login redirect, form login, and that `/api/**` needs no login.
 
 ## License
 
