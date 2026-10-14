@@ -18,6 +18,7 @@ package biz.asplund.redis.quota.ui;
 
 import com.vaadin.flow.component.login.LoginForm;
 import com.vaadin.flow.component.login.LoginI18n;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.i18n.LocaleChangeEvent;
 import com.vaadin.flow.i18n.LocaleChangeObserver;
@@ -34,14 +35,15 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver, Lo
 
     private final LoginForm login = new LoginForm();
 
-    public LoginView(LanguagePreference languagePreference) {
+    public LoginView(LanguagePreference languagePreference, ColorSchemePreference colorSchemePreference) {
         setSizeFull();
         setAlignItems(Alignment.CENTER);
         setJustifyContentMode(JustifyContentMode.CENTER);
 
         login.setAction("login");
         login.setForgotPasswordButtonVisible(false);
-        add(login, new LanguageSelect(languagePreference));
+        add(login, new HorizontalLayout(new LanguageSelect(languagePreference),
+                new ColorSchemeSelect(colorSchemePreference)));
     }
 
     @Override

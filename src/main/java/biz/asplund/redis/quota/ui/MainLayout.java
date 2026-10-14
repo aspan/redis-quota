@@ -52,7 +52,8 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
     private final SideNav nav = new SideNav();
     private final Button logout = new Button(VaadinIcon.SIGN_OUT.create());
 
-    public MainLayout(AuthenticationContext authenticationContext, LanguagePreference languagePreference) {
+    public MainLayout(AuthenticationContext authenticationContext, LanguagePreference languagePreference,
+            ColorSchemePreference colorSchemePreference) {
         setPrimarySection(Section.DRAWER);
 
         viewTitle.getStyle().set("font-size", "1.125rem").set("margin", "0");
@@ -67,12 +68,15 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
         var scroller = new Scroller(nav);
 
         var languageSelect = new LanguageSelect(languagePreference);
-        languageSelect.setWidthFull();
-        var language = new HorizontalLayout(languageSelect);
-        language.setWidthFull();
-        language.setPadding(true);
+        var colorSchemeSelect = new ColorSchemeSelect(colorSchemePreference);
+        var preferences = new HorizontalLayout(languageSelect, colorSchemeSelect);
+        preferences.setWidthFull();
+        preferences.setPadding(true);
+        preferences.setFlexGrow(1, languageSelect, colorSchemeSelect);
+        languageSelect.setMinWidth("0");
+        colorSchemeSelect.setMinWidth("0");
 
-        var drawer = new VerticalLayout(header, scroller, language, createUserFooter(authenticationContext));
+        var drawer = new VerticalLayout(header, scroller, preferences, createUserFooter(authenticationContext));
         drawer.setSizeFull();
         drawer.setPadding(false);
         drawer.setSpacing(false);
