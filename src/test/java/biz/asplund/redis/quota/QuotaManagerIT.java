@@ -36,10 +36,8 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -67,24 +65,24 @@ class QuotaManagerIT {
 		var config = new QuotaConfig(1000, QuotaPeriod.MONTHLY);
 
 		var first = quotaManager.checkAndIncrement(id, config, 250);
-		assertAll("first request (250)",
-				() -> assertTrue(first.allowed()),
-				() -> assertEquals(250, first.used()),
-				() -> assertEquals(750, first.remaining()));
+		assertThat(first).as("first request (250)")
+				.returns(true, QuotaStatus::allowed)
+				.returns(250, QuotaStatus::used)
+				.returns(750, QuotaStatus::remaining);
 
 		var second = quotaManager.checkAndIncrement(id, config, 300);
-		assertAll("second request (300)",
-				() -> assertTrue(second.allowed()),
-				() -> assertEquals(550, second.used()),
-				() -> assertEquals(450, second.remaining()));
+		assertThat(second).as("second request (300)")
+				.returns(true, QuotaStatus::allowed)
+				.returns(550, QuotaStatus::used)
+				.returns(450, QuotaStatus::remaining);
 
 		var third = quotaManager.checkAndIncrement(id, config, 500);
-		assertAll("third request (500) exceeds limit",
-				() -> assertFalse(third.allowed()),
-				() -> assertEquals(550, third.used()),
-				() -> assertEquals(450, third.remaining()));
+		assertThat(third).as("third request (500) exceeds limit")
+				.returns(false, QuotaStatus::allowed)
+				.returns(550, QuotaStatus::used)
+				.returns(450, QuotaStatus::remaining);
 
-		assertEquals(550, quotaManager.getUsage(id, QuotaPeriod.MONTHLY));
+		assertThat(quotaManager.getUsage(id, QuotaPeriod.MONTHLY)).isEqualTo(550);
 	}
 
 	@Test
@@ -93,15 +91,16 @@ class QuotaManagerIT {
 		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
 
 		var status = quotaManager.checkAndIncrement(id, config, 100);
-		assertAll(
-				() -> assertTrue(status.allowed()),
-				() -> assertEquals(100, status.used()),
-				() -> assertEquals(0, status.remaining()));
+		assertThat(status)
+				.returns(true, QuotaStatus::allowed)
+				.returns(100, QuotaStatus::used)
+				.returns(0, QuotaStatus::remaining);
 
 		var next = quotaManager.checkAndIncrement(id, config, 1);
-		assertFalse(next.allowed());
-		assertEquals(0, next.remaining());
-		assertEquals(100, quotaManager.getUsage(id, QuotaPeriod.DAILY));
+		assertThat(next)
+				.returns(false, QuotaStatus::allowed)
+				.returns(0, QuotaStatus::remaining);
+		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isEqualTo(100);
 	}
 
 	@Test
@@ -111,16 +110,16 @@ class QuotaManagerIT {
 
 		quotaManager.checkAndIncrement(id, config, 60);
 		var rejected = quotaManager.checkAndIncrement(id, config, 50);
-		assertAll("rejected request reports what is actually left",
-				() -> assertFalse(rejected.allowed()),
-				() -> assertEquals(60, rejected.used()),
-				() -> assertEquals(40, rejected.remaining()));
+		assertThat(rejected).as("rejected request reports what is actually left")
+				.returns(false, QuotaStatus::allowed)
+				.returns(60, QuotaStatus::used)
+				.returns(40, QuotaStatus::remaining);
 
 		var status = quotaManager.checkAndIncrement(id, config, 40);
-		assertAll("smaller request still fits after rejection",
-				() -> assertTrue(status.allowed()),
-				() -> assertEquals(100, status.used()),
-				() -> assertEquals(0, status.remaining()));
+		assertThat(status).as("smaller request still fits after rejection")
+				.returns(true, QuotaStatus::allowed)
+				.returns(100, QuotaStatus::used)
+				.returns(0, QuotaStatus::remaining);
 	}
 
 	@Test
@@ -130,11 +129,11 @@ class QuotaManagerIT {
 
 		var status = quotaManager.checkAndIncrement(id, config, 11);
 
-		assertAll(
-				() -> assertFalse(status.allowed()),
-				() -> assertEquals(0, status.used()),
-				() -> assertEquals(10, status.remaining()));
-		assertEquals(0, quotaManager.getUsage(id, QuotaPeriod.DAILY));
+		assertThat(status)
+				.returns(false, QuotaStatus::allowed)
+				.returns(0, QuotaStatus::used)
+				.returns(10, QuotaStatus::remaining);
+		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isZero();
 	}
 
 	@Test
@@ -146,11 +145,13 @@ class QuotaManagerIT {
 		quotaManager.checkAndIncrement(alice, config, 100);
 		var bobStatus = quotaManager.checkAndIncrement(bob, config, 30);
 
-		assertAll(
-				() -> assertTrue(bobStatus.allowed()),
-				() -> assertEquals(30, bobStatus.used()),
-				() -> assertEquals(100, quotaManager.getUsage(alice, QuotaPeriod.DAILY)),
-				() -> assertEquals(30, quotaManager.getUsage(bob, QuotaPeriod.DAILY)));
+		assertThat(bobStatus)
+				.returns(true, QuotaStatus::allowed)
+				.returns(30, QuotaStatus::used);
+		assertSoftly(softly -> {
+			softly.assertThat(quotaManager.getUsage(alice, QuotaPeriod.DAILY)).as("alice").isEqualTo(100);
+			softly.assertThat(quotaManager.getUsage(bob, QuotaPeriod.DAILY)).as("bob").isEqualTo(30);
+		});
 	}
 
 	@Test
@@ -163,12 +164,13 @@ class QuotaManagerIT {
 		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.MONTHLY), 30);
 		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.YEARLY), 40);
 
-		assertAll(
-				() -> assertEquals(5, quotaManager.getUsage(id, QuotaPeriod.HOURLY)),
-				() -> assertEquals(10, quotaManager.getUsage(id, QuotaPeriod.DAILY)),
-				() -> assertEquals(20, quotaManager.getUsage(id, QuotaPeriod.WEEKLY)),
-				() -> assertEquals(30, quotaManager.getUsage(id, QuotaPeriod.MONTHLY)),
-				() -> assertEquals(40, quotaManager.getUsage(id, QuotaPeriod.YEARLY)));
+		assertSoftly(softly -> {
+			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.HOURLY)).as("hourly").isEqualTo(5);
+			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).as("daily").isEqualTo(10);
+			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.WEEKLY)).as("weekly").isEqualTo(20);
+			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.MONTHLY)).as("monthly").isEqualTo(30);
+			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.YEARLY)).as("yearly").isEqualTo(40);
+		});
 	}
 
 	@ParameterizedTest
@@ -184,7 +186,7 @@ class QuotaManagerIT {
 
 		var status = quotaManager.checkAndIncrement(uniqueId(), config, 1);
 
-		assertEquals(expectedReset.toInstant(), status.resetAt());
+		assertThat(status.resetAt()).isEqualTo(expectedReset.toInstant());
 	}
 
 	@ParameterizedTest
@@ -204,10 +206,10 @@ class QuotaManagerIT {
 
 		var expectedTtl = Duration.between(NOW.toInstant(), reset.toInstant()).plusHours(1).toSeconds();
 		var ttl = redisTemplate.getExpire(key);
-		assertAll(
-				() -> assertEquals("7", redisTemplate.opsForValue().get(key)),
-				() -> assertTrue(ttl > expectedTtl - 5 && ttl <= expectedTtl,
-						"expected TTL close to " + expectedTtl + "s but was " + ttl + "s"));
+		assertSoftly(softly -> {
+			softly.assertThat(redisTemplate.opsForValue().get(key)).as("stored usage").isEqualTo("7");
+			softly.assertThat(ttl).as("TTL in seconds").isBetween(expectedTtl - 4, expectedTtl);
+		});
 	}
 
 	@Test
@@ -224,12 +226,13 @@ class QuotaManagerIT {
 		var first = beforeChange.checkAndIncrement(id, config, 10);
 		var second = afterChange.checkAndIncrement(id, config, 10);
 
-		assertAll(
-				() -> assertTrue(first.allowed()),
-				() -> assertEquals(OffsetDateTime.parse("2026-10-25T02:00+01:00").toInstant(), first.resetAt()),
-				() -> assertTrue(second.allowed(), "second 02:30 is a new hour with its own quota"),
-				() -> assertEquals(10, second.used()),
-				() -> assertEquals(OffsetDateTime.parse("2026-10-25T03:00+01:00").toInstant(), second.resetAt()));
+		assertThat(first).as("first 02:30 (CEST)")
+				.returns(true, QuotaStatus::allowed)
+				.returns(OffsetDateTime.parse("2026-10-25T02:00+01:00").toInstant(), QuotaStatus::resetAt);
+		assertThat(second).as("second 02:30 (CET) is a new hour with its own quota")
+				.returns(true, QuotaStatus::allowed)
+				.returns(10, QuotaStatus::used)
+				.returns(OffsetDateTime.parse("2026-10-25T03:00+01:00").toInstant(), QuotaStatus::resetAt);
 	}
 
 	@Test
@@ -250,13 +253,13 @@ class QuotaManagerIT {
 			}
 		}
 
-		assertEquals(50, allowed);
-		assertEquals(50, quotaManager.getUsage(id, QuotaPeriod.DAILY));
+		assertThat(allowed).isEqualTo(50);
+		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isEqualTo(50);
 	}
 
 	@Test
 	void usageIsZeroForUnknownUser() {
-		assertEquals(0, quotaManager.getUsage(uniqueId(), QuotaPeriod.MONTHLY));
+		assertThat(quotaManager.getUsage(uniqueId(), QuotaPeriod.MONTHLY)).isZero();
 	}
 
 	private static String uniqueId() {

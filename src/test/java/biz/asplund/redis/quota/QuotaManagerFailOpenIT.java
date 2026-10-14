@@ -30,9 +30,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Runs the application against a Redis port with nothing listening on it.
@@ -64,17 +62,12 @@ class QuotaManagerFailOpenIT {
 
 		var status = quotaManager.checkAndIncrement("user", config, 10);
 
-		assertAll(
-				() -> assertTrue(status.allowed()),
-				() -> assertEquals(100, status.limit()),
-				() -> assertEquals(0, status.used()),
-				() -> assertEquals(100, status.remaining()),
-				() -> assertEquals(Instant.parse("2026-10-15T00:00:00Z"), status.resetAt()));
+		assertThat(status).isEqualTo(new QuotaStatus(true, 100, 0, 100, Instant.parse("2026-10-15T00:00:00Z")));
 	}
 
 	@Test
 	void getUsageReturnsZeroWhenRedisIsDown() {
-		assertEquals(0, quotaManager.getUsage("user", QuotaPeriod.DAILY));
+		assertThat(quotaManager.getUsage("user", QuotaPeriod.DAILY)).isZero();
 	}
 
 	private static int unusedPort() {
