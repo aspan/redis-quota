@@ -39,7 +39,6 @@ import java.util.concurrent.Executors;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Import(TestcontainersConfiguration.class)
@@ -65,14 +64,13 @@ class QuotaManagerTests {
 	@Test
 	void monthlyQuotaAllowsRequestsWithinLimitAndRejectsExcess() {
 		var userId = uniqueUser();
-		var config = new QuotaConfig(1000, QuotaPeriod.MONTHLY, false, 0);
+		var config = new QuotaConfig(1000, QuotaPeriod.MONTHLY);
 
 		var first = quotaManager.checkAndIncrement(userId, config, 250);
 		assertAll("first request (250)",
 				() -> assertTrue(first.isAllowed()),
 				() -> assertEquals(250, first.getUsed()),
-				() -> assertEquals(750, first.getRemaining()),
-				() -> assertNull(first.getOverage()));
+				() -> assertEquals(750, first.getRemaining()));
 
 		var second = quotaManager.checkAndIncrement(userId, config, 300);
 		assertAll("second request (300)",
@@ -90,25 +88,9 @@ class QuotaManagerTests {
 	}
 
 	@Test
-	void monthlyQuotaWithOverageAllowsExcessAndReportsCost() {
-		var userId = uniqueUser();
-		var config = new QuotaConfig(500, QuotaPeriod.MONTHLY, true, 10);
-
-		var status = quotaManager.checkAndIncrement(userId, config, 600);
-		assertAll("request (600) over limit 500 with overage",
-				() -> assertTrue(status.isAllowed()),
-				() -> assertEquals(600, status.getUsed()),
-				() -> assertEquals(0, status.getRemaining()),
-				() -> assertEquals(100, status.getOverage()),
-				() -> assertEquals(1000.0, status.getOverageCost()));
-
-		assertEquals(600, quotaManager.getUsage(userId, QuotaPeriod.MONTHLY));
-	}
-
-	@Test
 	void requestReachingExactLimitIsAllowed() {
 		var userId = uniqueUser();
-		var config = new QuotaConfig(100, QuotaPeriod.DAILY, false, 0);
+		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
 
 		var status = quotaManager.checkAndIncrement(userId, config, 100);
 		assertAll(
@@ -125,7 +107,7 @@ class QuotaManagerTests {
 	@Test
 	void rejectedRequestDoesNotConsumeQuota() {
 		var userId = uniqueUser();
-		var config = new QuotaConfig(100, QuotaPeriod.DAILY, false, 0);
+		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
 
 		quotaManager.checkAndIncrement(userId, config, 60);
 		var rejected = quotaManager.checkAndIncrement(userId, config, 50);
@@ -144,7 +126,7 @@ class QuotaManagerTests {
 	@Test
 	void requestLargerThanLimitIsRejectedForFreshUser() {
 		var userId = uniqueUser();
-		var config = new QuotaConfig(10, QuotaPeriod.DAILY, false, 0);
+		var config = new QuotaConfig(10, QuotaPeriod.DAILY);
 
 		var status = quotaManager.checkAndIncrement(userId, config, 11);
 
@@ -159,7 +141,7 @@ class QuotaManagerTests {
 	void usersHaveIndependentQuotas() {
 		var alice = uniqueUser();
 		var bob = uniqueUser();
-		var config = new QuotaConfig(100, QuotaPeriod.DAILY, false, 0);
+		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
 
 		quotaManager.checkAndIncrement(alice, config, 100);
 		var bobStatus = quotaManager.checkAndIncrement(bob, config, 30);
@@ -175,38 +157,16 @@ class QuotaManagerTests {
 	void periodsAreTrackedIndependently() {
 		var userId = uniqueUser();
 
-		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.DAILY, false, 0), 10);
-		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.WEEKLY, false, 0), 20);
-		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.MONTHLY, false, 0), 30);
-		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.YEARLY, false, 0), 40);
+		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.DAILY), 10);
+		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.WEEKLY), 20);
+		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.MONTHLY), 30);
+		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.YEARLY), 40);
 
 		assertAll(
 				() -> assertEquals(10, quotaManager.getUsage(userId, QuotaPeriod.DAILY)),
 				() -> assertEquals(20, quotaManager.getUsage(userId, QuotaPeriod.WEEKLY)),
 				() -> assertEquals(30, quotaManager.getUsage(userId, QuotaPeriod.MONTHLY)),
 				() -> assertEquals(40, quotaManager.getUsage(userId, QuotaPeriod.YEARLY)));
-	}
-
-	@Test
-	void overageAccumulatesAcrossRequests() {
-		var userId = uniqueUser();
-		var config = new QuotaConfig(100, QuotaPeriod.DAILY, true, 0.5);
-
-		var withinLimit = quotaManager.checkAndIncrement(userId, config, 80);
-		assertAll("within limit, no overage reported",
-				() -> assertTrue(withinLimit.isAllowed()),
-				() -> assertEquals(20, withinLimit.getRemaining()),
-				() -> assertNull(withinLimit.getOverage()),
-				() -> assertNull(withinLimit.getOverageCost()));
-
-		quotaManager.checkAndIncrement(userId, config, 50);
-		var status = quotaManager.checkAndIncrement(userId, config, 20);
-		assertAll("overage is based on total usage over limit",
-				() -> assertTrue(status.isAllowed()),
-				() -> assertEquals(150, status.getUsed()),
-				() -> assertEquals(0, status.getRemaining()),
-				() -> assertEquals(50, status.getOverage()),
-				() -> assertEquals(25.0, status.getOverageCost()));
 	}
 
 	@ParameterizedTest
@@ -217,7 +177,7 @@ class QuotaManagerTests {
 			"YEARLY,  2027-01-01T00:00+01:00"
 	})
 	void resetTimeIsStartOfNextPeriodInClockZone(QuotaPeriod period, OffsetDateTime expectedReset) {
-		var config = new QuotaConfig(1000, period, false, 0);
+		var config = new QuotaConfig(1000, period);
 
 		var status = quotaManager.checkAndIncrement(uniqueUser(), config, 1);
 
@@ -236,7 +196,7 @@ class QuotaManagerTests {
 		var userId = uniqueUser();
 		var key = "quota:" + userId + ":" + keySuffix;
 
-		quotaManager.checkAndIncrement(userId, new QuotaConfig(1000, period, false, 0), 7);
+		quotaManager.checkAndIncrement(userId, new QuotaConfig(1000, period), 7);
 
 		var expectedTtl = Duration.between(NOW.toInstant(), reset.toInstant()).plusHours(1).toSeconds();
 		var ttl = redisTemplate.getExpire(key);
@@ -249,7 +209,7 @@ class QuotaManagerTests {
 	@Test
 	void concurrentRequestsNeverExceedLimit() throws Exception {
 		var userId = uniqueUser();
-		var config = new QuotaConfig(50, QuotaPeriod.DAILY, false, 0);
+		var config = new QuotaConfig(50, QuotaPeriod.DAILY);
 		var tasks = new ArrayList<Callable<QuotaStatus>>();
 		for (var i = 0; i < 200; i++) {
 			tasks.add(() -> quotaManager.checkAndIncrement(userId, config, 1));

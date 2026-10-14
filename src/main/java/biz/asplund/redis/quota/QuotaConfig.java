@@ -19,16 +19,12 @@ package biz.asplund.redis.quota;
 public class QuotaConfig {
     private int limit;
     private QuotaPeriod period;
-    private boolean allowOverage;
-    private double overageRate;
 
     public QuotaConfig() {}
 
-    public QuotaConfig(int limit, QuotaPeriod period, boolean allowOverage, double overageRate) {
+    public QuotaConfig(int limit, QuotaPeriod period) {
         this.limit = limit;
         this.period = period;
-        this.allowOverage = allowOverage;
-        this.overageRate = overageRate;
     }
 
     // Getters and setters
@@ -46,21 +42,5 @@ public class QuotaConfig {
 
     public void setPeriod(QuotaPeriod period) {
         this.period = period;
-    }
-
-    public boolean isAllowOverage() {
-        return allowOverage;
-    }
-
-    public void setAllowOverage(boolean allowOverage) {
-        this.allowOverage = allowOverage;
-    }
-
-    public double getOverageRate() {
-        return overageRate;
-    }
-
-    public void setOverageRate(double overageRate) {
-        this.overageRate = overageRate;
     }
 }

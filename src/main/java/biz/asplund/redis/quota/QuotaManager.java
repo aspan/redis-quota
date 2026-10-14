@@ -59,10 +59,9 @@ public class QuotaManager {
             local amount = tonumber(ARGV[1])
             local ttl = tonumber(ARGV[2])
             local limit = tonumber(ARGV[3])
-            local allow_overage = tonumber(ARGV[4])
             local new_usage = current + amount
 
-            if new_usage <= limit or allow_overage == 1 then
+            if new_usage <= limit then
                 redis.call('INCRBY', KEYS[1], amount)
                 redis.call('EXPIRE', KEYS[1], ttl)
                 return {1, new_usage}
@@ -81,42 +80,20 @@ public class QuotaManager {
                 Collections.singletonList(key),
                 String.valueOf(amount),
                 String.valueOf(ttl),
-                String.valueOf(config.getLimit()),
-                String.valueOf(config.isAllowOverage() ? 1 : 0)
+                String.valueOf(config.getLimit())
             );
 
             if (result != null && result.size() >= 2) {
                 var allowedFlag = ((Long) result.get(0)).intValue();
                 var currentUsage = ((Long) result.get(1)).intValue();
 
-                if (allowedFlag == 1 && currentUsage <= config.getLimit()) {
-                    return new QuotaStatus() {{
-                        setAllowed(true);
-                        setLimit(config.getLimit());
-                        setUsed(currentUsage);
-                        setRemaining(config.getLimit() - currentUsage);
-                        setResetAt(resetAt);
-                    }};
-                } else if (allowedFlag == 1 && config.isAllowOverage()) {
-                    var overage = currentUsage - config.getLimit();
-                    return new QuotaStatus() {{
-                        setAllowed(true);
-                        setLimit(config.getLimit());
-                        setUsed(currentUsage);
-                        setRemaining(0);
-                        setResetAt(resetAt);
-                        setOverage(overage);
-                        setOverageCost(overage * config.getOverageRate());
-                    }};
-                } else {
-                    return new QuotaStatus() {{
-                        setAllowed(false);
-                        setLimit(config.getLimit());
-                        setUsed(currentUsage);
-                        setRemaining(Math.max(0, config.getLimit() - currentUsage));
-                        setResetAt(resetAt);
-                    }};
-                }
+                return new QuotaStatus() {{
+                    setAllowed(allowedFlag == 1);
+                    setLimit(config.getLimit());
+                    setUsed(currentUsage);
+                    setRemaining(Math.max(0, config.getLimit() - currentUsage));
+                    setResetAt(resetAt);
+                }};
             }
         } catch (Exception e) {
             // Fail open in case of Redis issues

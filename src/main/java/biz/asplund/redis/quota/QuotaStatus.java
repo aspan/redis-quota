@@ -24,8 +24,6 @@ public class QuotaStatus {
     private int used;
     private int remaining;
     private Instant resetAt;
-    private Integer overage;
-    private Double overageCost;
 
     public QuotaStatus() {}
 
@@ -68,21 +66,5 @@ public class QuotaStatus {
 
     public void setResetAt(Instant resetAt) {
         this.resetAt = resetAt;
-    }
-
-    public Integer getOverage() {
-        return overage;
-    }
-
-    public void setOverage(Integer overage) {
-        this.overage = overage;
-    }
-
-    public Double getOverageCost() {
-        return overageCost;
-    }
-
-    public void setOverageCost(Double overageCost) {
-        this.overageCost = overageCost;
     }
 }
