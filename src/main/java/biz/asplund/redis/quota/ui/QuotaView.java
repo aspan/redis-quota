@@ -39,6 +39,8 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.data.value.ValueChangeMode;
+import com.vaadin.flow.router.BeforeEnterEvent;
+import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
@@ -58,7 +60,7 @@ import java.util.stream.StreamSupport;
 @PageTitle("Quotas")
 @Menu(title = "Quotas", icon = "vaadin:dashboard", order = 0)
 @RolesAllowed("ADMIN")
-public class QuotaView extends VerticalLayout {
+public class QuotaView extends VerticalLayout implements BeforeEnterObserver {
 
     private final QuotaDefinitionRepository quotaDefinitionRepository;
     private final QuotaManager quotaManager;
@@ -86,7 +88,11 @@ public class QuotaView extends VerticalLayout {
         masterDetail.addBackdropClickListener(_ -> grid.deselectAll());
         masterDetail.setSizeFull();
         add(masterDetail);
+    }
 
+    // Reload on every navigation, including to this view when it is already shown
+    @Override
+    public void beforeEnter(BeforeEnterEvent event) {
         refresh();
     }
 
