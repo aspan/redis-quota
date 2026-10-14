@@ -19,8 +19,20 @@ package biz.asplund.redis.quota;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
 
-import java.util.Map;
+import java.util.Objects;
 
+// The quota of one id: a limit for a single period
 @RedisHash("quota-definitions")
-public record QuotaDefinition(@Id String id, Map<QuotaPeriod, Integer> limits) {
+public record QuotaDefinition(@Id String id, QuotaPeriod period, int limit) {
+
+    public QuotaDefinition {
+        Objects.requireNonNull(period, "period");
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit must not be negative: " + limit);
+        }
+    }
+
+    public QuotaConfig config() {
+        return new QuotaConfig(limit, period);
+    }
 }

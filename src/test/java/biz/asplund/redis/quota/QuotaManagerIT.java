@@ -87,7 +87,7 @@ class QuotaManagerIT {
 				.returns(550, QuotaStatus::used)
 				.returns(450, QuotaStatus::remaining);
 
-		assertThat(quotaManager.getUsage(id, QuotaPeriod.MONTHLY)).isEqualTo(550);
+		assertThat(usage(id, QuotaPeriod.MONTHLY)).isEqualTo(550);
 	}
 
 	@Test
@@ -105,7 +105,7 @@ class QuotaManagerIT {
 		assertThat(next)
 				.returns(false, QuotaStatus::allowed)
 				.returns(0, QuotaStatus::remaining);
-		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isEqualTo(100);
+		assertThat(usage(id, QuotaPeriod.DAILY)).isEqualTo(100);
 	}
 
 	@Test
@@ -138,7 +138,7 @@ class QuotaManagerIT {
 				.returns(false, QuotaStatus::allowed)
 				.returns(0, QuotaStatus::used)
 				.returns(10, QuotaStatus::remaining);
-		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isZero();
+		assertThat(usage(id, QuotaPeriod.DAILY)).isZero();
 	}
 
 	@Test
@@ -154,8 +154,8 @@ class QuotaManagerIT {
 				.returns(true, QuotaStatus::allowed)
 				.returns(30, QuotaStatus::used);
 		assertSoftly(softly -> {
-			softly.assertThat(quotaManager.getUsage(alice, QuotaPeriod.DAILY)).as("alice").isEqualTo(100);
-			softly.assertThat(quotaManager.getUsage(bob, QuotaPeriod.DAILY)).as("bob").isEqualTo(30);
+			softly.assertThat(usage(alice, QuotaPeriod.DAILY)).as("alice").isEqualTo(100);
+			softly.assertThat(usage(bob, QuotaPeriod.DAILY)).as("bob").isEqualTo(30);
 		});
 	}
 
@@ -170,11 +170,11 @@ class QuotaManagerIT {
 		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.YEARLY), 40);
 
 		assertSoftly(softly -> {
-			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.HOURLY)).as("hourly").isEqualTo(5);
-			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).as("daily").isEqualTo(10);
-			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.WEEKLY)).as("weekly").isEqualTo(20);
-			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.MONTHLY)).as("monthly").isEqualTo(30);
-			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.YEARLY)).as("yearly").isEqualTo(40);
+			softly.assertThat(usage(id, QuotaPeriod.HOURLY)).as("hourly").isEqualTo(5);
+			softly.assertThat(usage(id, QuotaPeriod.DAILY)).as("daily").isEqualTo(10);
+			softly.assertThat(usage(id, QuotaPeriod.WEEKLY)).as("weekly").isEqualTo(20);
+			softly.assertThat(usage(id, QuotaPeriod.MONTHLY)).as("monthly").isEqualTo(30);
+			softly.assertThat(usage(id, QuotaPeriod.YEARLY)).as("yearly").isEqualTo(40);
 		});
 	}
 
@@ -259,64 +259,64 @@ class QuotaManagerIT {
 		}
 
 		assertThat(allowed).isEqualTo(50);
-		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isEqualTo(50);
+		assertThat(usage(id, QuotaPeriod.DAILY)).isEqualTo(50);
 	}
 
 	@Test
 	void resetQuotaClearsUsageSoRequestsAreAllowedAgain() {
-		var id = uniqueId();
+		var id = defined(QuotaPeriod.DAILY, 100);
 		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
 		quotaManager.checkAndIncrement(id, config, 100);
 
-		quotaManager.resetQuota(id, QuotaPeriod.DAILY);
+		quotaManager.resetQuota(id);
 
-		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isZero();
+		assertThat(usage(id, QuotaPeriod.DAILY)).isZero();
 		assertThat(quotaManager.checkAndIncrement(id, config, 100))
 				.returns(true, QuotaStatus::allowed)
 				.returns(100, QuotaStatus::used);
 	}
 
 	@Test
-	void resetQuotaOnlyAffectsGivenPeriod() {
-		var id = uniqueId();
+	void resetQuotaOnlyAffectsStoredPeriod() {
+		var id = defined(QuotaPeriod.DAILY, 100);
 		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 10);
 		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.MONTHLY), 20);
 
-		quotaManager.resetQuota(id, QuotaPeriod.DAILY);
+		quotaManager.resetQuota(id);
 
 		assertSoftly(softly -> {
-			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).as("daily").isZero();
-			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.MONTHLY)).as("monthly").isEqualTo(20);
+			softly.assertThat(usage(id, QuotaPeriod.DAILY)).as("daily").isZero();
+			softly.assertThat(usage(id, QuotaPeriod.MONTHLY)).as("monthly").isEqualTo(20);
 		});
 	}
 
 	@Test
 	void adjustUsageAddsAndSubtracts() {
-		var id = uniqueId();
+		var id = defined(QuotaPeriod.DAILY, 100);
 		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 50);
 
-		assertThat(quotaManager.adjustUsage(id, QuotaPeriod.DAILY, -20)).isEqualTo(30);
-		assertThat(quotaManager.adjustUsage(id, QuotaPeriod.DAILY, 5)).isEqualTo(35);
-		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isEqualTo(35);
+		assertThat(quotaManager.adjustUsage(id, -20)).isEqualTo(30);
+		assertThat(quotaManager.adjustUsage(id, 5)).isEqualTo(35);
+		assertThat(usage(id, QuotaPeriod.DAILY)).isEqualTo(35);
 	}
 
 	@Test
 	void adjustUsageNeverGoesBelowZero() {
-		var id = uniqueId();
+		var id = defined(QuotaPeriod.DAILY, 100);
 		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 10);
 
-		assertThat(quotaManager.adjustUsage(id, QuotaPeriod.DAILY, -100)).isZero();
-		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isZero();
+		assertThat(quotaManager.adjustUsage(id, -100)).isZero();
+		assertThat(usage(id, QuotaPeriod.DAILY)).isZero();
 	}
 
 	@Test
 	void refundLetsPreviouslyRejectedRequestThrough() {
-		var id = uniqueId();
+		var id = defined(QuotaPeriod.DAILY, 100);
 		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
 		quotaManager.checkAndIncrement(id, config, 100);
 		assertThat(quotaManager.checkAndIncrement(id, config, 10).allowed()).isFalse();
 
-		quotaManager.adjustUsage(id, QuotaPeriod.DAILY, -10);
+		quotaManager.adjustUsage(id, -10);
 
 		assertThat(quotaManager.checkAndIncrement(id, config, 10))
 				.returns(true, QuotaStatus::allowed)
@@ -325,22 +325,22 @@ class QuotaManagerIT {
 
 	@Test
 	void adjustUsageOnNewIdStartsFromZeroAndExpiresWithPeriod() {
-		var id = uniqueId();
+		var id = defined(QuotaPeriod.DAILY, 100);
 
-		assertThat(quotaManager.adjustUsage(id, QuotaPeriod.DAILY, 3)).isEqualTo(3);
+		assertThat(quotaManager.adjustUsage(id, 3)).isEqualTo(3);
 
 		assertExpiresOneHourAfterDailyReset(id);
 	}
 
 	@Test
 	void setUsageOverwritesUsage() {
-		var id = uniqueId();
+		var id = defined(QuotaPeriod.DAILY, 100);
 		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
 		quotaManager.checkAndIncrement(id, config, 10);
 
-		quotaManager.setUsage(id, QuotaPeriod.DAILY, 80);
+		quotaManager.setUsage(id, 80);
 
-		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isEqualTo(80);
+		assertThat(usage(id, QuotaPeriod.DAILY)).isEqualTo(80);
 		assertThat(quotaManager.checkAndIncrement(id, config, 30))
 				.returns(false, QuotaStatus::allowed)
 				.returns(80, QuotaStatus::used)
@@ -350,12 +350,12 @@ class QuotaManagerIT {
 
 	@Test
 	void setUsageRejectsNegativeUsage() {
-		var id = uniqueId();
+		var id = defined(QuotaPeriod.DAILY, 100);
 
 		assertThatIllegalArgumentException()
-				.isThrownBy(() -> quotaManager.setUsage(id, QuotaPeriod.DAILY, -1))
+				.isThrownBy(() -> quotaManager.setUsage(id, -1))
 				.withMessageContaining("-1");
-		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isZero();
+		assertThat(usage(id, QuotaPeriod.DAILY)).isZero();
 	}
 
 	@Test
@@ -370,7 +370,7 @@ class QuotaManagerIT {
 				.isEqualTo(afterRequest)
 				.isEqualTo(new QuotaStatus(true, 100, 30, 70, OffsetDateTime.parse("2026-10-15T00:00+02:00").toInstant()));
 		assertThat(quotaManager.getStatus(id, config)).as("repeated call").isEqualTo(status);
-		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isEqualTo(30);
+		assertThat(usage(id, QuotaPeriod.DAILY)).isEqualTo(30);
 	}
 
 	@Test
@@ -394,8 +394,8 @@ class QuotaManagerIT {
 
 	@Test
 	void getStatusAfterSetUsageAboveLimitReportsNothingRemaining() {
-		var id = uniqueId();
-		quotaManager.setUsage(id, QuotaPeriod.DAILY, 150);
+		var id = defined(QuotaPeriod.DAILY, 100);
+		quotaManager.setUsage(id, 150);
 
 		assertThat(quotaManager.getStatus(id, new QuotaConfig(100, QuotaPeriod.DAILY)))
 				.returns(false, QuotaStatus::allowed)
@@ -451,17 +451,50 @@ class QuotaManagerIT {
 
 	@Test
 	void resetQuotaKeepsLastUsed() {
-		var id = uniqueId();
+		var id = defined(QuotaPeriod.DAILY, 100);
 		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 1);
 
-		quotaManager.resetQuota(id, QuotaPeriod.DAILY);
+		quotaManager.resetQuota(id);
 
 		assertThat(quotaManager.getLastUsed(id)).contains(NOW.toInstant());
 	}
 
 	@Test
-	void usageIsZeroForUnknownUser() {
-		assertThat(quotaManager.getUsage(uniqueId(), QuotaPeriod.MONTHLY)).isZero();
+	void usageIsZeroBeforeFirstRequest() {
+		assertThat(quotaManager.getUsage(defined(QuotaPeriod.MONTHLY, 100))).isZero();
+	}
+
+	@Test
+	void usageOfStoredPeriodIsReported() {
+		var id = defined(QuotaPeriod.WEEKLY, 100);
+		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.WEEKLY), 7);
+		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 3);
+
+		assertThat(quotaManager.getUsage(id)).isEqualTo(7);
+	}
+
+	@Test
+	void perIdMethodsRequireStoredDefinition() {
+		var id = uniqueId();
+
+		assertSoftly(softly -> {
+			softly.assertThatThrownBy(() -> quotaManager.getUsage(id)).isInstanceOf(IllegalArgumentException.class);
+			softly.assertThatThrownBy(() -> quotaManager.resetQuota(id)).isInstanceOf(IllegalArgumentException.class);
+			softly.assertThatThrownBy(() -> quotaManager.adjustUsage(id, 1)).isInstanceOf(IllegalArgumentException.class);
+			softly.assertThatThrownBy(() -> quotaManager.setUsage(id, 1)).isInstanceOf(IllegalArgumentException.class);
+		});
+	}
+
+	// Stores a quota for a new id; the per-id methods use its period
+	private String defined(QuotaPeriod period, int limit) {
+		var id = uniqueId();
+		quotaDefinitionRepository.save(new QuotaDefinition(id, period, limit));
+		return id;
+	}
+
+	// Usage in the given period, read through the explicit config, which needs no stored definition
+	private int usage(String id, QuotaPeriod period) {
+		return quotaManager.getStatus(id, new QuotaConfig(Integer.MAX_VALUE, period)).used();
 	}
 
 	private QuotaManager managerAt(Instant instant) {

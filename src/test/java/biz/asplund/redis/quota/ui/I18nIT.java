@@ -80,7 +80,8 @@ class I18nIT extends SpringBrowserlessTest {
 		assertThat(find(TextField.class).withPlaceholder("Filtrera på id").exists()).isTrue();
 		assertThat(find(Button.class).withText("Ny kvot").exists()).isTrue();
 		var columns = grid().getColumns();
-		assertThat(columns.get(1).getHeaderText()).isEqualTo("Timme");
+		assertThat(columns.get(1).getHeaderText()).isEqualTo("Period");
+		assertThat(columns.get(2).getHeaderText()).isEqualTo("Förbrukning");
 		assertThat(columns.getLast().getHeaderText()).isEqualTo("Senast använd");
 
 		pickLanguage("English");
@@ -97,7 +98,7 @@ class I18nIT extends SpringBrowserlessTest {
 		pickLanguage("Svenska");
 
 		var editor = find(QuotaEditor.class).single();
-		assertThat(find(IntegerField.class, editor).withLabel("Gräns per timme").exists()).isTrue();
+		assertThat(find(IntegerField.class, editor).withLabel("Gräns").exists()).isTrue();
 		assertThat(find(Button.class, editor).withText("Spara").exists()).isTrue();
 	}
 

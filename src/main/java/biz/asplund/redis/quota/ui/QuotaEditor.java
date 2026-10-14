@@ -38,17 +38,15 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.progressbar.ProgressBarVariant;
+import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.TextField;
 import org.springframework.dao.DataAccessException;
 
 import java.time.format.DateTimeFormatter;
-import java.util.EnumMap;
-import java.util.Locale;
-import java.util.Map;
 import java.util.function.Consumer;
 
-// Detail panel for creating or editing one quota definition and managing its usage
+// Detail panel for creating or editing one quota definition, a limit for a single period, and managing its usage
 class QuotaEditor extends VerticalLayout {
 
     private final QuotaRow row;
@@ -59,7 +57,8 @@ class QuotaEditor extends VerticalLayout {
     private final Consumer<QuotaDefinition> onDeleted;
 
     private final TextField idField = new TextField();
-    private final Map<QuotaPeriod, IntegerField> limitFields = new EnumMap<>(QuotaPeriod.class);
+    private final Select<QuotaPeriod> periodField = new Select<>();
+    private final IntegerField limitField = new IntegerField();
 
     QuotaEditor(QuotaRow row, QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager,
             DateTimeFormatter dateTimeFormatter, Consumer<QuotaDefinition> onSaved,
@@ -88,11 +87,11 @@ class QuotaEditor extends VerticalLayout {
                     row.lastUsed().map(dateTimeFormatter::format).orElse(getTranslation("quotas.never")))));
         }
 
-        add(createLimitsForm());
+        add(createQuotaForm());
 
-        if (row != null && !row.statuses().isEmpty()) {
+        if (row != null) {
             add(new H4(getTranslation("editor.currentUsage")));
-            row.statuses().forEach((period, status) -> add(createUsageCard(period, status)));
+            add(createUsageCard(row.definition().period(), row.status()));
         }
     }
 
@@ -101,7 +100,7 @@ class QuotaEditor extends VerticalLayout {
         return row == null ? null : row.id();
     }
 
-    private Component createLimitsForm() {
+    private Component createQuotaForm() {
         var form = new FormLayout();
         form.setAutoResponsive(true);
 
@@ -111,18 +110,24 @@ class QuotaEditor extends VerticalLayout {
             idField.setWidthFull();
             form.add(idField);
         }
-        for (var period : QuotaPeriod.values()) {
-            var field = new IntegerField(getTranslation("limit." + period.name().toLowerCase(Locale.ROOT)));
-            field.setMin(0);
-            field.setStepButtonsVisible(false);
-            field.setPlaceholder(getTranslation("editor.noLimit"));
-            field.setClearButtonVisible(true);
-            if (row != null) {
-                field.setValue(row.limits().get(period));
-            }
-            limitFields.put(period, field);
-            form.add(field);
+
+        periodField.setLabel(getTranslation("editor.period"));
+        periodField.setItems(QuotaPeriod.values());
+        periodField.setItemLabelGenerator(QuotaView::label);
+        periodField.setRequiredIndicatorVisible(true);
+
+        limitField.setLabel(getTranslation("editor.limit"));
+        limitField.setMin(0);
+        limitField.setStepButtonsVisible(false);
+        limitField.setRequiredIndicatorVisible(true);
+
+        if (row != null) {
+            periodField.setValue(row.definition().period());
+            // Usage is counted per period, so a new period starts from zero
+            periodField.setHelperText(getTranslation("editor.periodChangeHint"));
+            limitField.setValue(row.definition().limit());
         }
+        form.add(periodField, limitField);
 
         var save = new Button(getTranslation("editor.save"), _ -> save());
         save.addThemeVariants(ButtonVariant.PRIMARY);
@@ -133,7 +138,7 @@ class QuotaEditor extends VerticalLayout {
             buttons.add(delete);
         }
 
-        var layout = new VerticalLayout(new H4(getTranslation("editor.limits")), form, buttons);
+        var layout = new VerticalLayout(new H4(getTranslation("editor.quota")), form, buttons);
         layout.setPadding(false);
         return layout;
     }
@@ -161,10 +166,10 @@ class QuotaEditor extends VerticalLayout {
                 usageField.setErrorMessage(getTranslation("usage.invalid"));
                 return;
             }
-            modifyUsage(period, () -> quotaManager.setUsage(row.id(), period, usageField.getValue()));
+            modifyUsage(period, () -> quotaManager.setUsage(row.id(), usageField.getValue()));
         });
         var reset = new Button(getTranslation("usage.reset"), VaadinIcon.ROTATE_LEFT.create(),
-                _ -> modifyUsage(period, () -> quotaManager.resetQuota(row.id(), period)));
+                _ -> modifyUsage(period, () -> quotaManager.resetQuota(row.id())));
         reset.addThemeVariants(ButtonVariant.TERTIARY);
 
         var actions = new HorizontalLayout(usageField, set, reset);
@@ -191,13 +196,18 @@ class QuotaEditor extends VerticalLayout {
             return;
         }
 
-        var limits = new EnumMap<QuotaPeriod, Integer>(QuotaPeriod.class);
-        limitFields.forEach((period, field) -> {
-            if (field.getValue() != null) {
-                limits.put(period, field.getValue());
-            }
-        });
-        if (limitFields.values().stream().anyMatch(IntegerField::isInvalid)) {
+        var valid = true;
+        if (periodField.getValue() == null) {
+            periodField.setInvalid(true);
+            periodField.setErrorMessage(getTranslation("editor.periodRequired"));
+            valid = false;
+        }
+        if (limitField.getValue() == null || limitField.getValue() < 0) {
+            limitField.setInvalid(true);
+            limitField.setErrorMessage(getTranslation("editor.limitRequired"));
+            valid = false;
+        }
+        if (!valid) {
             return;
         }
 
@@ -207,7 +217,8 @@ class QuotaEditor extends VerticalLayout {
                 idField.setErrorMessage(getTranslation("editor.idExists"));
                 return;
             }
-            var definition = quotaDefinitionRepository.save(new QuotaDefinition(id, limits));
+            var definition = quotaDefinitionRepository.save(
+                    new QuotaDefinition(id, periodField.getValue(), limitField.getValue()));
             notify(getTranslation("editor.saved", id), NotificationVariant.SUCCESS);
             onSaved.accept(definition);
         } catch (DataAccessException e) {

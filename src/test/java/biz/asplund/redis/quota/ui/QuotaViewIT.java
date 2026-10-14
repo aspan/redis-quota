@@ -31,6 +31,8 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridTester;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.select.SelectTester;
 import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.component.textfield.IntegerField;
@@ -44,7 +46,6 @@ import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.security.test.context.support.WithMockUser;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -88,30 +89,37 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void listsDefinitionsWithUsage() {
-		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, Map.of(QuotaPeriod.HOURLY, 10, QuotaPeriod.DAILY, 100)));
-		quotaManager.setUsage(id, QuotaPeriod.HOURLY, 10);
-		quotaManager.setUsage(id, QuotaPeriod.DAILY, 85);
+		var full = uniqueId();
+		var nearlyFull = uniqueId();
+		quotaDefinitionRepository.save(new QuotaDefinition(full, QuotaPeriod.HOURLY, 10));
+		quotaDefinitionRepository.save(new QuotaDefinition(nearlyFull, QuotaPeriod.DAILY, 100));
+		quotaManager.setUsage(full, 10);
+		quotaManager.setUsage(nearlyFull, 85);
 
 		navigate(QuotaView.class);
 		var grid = grid();
-		var row = rowOf(grid, id);
 
-		var hourly = (Badge) grid.getCellComponent(row, 1);
-		assertThat(hourly.getText()).isEqualTo("10 / 10");
-		assertThat(hourly.getThemeNames()).contains(BadgeVariant.ERROR.getVariantName());
-		var daily = (Badge) grid.getCellComponent(row, 2);
-		assertThat(daily.getText()).isEqualTo("85 / 100");
-		assertThat(daily.getThemeNames()).contains(BadgeVariant.WARNING.getVariantName());
-		assertThat(grid.getCellText(row, 6)).isEqualTo("Never");
+		var fullRow = rowOf(grid, full);
+		assertThat(grid.getCellText(fullRow, 1)).isEqualTo("Hourly");
+		var fullUsage = (Badge) grid.getCellComponent(fullRow, 2);
+		assertThat(fullUsage.getText()).isEqualTo("10 / 10");
+		assertThat(fullUsage.getThemeNames()).contains(BadgeVariant.ERROR.getVariantName());
+		assertThat(grid.getCellText(fullRow, 3)).isNotBlank();
+		assertThat(grid.getCellText(fullRow, 4)).isEqualTo("Never");
+
+		var nearlyFullRow = rowOf(grid, nearlyFull);
+		assertThat(grid.getCellText(nearlyFullRow, 1)).isEqualTo("Daily");
+		var nearlyFullUsage = (Badge) grid.getCellComponent(nearlyFullRow, 2);
+		assertThat(nearlyFullUsage.getText()).isEqualTo("85 / 100");
+		assertThat(nearlyFullUsage.getThemeNames()).contains(BadgeVariant.WARNING.getVariantName());
 	}
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void filtersById() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, Map.of(QuotaPeriod.HOURLY, 10)));
-		quotaDefinitionRepository.save(new QuotaDefinition(uniqueId(), Map.of(QuotaPeriod.HOURLY, 10)));
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
+		quotaDefinitionRepository.save(new QuotaDefinition(uniqueId(), QuotaPeriod.HOURLY, 10));
 
 		navigate(QuotaView.class);
 		test(find(TextField.class).withPlaceholder("Filter by id").single()).setValue(id.toUpperCase());
@@ -130,78 +138,99 @@ class QuotaViewIT extends SpringBrowserlessTest {
 		test(find(Button.class).withText("New quota").single()).click();
 		var editor = find(QuotaEditor.class).single();
 		test(find(TextField.class, editor).withLabel("Id").single()).setValue(id);
-		test(find(IntegerField.class, editor).withLabel("Hourly limit").single()).setValue(10);
-		test(find(IntegerField.class, editor).withLabel("Monthly limit").single()).setValue(1000);
+		periodField(editor).selectItem("Monthly");
+		test(limitField(editor)).setValue(1000);
 		test(find(Button.class, editor).withText("Save").single()).click();
 
-		assertThat(quotaDefinitionRepository.findById(id)).get()
-				.extracting(QuotaDefinition::limits)
-				.isEqualTo(Map.of(QuotaPeriod.HOURLY, 10, QuotaPeriod.MONTHLY, 1000));
+		assertThat(quotaDefinitionRepository.findById(id)).contains(new QuotaDefinition(id, QuotaPeriod.MONTHLY, 1000));
 		assertThat(notifications()).contains("Quota " + id + " saved");
 		assertThat(grid().getSelected()).extracting(QuotaRow::id).containsExactly(id);
 	}
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
+	void requiresPeriodAndLimit() {
+		var id = uniqueId();
+		navigate(QuotaView.class);
+
+		test(find(Button.class).withText("New quota").single()).click();
+		var editor = find(QuotaEditor.class).single();
+		test(find(TextField.class, editor).withLabel("Id").single()).setValue(id);
+		test(find(Button.class, editor).withText("Save").single()).click();
+
+		var period = find(Select.class, editor).withLabel("Period").single();
+		assertThat(period.isInvalid()).isTrue();
+		assertThat(period.getErrorMessage()).isEqualTo("Choose a period");
+		assertThat(limitField(editor).isInvalid()).isTrue();
+		assertThat(limitField(editor).getErrorMessage()).isEqualTo("Enter a limit of 0 or more");
+		assertThat(quotaDefinitionRepository.existsById(id)).isFalse();
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
 	void rejectsDuplicateId() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, Map.of(QuotaPeriod.HOURLY, 10)));
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
 		navigate(QuotaView.class);
 
 		test(find(Button.class).withText("New quota").single()).click();
 		var editor = find(QuotaEditor.class).single();
 		var idField = find(TextField.class, editor).withLabel("Id").single();
 		test(idField).setValue(id);
-		test(find(IntegerField.class, editor).withLabel("Hourly limit").single()).setValue(99);
+		periodField(editor).selectItem("Daily");
+		test(limitField(editor)).setValue(99);
 		test(find(Button.class, editor).withText("Save").single()).click();
 
 		assertThat(idField.isInvalid()).isTrue();
 		assertThat(idField.getErrorMessage()).isEqualTo("A quota with this id already exists");
-		assertThat(quotaDefinitionRepository.findById(id)).get()
-				.extracting(QuotaDefinition::limits).isEqualTo(Map.of(QuotaPeriod.HOURLY, 10));
+		assertThat(quotaDefinitionRepository.findById(id)).contains(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
 	}
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
-	void changesLimits() {
+	void changesPeriodAndLimit() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, Map.of(QuotaPeriod.HOURLY, 10, QuotaPeriod.DAILY, 100)));
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
 		var editor = openEditor(id);
 
-		test(find(IntegerField.class, editor).withLabel("Hourly limit").single()).setValue(20);
-		test(find(IntegerField.class, editor).withLabel("Daily limit").single()).clear();
+		var period = periodField(editor);
+		assertThat(period.getSelected()).isEqualTo(QuotaPeriod.HOURLY);
+		assertThat(find(Select.class, editor).withLabel("Period").single().getHelperText())
+				.isEqualTo("Changing the period starts counting usage from zero");
+		period.selectItem("Daily");
+		test(limitField(editor)).setValue(20);
 		test(find(Button.class, editor).withText("Save").single()).click();
 
-		assertThat(quotaDefinitionRepository.findById(id)).get()
-				.extracting(QuotaDefinition::limits).isEqualTo(Map.of(QuotaPeriod.HOURLY, 20));
+		assertThat(quotaDefinitionRepository.findById(id)).contains(new QuotaDefinition(id, QuotaPeriod.DAILY, 20));
+		assertThat(usageCard(find(QuotaEditor.class).single(), "Daily")).isNotNull();
 	}
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void setsAndResetsUsage() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, Map.of(QuotaPeriod.HOURLY, 10)));
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
 		var editor = openEditor(id);
 
 		var card = usageCard(editor, "Hourly");
 		test(find(IntegerField.class, card).single()).setValue(7);
 		test(find(Button.class, card).withText("Set").single()).click();
 
-		assertThat(quotaManager.getUsage(id, QuotaPeriod.HOURLY)).isEqualTo(7);
+		assertThat(quotaManager.getUsage(id)).isEqualTo(7);
 		// Saving usage rebuilds the editor with the new status
 		var refreshedCard = usageCard(find(QuotaEditor.class).single(), "Hourly");
 		assertThat(refreshedCard.getSubtitle().getElement().getText()).isEqualTo("7 of 10 used, 3 left");
 
 		test(find(Button.class, refreshedCard).withText("Reset").single()).click();
 
-		assertThat(quotaManager.getUsage(id, QuotaPeriod.HOURLY)).isZero();
+		assertThat(quotaManager.getUsage(id)).isZero();
 	}
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void deletesDefinitionAfterConfirmation() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, Map.of(QuotaPeriod.HOURLY, 10)));
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
 		var editor = openEditor(id);
 
 		test(find(Button.class, editor).withText("Delete").single()).click();
@@ -221,6 +250,15 @@ class QuotaViewIT extends SpringBrowserlessTest {
 		var grid = grid();
 		grid.select(rowOf(grid, id));
 		return find(QuotaEditor.class).single();
+	}
+
+	@SuppressWarnings("unchecked")
+	private SelectTester<Select<QuotaPeriod>, QuotaPeriod> periodField(QuotaEditor editor) {
+		return test((Select<QuotaPeriod>) find(Select.class, editor).withLabel("Period").single());
+	}
+
+	private IntegerField limitField(QuotaEditor editor) {
+		return find(IntegerField.class, editor).withLabel("Limit").single();
 	}
 
 	private Card usageCard(QuotaEditor editor, String title) {

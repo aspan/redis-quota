@@ -16,37 +16,22 @@
 
 package biz.asplund.redis.quota.ui;
 
-import biz.asplund.redis.quota.QuotaConfig;
 import biz.asplund.redis.quota.QuotaDefinition;
 import biz.asplund.redis.quota.QuotaManager;
-import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.quota.QuotaStatus;
 
 import java.time.Instant;
-import java.util.EnumMap;
-import java.util.Map;
 import java.util.Optional;
 
-// A quota definition with its current status per defined period, read once per refresh
-record QuotaRow(QuotaDefinition definition, Map<QuotaPeriod, QuotaStatus> statuses, Optional<Instant> lastUsed) {
+// A quota definition with its current status, read once per refresh
+record QuotaRow(QuotaDefinition definition, QuotaStatus status, Optional<Instant> lastUsed) {
 
     static QuotaRow load(QuotaDefinition definition, QuotaManager quotaManager) {
-        var statuses = new EnumMap<QuotaPeriod, QuotaStatus>(QuotaPeriod.class);
-        limits(definition).forEach((period, limit) ->
-                statuses.put(period, quotaManager.getStatus(definition.id(), new QuotaConfig(limit, period))));
-        return new QuotaRow(definition, statuses, quotaManager.getLastUsed(definition.id()));
+        return new QuotaRow(definition, quotaManager.getStatus(definition.id(), definition.config()),
+                quotaManager.getLastUsed(definition.id()));
     }
 
     String id() {
         return definition.id();
-    }
-
-    Map<QuotaPeriod, Integer> limits() {
-        return limits(definition);
-    }
-
-    // A definition saved without limits is read back with a null map
-    private static Map<QuotaPeriod, Integer> limits(QuotaDefinition definition) {
-        return definition.limits() != null ? definition.limits() : Map.of();
     }
 }

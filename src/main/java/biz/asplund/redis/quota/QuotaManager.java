@@ -69,8 +69,9 @@ public class QuotaManager {
         this.clock = clock;
     }
 
-    public QuotaStatus checkAndIncrement(String id, QuotaPeriod period, int amount) {
-        return withStoredLimit(id, period, config -> checkAndIncrement(id, config, amount));
+    // Uses the period and limit stored for the id in its QuotaDefinition
+    public QuotaStatus checkAndIncrement(String id, int amount) {
+        return withDefinition(id, config -> checkAndIncrement(id, config, amount));
     }
 
     public QuotaStatus checkAndIncrement(String id, QuotaConfig config, int amount) {
@@ -128,24 +129,24 @@ public class QuotaManager {
         return new QuotaStatus(false, config.limit(), 0, 0, resetAt);
     }
 
-    public QuotaStatus getStatus(String id, QuotaPeriod period) {
-        return withStoredLimit(id, period, config -> getStatus(id, config));
+    // Current status for the stored definition, without consuming quota
+    public QuotaStatus getStatus(String id) {
+        return withDefinition(id, config -> getStatus(id, config));
     }
 
     // Current status without consuming quota; allowed means at least one unit is left
     public QuotaStatus getStatus(String id, QuotaConfig config) {
-        var used = getUsage(id, config.period());
+        var used = readUsage(id, config.period());
         return new QuotaStatus(used < config.limit(), config.limit(), used,
                 Math.max(0, config.limit() - used), getResetTime(config.period()));
     }
 
-    public int getUsage(String id, QuotaPeriod period) {
+    // Usage in the current period of the stored definition
+    public int getUsage(String id) {
         try {
-            var key = getPeriodKey(id, period);
-            var value = redisTemplate.opsForValue().get(key);
-            return value != null ? Integer.parseInt(value) : 0;
-        } catch (Exception e) {
-            LOGGER.error("Redis error in getUsage for id {}", id, e);
+            return readUsage(id, definition(id).period());
+        } catch (DataAccessException e) {
+            LOGGER.error("Redis error loading quota definition for id {}", id, e);
             return 0;
         }
     }
@@ -160,11 +161,14 @@ public class QuotaManager {
         }
     }
 
-    public void resetQuota(String id, QuotaPeriod period) {
-        redisTemplate.delete(getPeriodKey(id, period));
+    // Clears the usage in the current period of the stored definition
+    public void resetQuota(String id) {
+        redisTemplate.delete(getPeriodKey(id, definition(id).period()));
     }
 
-    public int adjustUsage(String id, QuotaPeriod period, int delta) {
+    // Adds a (possibly negative) delta to the usage in the current period of the stored definition
+    public int adjustUsage(String id, int delta) {
+        var period = definition(id).period();
         var usage = redisTemplate.execute(
             ADJUST_USAGE_SCRIPT,
             Collections.singletonList(getPeriodKey(id, period)),
@@ -174,27 +178,41 @@ public class QuotaManager {
         return usage.intValue();
     }
 
-    public void setUsage(String id, QuotaPeriod period, int usage) {
+    // Overwrites the usage in the current period of the stored definition
+    public void setUsage(String id, int usage) {
         if (usage < 0) {
             throw new IllegalArgumentException("usage must not be negative: " + usage);
         }
+        var period = definition(id).period();
         redisTemplate.opsForValue().set(getPeriodKey(id, period), String.valueOf(usage),
             Duration.ofSeconds(getTTL(period)));
     }
 
-    private QuotaStatus withStoredLimit(String id, QuotaPeriod period, Function<QuotaConfig, QuotaStatus> action) {
-        int limit;
+    private QuotaStatus withDefinition(String id, Function<QuotaConfig, QuotaStatus> action) {
+        QuotaConfig config;
         try {
-            limit = quotaDefinitionRepository.findById(id)
-                .map(definition -> definition.limits().get(period))
-                .orElseThrow(() -> new IllegalArgumentException(
-                    "No " + period + " quota defined for id " + id));
+            config = definition(id).config();
         } catch (DataAccessException e) {
-            // Fail open in case of Redis issues; the limit is unknown
+            // Fail open in case of Redis issues; the limit and period are unknown, so the status resets now
             LOGGER.error("Redis error loading quota definition for id {}, failing open", id, e);
-            return new QuotaStatus(true, 0, 0, 0, getResetTime(period));
+            return new QuotaStatus(true, 0, 0, 0, clock.instant());
         }
-        return action.apply(new QuotaConfig(limit, period));
+        return action.apply(config);
+    }
+
+    private QuotaDefinition definition(String id) {
+        return quotaDefinitionRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("No quota defined for id " + id));
+    }
+
+    private int readUsage(String id, QuotaPeriod period) {
+        try {
+            var value = redisTemplate.opsForValue().get(getPeriodKey(id, period));
+            return value != null ? Integer.parseInt(value) : 0;
+        } catch (Exception e) {
+            LOGGER.error("Redis error reading usage for id {}", id, e);
+            return 0;
+        }
     }
 
     private String getPeriodKey(String id, QuotaPeriod period) {

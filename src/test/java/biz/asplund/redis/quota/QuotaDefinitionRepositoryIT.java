@@ -22,7 +22,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.redis.test.autoconfigure.DataRedisTest;
 import org.springframework.context.annotation.Import;
 
-import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,8 +35,7 @@ class QuotaDefinitionRepositoryIT {
 
 	@Test
 	void savesAndFindsDefinitionById() {
-		var definition = new QuotaDefinition(uniqueId(),
-				Map.of(QuotaPeriod.HOURLY, 100, QuotaPeriod.MONTHLY, 10_000));
+		var definition = new QuotaDefinition(uniqueId(), QuotaPeriod.MONTHLY, 10_000);
 
 		repository.save(definition);
 
@@ -47,9 +45,9 @@ class QuotaDefinitionRepositoryIT {
 	@Test
 	void saveReplacesExistingDefinition() {
 		var id = uniqueId();
-		repository.save(new QuotaDefinition(id, Map.of(QuotaPeriod.DAILY, 100)));
+		repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
 
-		var updated = new QuotaDefinition(id, Map.of(QuotaPeriod.WEEKLY, 500));
+		var updated = new QuotaDefinition(id, QuotaPeriod.WEEKLY, 500);
 		repository.save(updated);
 
 		assertThat(repository.findById(id)).contains(updated);
@@ -58,7 +56,7 @@ class QuotaDefinitionRepositoryIT {
 	@Test
 	void deleteRemovesDefinition() {
 		var id = uniqueId();
-		repository.save(new QuotaDefinition(id, Map.of(QuotaPeriod.DAILY, 100)));
+		repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
 
 		repository.deleteById(id);
 

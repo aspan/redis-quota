@@ -28,7 +28,6 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
-import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.masterdetaillayout.MasterDetailLayout;
 import com.vaadin.flow.component.notification.Notification;
@@ -55,10 +54,8 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
@@ -80,7 +77,9 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     private final MasterDetailLayout masterDetail = new MasterDetailLayout();
 
     private Grid.Column<QuotaRow> idColumn;
-    private final Map<QuotaPeriod, Grid.Column<QuotaRow>> periodColumns = new EnumMap<>(QuotaPeriod.class);
+    private Grid.Column<QuotaRow> periodColumn;
+    private Grid.Column<QuotaRow> usageColumn;
+    private Grid.Column<QuotaRow> resetsColumn;
     private Grid.Column<QuotaRow> lastUsedColumn;
 
     private List<QuotaRow> rows = List.of();
@@ -115,7 +114,9 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         addButton.setText(getTranslation("quotas.new"));
 
         idColumn.setHeader(getTranslation("quotas.column.id"));
-        periodColumns.forEach((period, column) -> column.setHeader(label(period)));
+        periodColumn.setHeader(getTranslation("quotas.column.period"));
+        usageColumn.setHeader(getTranslation("quotas.column.usage"));
+        resetsColumn.setHeader(getTranslation("quotas.column.resets"));
         lastUsedColumn.setHeader(getTranslation("quotas.column.lastUsed"));
         grid.setEmptyStateText(getTranslation("quotas.empty"));
         grid.getDataProvider().refreshAll();
@@ -161,10 +162,10 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         // Headers are set in localeChange
         idColumn = grid.addColumn(QuotaRow::id).setSortable(true)
                 .setComparator(Comparator.comparing(QuotaRow::id)).setFlexGrow(2).setFrozen(true);
-        for (var period : QuotaPeriod.values()) {
-            periodColumns.put(period, grid.addColumn(new ComponentRenderer<>(row -> usageBadge(row.statuses().get(period))))
-                    .setTextAlign(ColumnTextAlign.END).setAutoWidth(true));
-        }
+        periodColumn = grid.addColumn(row -> label(row.definition().period())).setAutoWidth(true);
+        usageColumn = grid.addColumn(new ComponentRenderer<>(row -> usageBadge(row.status())))
+                .setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
+        resetsColumn = grid.addColumn(row -> dateTimeFormatter.format(row.status().resetAt())).setAutoWidth(true);
         lastUsedColumn = grid.addColumn(row -> row.lastUsed().map(dateTimeFormatter::format)
                         .orElse(getTranslation("quotas.never")))
                 .setAutoWidth(true);
@@ -184,9 +185,6 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     }
 
     private Component usageBadge(QuotaStatus status) {
-        if (status == null) {
-            return new Span("—");
-        }
         var badge = new Badge(status.used() + " / " + status.limit());
         if (status.used() >= status.limit()) {
             badge.addThemeVariants(BadgeVariant.ERROR);

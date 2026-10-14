@@ -69,9 +69,10 @@ class QuotaManagerFailOpenIT {
 
 	@Test
 	void checkAndIncrementWithStoredDefinitionAllowsRequestWhenRedisIsDown() {
-		var status = quotaManager.checkAndIncrement("user", QuotaPeriod.DAILY, 10);
+		var status = quotaManager.checkAndIncrement("user", 10);
 
-		assertThat(status).isEqualTo(new QuotaStatus(true, 0, 0, 0, Instant.parse("2026-10-15T00:00:00Z")));
+		// The stored period is unknown, so the status resets now
+		assertThat(status).isEqualTo(new QuotaStatus(true, 0, 0, 0, NOW));
 	}
 
 	@Test
@@ -80,13 +81,13 @@ class QuotaManagerFailOpenIT {
 
 		assertThat(quotaManager.getStatus("user", new QuotaConfig(100, QuotaPeriod.DAILY)))
 				.isEqualTo(new QuotaStatus(true, 100, 0, 100, reset));
-		assertThat(quotaManager.getStatus("user", QuotaPeriod.DAILY))
-				.isEqualTo(new QuotaStatus(true, 0, 0, 0, reset));
+		assertThat(quotaManager.getStatus("user"))
+				.isEqualTo(new QuotaStatus(true, 0, 0, 0, NOW));
 	}
 
 	@Test
 	void getUsageReturnsZeroWhenRedisIsDown() {
-		assertThat(quotaManager.getUsage("user", QuotaPeriod.DAILY)).isZero();
+		assertThat(quotaManager.getUsage("user")).isZero();
 	}
 
 	@Test
@@ -97,11 +98,11 @@ class QuotaManagerFailOpenIT {
 	@Test
 	void writeOperationsFailWhenRedisIsDown() {
 		assertThatExceptionOfType(RedisConnectionFailureException.class)
-				.isThrownBy(() -> quotaManager.resetQuota("user", QuotaPeriod.DAILY));
+				.isThrownBy(() -> quotaManager.resetQuota("user"));
 		assertThatExceptionOfType(RedisConnectionFailureException.class)
-				.isThrownBy(() -> quotaManager.adjustUsage("user", QuotaPeriod.DAILY, -1));
+				.isThrownBy(() -> quotaManager.adjustUsage("user", -1));
 		assertThatExceptionOfType(RedisConnectionFailureException.class)
-				.isThrownBy(() -> quotaManager.setUsage("user", QuotaPeriod.DAILY, 0));
+				.isThrownBy(() -> quotaManager.setUsage("user", 0));
 	}
 
 	private static int unusedPort() {
