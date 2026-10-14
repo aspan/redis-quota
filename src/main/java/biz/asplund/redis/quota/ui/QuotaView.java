@@ -28,7 +28,6 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
-import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.masterdetaillayout.MasterDetailLayout;
@@ -40,9 +39,9 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.data.value.ValueChangeMode;
+import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.spring.security.AuthenticationContext;
 import jakarta.annotation.security.RolesAllowed;
 import org.springframework.dao.DataAccessException;
 
@@ -57,12 +56,12 @@ import java.util.stream.StreamSupport;
 
 @Route("")
 @PageTitle("Quotas")
+@Menu(title = "Quotas", icon = "vaadin:dashboard", order = 0)
 @RolesAllowed("ADMIN")
 public class QuotaView extends VerticalLayout {
 
     private final QuotaDefinitionRepository quotaDefinitionRepository;
     private final QuotaManager quotaManager;
-    private final AuthenticationContext authenticationContext;
     private final DateTimeFormatter dateTimeFormatter;
 
     private final Grid<QuotaRow> grid = new Grid<>();
@@ -71,11 +70,9 @@ public class QuotaView extends VerticalLayout {
 
     private List<QuotaRow> rows = List.of();
 
-    public QuotaView(QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager, Clock clock,
-            AuthenticationContext authenticationContext) {
+    public QuotaView(QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager, Clock clock) {
         this.quotaDefinitionRepository = quotaDefinitionRepository;
         this.quotaManager = quotaManager;
-        this.authenticationContext = authenticationContext;
         this.dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withZone(clock.getZone());
 
         setSizeFull();
@@ -94,9 +91,8 @@ public class QuotaView extends VerticalLayout {
     }
 
     private Component createMaster() {
-        var title = new H2("Quotas");
-
         filter.setPlaceholder("Filter by id");
+        filter.setWidth("20rem");
         filter.setPrefixComponent(VaadinIcon.SEARCH.create());
         filter.setClearButtonVisible(true);
         filter.setValueChangeMode(ValueChangeMode.LAZY);
@@ -113,15 +109,10 @@ public class QuotaView extends VerticalLayout {
         });
         add.addThemeVariants(ButtonVariant.PRIMARY);
 
-        var logout = new Button(VaadinIcon.SIGN_OUT.create(), _ -> authenticationContext.logout());
-        logout.setTooltipText("Log out " + authenticationContext.getPrincipalName().orElse(""));
-        logout.setAriaLabel("Log out");
-        logout.addThemeVariants(ButtonVariant.TERTIARY);
-
-        var toolbar = new HorizontalLayout(title, filter, refresh, add, logout);
+        var toolbar = new HorizontalLayout(filter, refresh, add);
         toolbar.setWidthFull();
         toolbar.setAlignItems(FlexComponent.Alignment.CENTER);
-        toolbar.expand(title);
+        add.getStyle().set("margin-inline-start", "auto");
 
         grid.addColumn(QuotaRow::id).setHeader("Id").setSortable(true)
                 .setComparator(Comparator.comparing(QuotaRow::id)).setFlexGrow(2).setFrozen(true);
