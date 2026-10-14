@@ -52,8 +52,8 @@ public class QuotaManager {
         this.clock = clock;
     }
 
-    public QuotaStatus checkAndIncrement(String userId, QuotaConfig config, int amount) {
-        var key = getPeriodKey(userId, config.period());
+    public QuotaStatus checkAndIncrement(String id, QuotaConfig config, int amount) {
+        var key = getPeriodKey(id, config.period());
         var ttl = getTTL(config.period());
         var resetAt = getResetTime(config.period());
 
@@ -96,7 +96,7 @@ public class QuotaManager {
             }
         } catch (Exception e) {
             // Fail open in case of Redis issues
-            LOGGER.error("Redis error in checkAndIncrement for user {}, failing open", userId, e);
+            LOGGER.error("Redis error in checkAndIncrement for id {}, failing open", id, e);
             return new QuotaStatus(true, config.limit(), 0, config.limit(), resetAt);
         }
 
@@ -104,18 +104,18 @@ public class QuotaManager {
         return new QuotaStatus(false, config.limit(), 0, 0, resetAt);
     }
 
-    public int getUsage(String userId, QuotaPeriod period) {
+    public int getUsage(String id, QuotaPeriod period) {
         try {
-            var key = getPeriodKey(userId, period);
+            var key = getPeriodKey(id, period);
             var value = redisTemplate.opsForValue().get(key);
             return value != null ? Integer.parseInt(value) : 0;
         } catch (Exception e) {
-            LOGGER.error("Redis error in getUsage for user {}", userId, e);
+            LOGGER.error("Redis error in getUsage for id {}", id, e);
             return 0;
         }
     }
 
-    private String getPeriodKey(String userId, QuotaPeriod period) {
+    private String getPeriodKey(String id, QuotaPeriod period) {
         var now = ZonedDateTime.now(clock);
         var today = now.toLocalDate();
 
@@ -130,7 +130,7 @@ public class QuotaManager {
             case YEARLY -> String.valueOf(today.getYear());
         };
 
-        return String.format(Locale.ROOT, "%s:%s:%s:%s", QUOTA_PREFIX, userId, period.name().toLowerCase(Locale.ROOT), periodId);
+        return String.format(Locale.ROOT, "%s:%s:%s:%s", QUOTA_PREFIX, id, period.name().toLowerCase(Locale.ROOT), periodId);
     }
 
     private int getTTL(QuotaPeriod period) {

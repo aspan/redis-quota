@@ -42,8 +42,8 @@ public class TestController {
 
     @GetMapping("/api/usage")
     public String getUsage(@RequestHeader(value = "X-API-Key", required = false) String apiKey) {
-        var userId = apiKey != null ? apiKey : "anonymous";
-        var usage = quotaManager.getUsage(userId, QuotaPeriod.MONTHLY);
-        return "Current monthly usage for " + userId + ": " + usage;
+        var id = apiKey != null ? apiKey : "anonymous";
+        var usage = quotaManager.getUsage(id, QuotaPeriod.MONTHLY);
+        return "Current monthly usage for " + id + ": " + usage;
     }
 }

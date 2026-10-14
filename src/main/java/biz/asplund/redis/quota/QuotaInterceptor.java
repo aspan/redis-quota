@@ -45,10 +45,10 @@ public class QuotaInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        var userId = keyExtractor.extractKey(request);
+        var id = keyExtractor.extractKey(request);
 
         try {
-            var status = quotaManager.checkAndIncrement(userId, config, 1);
+            var status = quotaManager.checkAndIncrement(id, config, 1);
 
             // Set response headers
             response.setHeader("X-Quota-Limit", String.valueOf(status.limit()));
@@ -76,7 +76,7 @@ public class QuotaInterceptor implements HandlerInterceptor {
             return true;
         } catch (Exception e) {
             // Fail open on error
-            LOGGER.error("Quota check error for user {}, failing open", userId, e);
+            LOGGER.error("Quota check error for id {}, failing open", id, e);
             return true;
         }
     }
