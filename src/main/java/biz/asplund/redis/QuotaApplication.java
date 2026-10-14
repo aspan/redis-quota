@@ -16,6 +16,10 @@
 
 package biz.asplund.redis;
 
+import com.vaadin.flow.component.page.AppShellConfigurator;
+import com.vaadin.flow.component.page.ColorScheme;
+import com.vaadin.flow.component.dependency.StyleSheet;
+import com.vaadin.flow.theme.aura.Aura;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -23,7 +27,9 @@ import org.springframework.context.annotation.Bean;
 import java.time.Clock;
 
 @SpringBootApplication
-public class QuotaApplication {
+@StyleSheet(Aura.STYLESHEET)
+@ColorScheme(ColorScheme.Value.LIGHT_DARK)
+public class QuotaApplication implements AppShellConfigurator {
 
 	public static void main(String[] args) {
 		SpringApplication.run(QuotaApplication.class, args);

@@ -93,6 +93,10 @@ When the quota is exhausted it responds with `429 Too Many Requests` and a JSON 
 ./mvnw spring-boot:test-run  # starts Redis in a Testcontainers container instead
 ```
 
+### Admin UI
+
+The application includes a Vaadin admin UI at <http://localhost:8080/>. It lists the stored quota definitions with current usage per period and the last-used time. Select a definition to change its limits or delete it, or to set or reset the usage of the current period. **New quota** creates a definition.
+
 ## Building and testing
 
 ```bash
