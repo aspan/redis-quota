@@ -83,7 +83,7 @@ public class QuotaManager {
                 String.valueOf(config.limit())
             );
 
-            if (result != null && result.size() >= 2) {
+            if (result.size() >= 2) {
                 var allowedFlag = ((Long) result.get(0)).intValue();
                 var currentUsage = ((Long) result.get(1)).intValue();
 
