@@ -38,7 +38,7 @@ class LanguageMenuButton extends PreferenceMenuButton<Locale> {
 
     @Override
     Locale current() {
-        return I18nConfiguration.supported(getLocale());
+        return languagePreference.supported(getLocale());
     }
 
     // Each language is named in itself, so it can be found whatever the current language is

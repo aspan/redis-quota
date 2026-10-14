@@ -33,18 +33,25 @@ import java.util.Locale;
 public class LanguagePreference {
 
     private final LocaleResolver localeResolver;
+    private final I18nProperties properties;
 
-    LanguagePreference(LocaleResolver localeResolver) {
+    LanguagePreference(LocaleResolver localeResolver, I18nProperties properties) {
         this.localeResolver = localeResolver;
+        this.properties = properties;
     }
 
     List<Locale> locales() {
-        return I18nConfiguration.LOCALES;
+        return properties.locales();
+    }
+
+    // A configured locale for the given one, such as sv for sv_SE, or the fallback
+    Locale supported(Locale locale) {
+        return properties.supported(locale);
     }
 
     // The stored choice, or else the best match for the browser's languages
     Locale resolve(HttpServletRequest request) {
-        return I18nConfiguration.supported(localeResolver.resolveLocale(request));
+        return properties.supported(localeResolver.resolveLocale(request));
     }
 
     // Switches every UI of the session, which notifies each LocaleChangeObserver, and remembers the choice

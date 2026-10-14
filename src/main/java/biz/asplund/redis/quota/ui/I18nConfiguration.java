@@ -22,29 +22,25 @@ import com.vaadin.flow.router.PageTitleGenerator;
 import com.vaadin.flow.server.VaadinRequest;
 import com.vaadin.flow.server.VaadinServiceInitListener;
 import com.vaadin.flow.server.VaadinServletRequest;
-import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.i18n.CookieLocaleResolver;
 
 import java.time.Duration;
-import java.util.List;
-import java.util.Locale;
 
-// Translations live in src/main/resources/vaadin-i18n. The language is the one picked in the UI,
-// remembered in a cookie by Spring's LocaleResolver, or else the best match for the browser's languages
+// Translations live in src/main/resources/vaadin-i18n, for the locales in I18nProperties. The language is the one
+// picked in the UI, remembered in a cookie by Spring's LocaleResolver, or else the best match for the browser's languages
 @Configuration
+@EnableConfigurationProperties(I18nProperties.class)
 public class I18nConfiguration {
-
-    // English comes first: it is the fallback for any language without translations
-    static final List<Locale> LOCALES = List.of(Locale.ENGLISH, Locale.of("sv"));
 
     static final String LOCALE_COOKIE = "locale";
 
     @Bean
-    I18NProvider i18nProvider() {
-        return new DefaultI18NProvider(LOCALES);
+    I18NProvider i18nProvider(I18nProperties properties) {
+        return new DefaultI18NProvider(properties.locales());
     }
 
     // Views declare their title as a translation key in @PageTitle
@@ -55,12 +51,12 @@ public class I18nConfiguration {
 
     // Named localeResolver so that Spring MVC uses it too
     @Bean
-    LocaleResolver localeResolver() {
+    LocaleResolver localeResolver(I18nProperties properties) {
         var localeResolver = new CookieLocaleResolver(LOCALE_COOKIE);
         localeResolver.setCookieMaxAge(Duration.ofDays(365));
         localeResolver.setCookieSameSite("Lax");
         localeResolver.setCookieHttpOnly(true);
-        localeResolver.setDefaultLocaleFunction(I18nConfiguration::fromAcceptLanguage);
+        localeResolver.setDefaultLocaleFunction(properties::fromAcceptLanguage);
         return localeResolver;
     }
 
@@ -72,29 +68,5 @@ public class I18nConfiguration {
                 uiEvent.getUI().setLocale(languagePreference.resolve(request.getHttpServletRequest()));
             }
         });
-    }
-
-    // The best translated match for the Accept-Language header, honouring its quality values
-    static Locale fromAcceptLanguage(HttpServletRequest request) {
-        var header = request.getHeader("Accept-Language");
-        if (header == null || header.isBlank()) {
-            return LOCALES.getFirst();
-        }
-        try {
-            var match = Locale.lookup(Locale.LanguageRange.parse(header), LOCALES);
-            return match != null ? match : LOCALES.getFirst();
-        } catch (IllegalArgumentException e) {
-            return LOCALES.getFirst();
-        }
-    }
-
-    // A translated locale for the given one, such as sv for sv_SE, or the fallback
-    static Locale supported(Locale locale) {
-        if (locale == null) {
-            return LOCALES.getFirst();
-        }
-        return LOCALES.stream().filter(locale::equals).findFirst()
-                .or(() -> LOCALES.stream().filter(l -> l.getLanguage().equals(locale.getLanguage())).findFirst())
-                .orElse(LOCALES.getFirst());
     }
 }
