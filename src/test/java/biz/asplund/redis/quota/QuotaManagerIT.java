@@ -28,6 +28,7 @@ import org.springframework.test.context.bean.override.convention.TestBean;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -358,8 +359,68 @@ class QuotaManagerIT {
 	}
 
 	@Test
+	void lastUsedIsRecordedWhenRequestIsAllowed() {
+		var id = uniqueId();
+
+		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 1);
+
+		assertThat(quotaManager.getLastUsed(id)).contains(NOW.toInstant());
+	}
+
+	@Test
+	void lastUsedIsEmptyForUnknownId() {
+		assertThat(quotaManager.getLastUsed(uniqueId())).isEmpty();
+	}
+
+	@Test
+	void lastUsedIsUpdatedByLaterRequestInAnyPeriod() {
+		var id = uniqueId();
+		var later = NOW.plusMinutes(5).toInstant();
+		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 1);
+
+		managerAt(later).checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.MONTHLY), 1);
+
+		assertThat(quotaManager.getLastUsed(id)).contains(later);
+	}
+
+	@Test
+	void rejectedRequestDoesNotUpdateLastUsed() {
+		var id = uniqueId();
+		var config = new QuotaConfig(10, QuotaPeriod.DAILY);
+		quotaManager.checkAndIncrement(id, config, 10);
+
+		var rejected = managerAt(NOW.plusMinutes(5).toInstant()).checkAndIncrement(id, config, 1);
+
+		assertThat(rejected.allowed()).isFalse();
+		assertThat(quotaManager.getLastUsed(id)).contains(NOW.toInstant());
+	}
+
+	@Test
+	void rejectedFirstRequestLeavesLastUsedEmpty() {
+		var id = uniqueId();
+
+		quotaManager.checkAndIncrement(id, new QuotaConfig(10, QuotaPeriod.DAILY), 11);
+
+		assertThat(quotaManager.getLastUsed(id)).isEmpty();
+	}
+
+	@Test
+	void resetQuotaKeepsLastUsed() {
+		var id = uniqueId();
+		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 1);
+
+		quotaManager.resetQuota(id, QuotaPeriod.DAILY);
+
+		assertThat(quotaManager.getLastUsed(id)).contains(NOW.toInstant());
+	}
+
+	@Test
 	void usageIsZeroForUnknownUser() {
 		assertThat(quotaManager.getUsage(uniqueId(), QuotaPeriod.MONTHLY)).isZero();
+	}
+
+	private QuotaManager managerAt(Instant instant) {
+		return new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.fixed(instant, NOW.getZone()));
 	}
 
 	private void assertExpiresOneHourAfterDailyReset(String id) {

@@ -37,6 +37,7 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @Component
 public class QuotaManager {
@@ -84,6 +85,7 @@ public class QuotaManager {
 
     public QuotaStatus checkAndIncrement(String id, QuotaConfig config, int amount) {
         var key = getPeriodKey(id, config.period());
+        var lastUsedKey = getLastUsedKey(id);
         var ttl = getTTL(config.period());
         var resetAt = getResetTime(config.period());
 
@@ -98,6 +100,7 @@ public class QuotaManager {
             if new_usage <= limit then
                 redis.call('INCRBY', KEYS[1], amount)
                 redis.call('EXPIRE', KEYS[1], ttl)
+                redis.call('SET', KEYS[2], ARGV[4])
                 return {1, new_usage}
             end
 
@@ -111,10 +114,11 @@ public class QuotaManager {
         try {
             var result = redisTemplate.execute(
                 redisScript,
-                Collections.singletonList(key),
+                List.of(key, lastUsedKey),
                 String.valueOf(amount),
                 String.valueOf(ttl),
-                String.valueOf(config.limit())
+                String.valueOf(config.limit()),
+                String.valueOf(clock.millis())
             );
 
             if (result.size() >= 2) {
@@ -142,6 +146,16 @@ public class QuotaManager {
         } catch (Exception e) {
             LOGGER.error("Redis error in getUsage for id {}", id, e);
             return 0;
+        }
+    }
+
+    public Optional<Instant> getLastUsed(String id) {
+        try {
+            var value = redisTemplate.opsForValue().get(getLastUsedKey(id));
+            return Optional.ofNullable(value).map(millis -> Instant.ofEpochMilli(Long.parseLong(millis)));
+        } catch (Exception e) {
+            LOGGER.error("Redis error in getLastUsed for id {}", id, e);
+            return Optional.empty();
         }
     }
 
@@ -183,6 +197,10 @@ public class QuotaManager {
         };
 
         return String.format(Locale.ROOT, "%s:%s:%s:%s", QUOTA_PREFIX, id, period.name().toLowerCase(Locale.ROOT), periodId);
+    }
+
+    private String getLastUsedKey(String id) {
+        return String.format(Locale.ROOT, "%s:%s:last-used", QUOTA_PREFIX, id);
     }
 
     private int getTTL(QuotaPeriod period) {

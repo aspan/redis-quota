@@ -21,6 +21,7 @@ status.remaining(); // 750
 status.resetAt();   // Instant: start of next month in the clock's time zone
 
 quotaManager.getUsage("user-123", QuotaPeriod.MONTHLY); // 250
+quotaManager.getLastUsed("user-123");                  // Optional<Instant> of the last allowed request
 ```
 
 A rejected request does not consume quota, and its status reports the usage and remaining quota as they actually are.
@@ -60,11 +61,13 @@ Each user and period gets its own Redis key:
 | `MONTHLY` | `quota:user-123:monthly:202610` | Start of the 1st of next month |
 | `YEARLY` | `quota:user-123:yearly:2026` | Start of January 1 next year |
 
+The time of the last allowed request is stored per id, across all periods, under `quota:user-123:last-used` (epoch milliseconds, no expiry). It is written atomically with the usage, so rejected requests do not update it, and `resetQuota` leaves it unchanged.
+
 Reset times use the time zone of the injected `java.time.Clock` (the system default in production). Each key expires one hour after its period resets. The hourly key includes the UTC offset, so the hour that repeats when clocks go back for daylight saving time gets its own quota.
 
 ### Failing open
 
-If Redis cannot be reached, `checkAndIncrement` logs an error and allows the request with full remaining quota, and `getUsage` returns 0. When the limit comes from a stored definition that cannot be read, the request is also allowed, with `limit`, `used` and `remaining` all reported as 0. A Redis outage never blocks traffic, but quotas are not enforced while it lasts, so watch for `Redis error in checkAndIncrement` in the logs.
+If Redis cannot be reached, `checkAndIncrement` logs an error and allows the request with full remaining quota, `getUsage` returns 0, and `getLastUsed` returns empty. When the limit comes from a stored definition that cannot be read, the request is also allowed, with `limit`, `used` and `remaining` all reported as 0. A Redis outage never blocks traffic, but quotas are not enforced while it lasts, so watch for `Redis error in checkAndIncrement` in the logs.
 
 `resetQuota`, `adjustUsage` and `setUsage` do not fail open: they throw the Redis exception, so callers know the change was not made.
 

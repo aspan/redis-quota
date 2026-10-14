@@ -80,6 +80,11 @@ class QuotaManagerFailOpenIT {
 	}
 
 	@Test
+	void getLastUsedIsEmptyWhenRedisIsDown() {
+		assertThat(quotaManager.getLastUsed("user")).isEmpty();
+	}
+
+	@Test
 	void writeOperationsFailWhenRedisIsDown() {
 		assertThatExceptionOfType(RedisConnectionFailureException.class)
 				.isThrownBy(() -> quotaManager.resetQuota("user", QuotaPeriod.DAILY));
