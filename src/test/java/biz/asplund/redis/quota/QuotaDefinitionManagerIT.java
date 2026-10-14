@@ -153,6 +153,27 @@ class QuotaDefinitionManagerIT {
 	}
 
 	@Test
+	void getStatusUsesStoredLimit() {
+		var id = uniqueId();
+		repository.save(new QuotaDefinition(id, Map.of(QuotaPeriod.DAILY, 100)));
+		var afterRequest = quotaManager.checkAndIncrement(id, QuotaPeriod.DAILY, 40);
+
+		assertThat(quotaManager.getStatus(id, QuotaPeriod.DAILY))
+				.isEqualTo(afterRequest)
+				.returns(100, QuotaStatus::limit)
+				.returns(60, QuotaStatus::remaining);
+	}
+
+	@Test
+	void getStatusForUndefinedIdIsRejected() {
+		var id = uniqueId();
+
+		assertThatIllegalArgumentException()
+				.isThrownBy(() -> quotaManager.getStatus(id, QuotaPeriod.DAILY))
+				.withMessage("No DAILY quota defined for id " + id);
+	}
+
+	@Test
 	void undefinedIdIsRejected() {
 		var id = uniqueId();
 

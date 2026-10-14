@@ -75,6 +75,16 @@ class QuotaManagerFailOpenIT {
 	}
 
 	@Test
+	void getStatusReportsFullQuotaWhenRedisIsDown() {
+		var reset = Instant.parse("2026-10-15T00:00:00Z");
+
+		assertThat(quotaManager.getStatus("user", new QuotaConfig(100, QuotaPeriod.DAILY)))
+				.isEqualTo(new QuotaStatus(true, 100, 0, 100, reset));
+		assertThat(quotaManager.getStatus("user", QuotaPeriod.DAILY))
+				.isEqualTo(new QuotaStatus(true, 0, 0, 0, reset));
+	}
+
+	@Test
 	void getUsageReturnsZeroWhenRedisIsDown() {
 		assertThat(quotaManager.getUsage("user", QuotaPeriod.DAILY)).isZero();
 	}

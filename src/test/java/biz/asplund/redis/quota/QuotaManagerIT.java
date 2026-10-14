@@ -359,6 +359,51 @@ class QuotaManagerIT {
 	}
 
 	@Test
+	void getStatusReportsCurrentUsageWithoutConsumingQuota() {
+		var id = uniqueId();
+		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
+		var afterRequest = quotaManager.checkAndIncrement(id, config, 30);
+
+		var status = quotaManager.getStatus(id, config);
+
+		assertThat(status)
+				.isEqualTo(afterRequest)
+				.isEqualTo(new QuotaStatus(true, 100, 30, 70, OffsetDateTime.parse("2026-10-15T00:00+02:00").toInstant()));
+		assertThat(quotaManager.getStatus(id, config)).as("repeated call").isEqualTo(status);
+		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isEqualTo(30);
+	}
+
+	@Test
+	void getStatusForUnknownIdReportsFullQuota() {
+		var status = quotaManager.getStatus(uniqueId(), new QuotaConfig(100, QuotaPeriod.HOURLY));
+
+		assertThat(status).isEqualTo(new QuotaStatus(true, 100, 0, 100, OffsetDateTime.parse("2026-10-14T11:00+02:00").toInstant()));
+	}
+
+	@Test
+	void getStatusIsNotAllowedWhenQuotaIsUsedUp() {
+		var id = uniqueId();
+		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
+		quotaManager.checkAndIncrement(id, config, 100);
+
+		assertThat(quotaManager.getStatus(id, config))
+				.returns(false, QuotaStatus::allowed)
+				.returns(100, QuotaStatus::used)
+				.returns(0, QuotaStatus::remaining);
+	}
+
+	@Test
+	void getStatusAfterSetUsageAboveLimitReportsNothingRemaining() {
+		var id = uniqueId();
+		quotaManager.setUsage(id, QuotaPeriod.DAILY, 150);
+
+		assertThat(quotaManager.getStatus(id, new QuotaConfig(100, QuotaPeriod.DAILY)))
+				.returns(false, QuotaStatus::allowed)
+				.returns(150, QuotaStatus::used)
+				.returns(0, QuotaStatus::remaining);
+	}
+
+	@Test
 	void lastUsedIsRecordedWhenRequestIsAllowed() {
 		var id = uniqueId();
 

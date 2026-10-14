@@ -20,11 +20,12 @@ status.used();      // 250
 status.remaining(); // 750
 status.resetAt();   // Instant: start of next month in the clock's time zone
 
+quotaManager.getStatus("user-123", config);             // same status, without consuming quota
 quotaManager.getUsage("user-123", QuotaPeriod.MONTHLY); // 250
 quotaManager.getLastUsed("user-123");                  // Optional<Instant> of the last allowed request
 ```
 
-A rejected request does not consume quota, and its status reports the usage and remaining quota as they actually are.
+A rejected request does not consume quota, and its status reports the usage and remaining quota as they actually are. In the status from `getStatus`, `allowed` means at least one unit is left.
 
 ### Stored quota definitions
 
@@ -35,6 +36,7 @@ quotaDefinitionRepository.save(new QuotaDefinition("user-123",
         Map.of(QuotaPeriod.HOURLY, 100, QuotaPeriod.MONTHLY, 10_000)));
 
 var status = quotaManager.checkAndIncrement("user-123", QuotaPeriod.HOURLY, 1);
+var current = quotaManager.getStatus("user-123", QuotaPeriod.HOURLY);
 ```
 
 If no limit is stored for the id and period, this throws `IllegalArgumentException`. Changing a stored limit takes effect on the next request; usage already counted is kept.
