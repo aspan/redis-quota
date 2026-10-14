@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
+<project xmlns="http://maven.apache.org/POM/4.1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.1.0 https://maven.apache.org/xsd/maven-4.1.0.xsd">
+	<modelVersion>4.1.0</modelVersion>
 
 	<parent>
 		<groupId>org.springframework.boot</groupId>
@@ -12,7 +12,7 @@
 
 	<groupId>biz.asplund</groupId>
 	<artifactId>redis-quota</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>${revision}${sha1}${changelist}</version>
 
 	<licenses>
 		<license>
@@ -29,6 +29,11 @@
 	</scm>
 
 	<properties>
+		<!-- CI friendly version; override with e.g. -Drevision=1.0.0 -Dchangelist= -->
+		<revision>0.0.1</revision>
+		<sha1/>
+		<changelist>-SNAPSHOT</changelist>
+
 		<java.version>27</java.version>
 
 		<!-- Patch upgrades of dependency versions managed by spring-boot-dependencies -->
