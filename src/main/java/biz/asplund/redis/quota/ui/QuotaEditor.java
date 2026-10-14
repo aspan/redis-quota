@@ -174,8 +174,47 @@ class QuotaEditor extends VerticalLayout {
 
         var actions = new HorizontalLayout(usageField, set, reset);
         actions.setAlignItems(FlexComponent.Alignment.BASELINE);
-        card.addToFooter(actions);
+
+        // Runs a request against the quota as a client would, which also records the last use
+        var amountField = new IntegerField();
+        amountField.setValue(1);
+        amountField.setMin(1);
+        amountField.setStepButtonsVisible(true);
+        amountField.setAriaLabel(getTranslation("usage.amount"));
+        amountField.setWidth("8rem");
+        var checkAndIncrement = new Button(getTranslation("usage.checkAndIncrement"), VaadinIcon.PLAY.create(),
+                _ -> checkAndIncrement(amountField));
+        var request = new HorizontalLayout(amountField, checkAndIncrement);
+        request.setAlignItems(FlexComponent.Alignment.BASELINE);
+
+        var footer = new VerticalLayout(actions, request);
+        footer.setPadding(false);
+        card.addToFooter(footer);
         return card;
+    }
+
+    private void checkAndIncrement(IntegerField amountField) {
+        var amount = amountField.getValue();
+        if (amount == null || amount < 1) {
+            amountField.setInvalid(true);
+            amountField.setErrorMessage(getTranslation("usage.amountInvalid"));
+            return;
+        }
+        try {
+            var status = quotaManager.checkAndIncrement(row.id(), amount);
+            if (status.allowed()) {
+                notify(getTranslation("usage.allowed", status.used(), status.limit(), status.remaining()),
+                        NotificationVariant.SUCCESS);
+            } else {
+                notify(getTranslation("usage.rejected", amount, status.used(), status.limit(), status.remaining()),
+                        NotificationVariant.WARNING);
+            }
+            onSaved.accept(row.definition());
+        } catch (IllegalArgumentException | DataAccessException e) {
+            // The definition may have been deleted elsewhere
+            var cause = e instanceof DataAccessException dataAccess ? dataAccess.getMostSpecificCause() : e;
+            notify(getTranslation("usage.checkFailed", cause.getMessage()), NotificationVariant.ERROR);
+        }
     }
 
     private void modifyUsage(QuotaPeriod period, Runnable change) {

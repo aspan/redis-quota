@@ -100,7 +100,7 @@ Local development and the tests use [Valkey](https://valkey.io), an open source 
 
 ### Admin UI
 
-The application includes a Vaadin admin UI at <http://localhost:8080/>. It lists the stored quotas with their period, current usage, reset time and last-used time. Select a quota to change its period or limit, delete it, or set or reset its usage in the current period. **New quota** creates a definition.
+The application includes a Vaadin admin UI at <http://localhost:8080/>. It lists the stored quotas with their period, current usage, reset time and last-used time. Select a quota to change its period or limit, delete it, set or reset its usage in the current period, or run **Check and increment** with an amount to make a request against it as a client would, which also updates the last-used time. **New quota** creates a definition.
 
 The UI requires a login with the `ADMIN` role. Views are listed in the side menu, and the user menu at the bottom logs out. Requests under `/api/**` are not behind the login, since API clients are identified by the quota interceptor.
 
@@ -126,7 +126,7 @@ All tests are integration tests (`*IT`) and run with the Maven Failsafe plugin d
 
 - `QuotaManagerIT` runs against a real Valkey server in Testcontainers with a fixed clock (Wednesday 2026-10-14, Europe/Stockholm), so reset times, key names and expiry times are checked against exact values.
 - `QuotaManagerFailOpenIT` points the application at a Redis port with nothing listening on it, and checks that quotas fail open. It logs the expected connection errors.
-- `QuotaViewIT` tests the admin UI with Vaadin browserless tests: the views run on the server against a real Valkey server, and Spring Security's `@WithMockUser` sets the logged-in user. It covers access control, the menu, listing and filtering quotas, creating, validating, editing and deleting definitions, and setting and resetting usage.
+- `QuotaViewIT` tests the admin UI with Vaadin browserless tests: the views run on the server against a real Valkey server, and Spring Security's `@WithMockUser` sets the logged-in user. It covers access control, the menu, listing and filtering quotas, creating, validating, editing and deleting definitions, setting and resetting usage, and check and increment.
 - `LanguagePreferenceIT` checks how the language is resolved: the best translated match for the browser's `Accept-Language`, English as fallback, and a stored choice in the `locale` cookie taking precedence.
 - `ColorSchemeIT` checks the appearance menu: the system default, switching the page to light or dark, keeping the choice across views, translated choices, reading the cookie, and setting the scheme in the first page.
 - `I18nPropertiesIT` checks how `quota.ui.i18n.locales` binds: the defaults, a custom order and fallback, limiting the languages, and rejecting an empty list.

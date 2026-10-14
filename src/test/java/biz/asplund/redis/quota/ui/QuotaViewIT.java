@@ -213,7 +213,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 		var editor = openEditor(id);
 
 		var card = usageCard(editor, "Hourly");
-		test(find(IntegerField.class, card).single()).setValue(7);
+		test(find(IntegerField.class, card).withAriaLabel("New usage, Hourly").single()).setValue(7);
 		test(find(Button.class, card).withText("Set").single()).click();
 
 		assertThat(quotaManager.getUsage(id)).isEqualTo(7);
@@ -223,6 +223,44 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 		test(find(Button.class, refreshedCard).withText("Reset").single()).click();
 
+		assertThat(quotaManager.getUsage(id)).isZero();
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
+	void checksAndIncrementsLikeAClient() {
+		var id = uniqueId();
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 5));
+		var editor = openEditor(id);
+
+		requestFromCard(usageCard(editor, "Hourly"), 4);
+
+		assertThat(quotaManager.getUsage(id)).isEqualTo(4);
+		assertThat(quotaManager.getLastUsed(id)).isPresent();
+		assertThat(notifications()).contains("Allowed: 4 of 5 used, 1 left");
+		// The editor is rebuilt with the new status
+		var card = usageCard(find(QuotaEditor.class).single(), "Hourly");
+		assertThat(card.getSubtitle().getElement().getText()).isEqualTo("4 of 5 used, 1 left");
+
+		requestFromCard(card, 2);
+
+		assertThat(quotaManager.getUsage(id)).isEqualTo(4);
+		assertThat(notifications()).contains("Rejected: 2 more would exceed the limit; 4 of 5 used, 1 left");
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
+	void requiresPositiveAmountToCheckAndIncrement() {
+		var id = uniqueId();
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 5));
+		var card = usageCard(openEditor(id), "Hourly");
+		var amount = find(IntegerField.class, card).withAriaLabel("Amount to request").single();
+
+		test(amount).setValue(0);
+		test(find(Button.class, card).withText("Check and increment").single()).click();
+
+		assertThat(amount.isInvalid()).isTrue();
+		assertThat(amount.getErrorMessage()).isEqualTo("Enter 1 or more");
 		assertThat(quotaManager.getUsage(id)).isZero();
 	}
 
@@ -259,6 +297,11 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 	private IntegerField limitField(QuotaEditor editor) {
 		return find(IntegerField.class, editor).withLabel("Limit").single();
+	}
+
+	private void requestFromCard(Card card, int amount) {
+		test(find(IntegerField.class, card).withAriaLabel("Amount to request").single()).setValue(amount);
+		test(find(Button.class, card).withText("Check and increment").single()).click();
 	}
 
 	private Card usageCard(QuotaEditor editor, String title) {
