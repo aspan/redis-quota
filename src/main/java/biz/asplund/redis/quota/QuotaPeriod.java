@@ -17,6 +17,7 @@
 package biz.asplund.redis.quota;
 
 public enum QuotaPeriod {
+    HOURLY,
     DAILY,
     WEEKLY,
     MONTHLY,

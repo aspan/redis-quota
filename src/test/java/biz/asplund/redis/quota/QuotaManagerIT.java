@@ -157,12 +157,14 @@ class QuotaManagerIT {
 	void periodsAreTrackedIndependently() {
 		var userId = uniqueUser();
 
+		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.HOURLY), 5);
 		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.DAILY), 10);
 		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.WEEKLY), 20);
 		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.MONTHLY), 30);
 		quotaManager.checkAndIncrement(userId, new QuotaConfig(100, QuotaPeriod.YEARLY), 40);
 
 		assertAll(
+				() -> assertEquals(5, quotaManager.getUsage(userId, QuotaPeriod.HOURLY)),
 				() -> assertEquals(10, quotaManager.getUsage(userId, QuotaPeriod.DAILY)),
 				() -> assertEquals(20, quotaManager.getUsage(userId, QuotaPeriod.WEEKLY)),
 				() -> assertEquals(30, quotaManager.getUsage(userId, QuotaPeriod.MONTHLY)),
@@ -171,6 +173,7 @@ class QuotaManagerIT {
 
 	@ParameterizedTest
 	@CsvSource({
+			"HOURLY,  2026-10-14T11:00+02:00",
 			"DAILY,   2026-10-15T00:00+02:00",
 			"WEEKLY,  2026-10-19T00:00+02:00",
 			"MONTHLY, 2026-11-01T00:00+01:00",
@@ -186,10 +189,11 @@ class QuotaManagerIT {
 
 	@ParameterizedTest
 	@CsvSource({
-			"DAILY,   daily:20261014,  2026-10-15T00:00+02:00",
-			"WEEKLY,  weekly:20261012, 2026-10-19T00:00+02:00",
-			"MONTHLY, monthly:202610,  2026-11-01T00:00+01:00",
-			"YEARLY,  yearly:2026,     2027-01-01T00:00+01:00"
+			"HOURLY,  hourly:2026101410+0200, 2026-10-14T11:00+02:00",
+			"DAILY,   daily:20261014,         2026-10-15T00:00+02:00",
+			"WEEKLY,  weekly:20261012,        2026-10-19T00:00+02:00",
+			"MONTHLY, monthly:202610,         2026-11-01T00:00+01:00",
+			"YEARLY,  yearly:2026,            2027-01-01T00:00+01:00"
 	})
 	void usageIsStoredUnderPeriodKeyExpiringOneHourAfterReset(QuotaPeriod period, String keySuffix,
 			OffsetDateTime reset) {
@@ -204,6 +208,28 @@ class QuotaManagerIT {
 				() -> assertEquals("7", redisTemplate.opsForValue().get(key)),
 				() -> assertTrue(ttl > expectedTtl - 5 && ttl <= expectedTtl,
 						"expected TTL close to " + expectedTtl + "s but was " + ttl + "s"));
+	}
+
+	@Test
+	void hourlyQuotaKeepsRepeatedDstHourSeparate() {
+		// Clocks go back at 03:00 CEST on 2026-10-25, so 02:30 local time happens twice
+		var zone = ZoneId.of("Europe/Stockholm");
+		var firstPass = OffsetDateTime.parse("2026-10-25T02:30+02:00").toInstant();
+		var secondPass = OffsetDateTime.parse("2026-10-25T02:30+01:00").toInstant();
+		var beforeChange = new QuotaManager(redisTemplate, Clock.fixed(firstPass, zone));
+		var afterChange = new QuotaManager(redisTemplate, Clock.fixed(secondPass, zone));
+		var userId = uniqueUser();
+		var config = new QuotaConfig(10, QuotaPeriod.HOURLY);
+
+		var first = beforeChange.checkAndIncrement(userId, config, 10);
+		var second = afterChange.checkAndIncrement(userId, config, 10);
+
+		assertAll(
+				() -> assertTrue(first.allowed()),
+				() -> assertEquals(OffsetDateTime.parse("2026-10-25T02:00+01:00").toInstant(), first.resetAt()),
+				() -> assertTrue(second.allowed(), "second 02:30 is a new hour with its own quota"),
+				() -> assertEquals(10, second.used()),
+				() -> assertEquals(OffsetDateTime.parse("2026-10-25T03:00+01:00").toInstant(), second.resetAt()));
 	}
 
 	@Test

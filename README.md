@@ -2,7 +2,7 @@
 
 Usage quotas per user and period, backed by Redis and built with Spring Boot.
 
-`QuotaManager` counts usage for a user over a daily, weekly, monthly or yearly period. It allows a request if the new total stays within the limit and rejects it otherwise. The check and the increment run in a single Lua script, so concurrent requests can never push usage past the limit.
+`QuotaManager` counts usage for a user over an hourly, daily, weekly, monthly or yearly period. It allows a request if the new total stays within the limit and rejects it otherwise. The check and the increment run in a single Lua script, so concurrent requests can never push usage past the limit.
 
 ## Requirements
 
@@ -31,12 +31,13 @@ Each user and period gets its own Redis key:
 
 | Period | Key example (2026-10-14) | Resets at |
 |---|---|---|
+| `HOURLY` | `quota:user-123:hourly:2026101410+0200` | Start of the next hour |
 | `DAILY` | `quota:user-123:daily:20261014` | Start of the next day |
 | `WEEKLY` | `quota:user-123:weekly:20261012` | Start of next Monday (ISO weeks) |
 | `MONTHLY` | `quota:user-123:monthly:202610` | Start of the 1st of next month |
 | `YEARLY` | `quota:user-123:yearly:2026` | Start of January 1 next year |
 
-Reset times use the time zone of the injected `java.time.Clock` (the system default in production). Each key expires one hour after its period resets.
+Reset times use the time zone of the injected `java.time.Clock` (the system default in production). Each key expires one hour after its period resets. The hourly key includes the UTC offset, so the hour that repeats when clocks go back for daylight saving time gets its own quota.
 
 ### Failing open
 

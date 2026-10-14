@@ -28,7 +28,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Collections;
 import java.util.List;
@@ -39,6 +41,7 @@ public class QuotaManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuotaManager.class);
 
     private static final String QUOTA_PREFIX = "quota";
+    private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHxx");
 
     private final RedisTemplate<String, String> redisTemplate;
     private final Clock clock;
@@ -112,9 +115,12 @@ public class QuotaManager {
     }
 
     private String getPeriodKey(String userId, QuotaPeriod period) {
-        var today = LocalDate.now(clock);
+        var now = ZonedDateTime.now(clock);
+        var today = now.toLocalDate();
 
         var periodId = switch (period) {
+            // Offset keeps the repeated hour apart when clocks go back for DST
+            case HOURLY -> now.format(HOUR_FORMAT);
             case DAILY -> today.format(DateTimeFormatter.BASIC_ISO_DATE);
             // Week starts on Monday (ISO week)
             case WEEKLY -> today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -133,15 +139,19 @@ public class QuotaManager {
     }
 
     private Instant getResetTime(QuotaPeriod period) {
-        var today = LocalDate.now(clock);
+        var now = ZonedDateTime.now(clock);
+        var today = now.toLocalDate();
 
-        var resetDate = switch (period) {
-            case DAILY -> today.plusDays(1);
-            case WEEKLY -> today.with(TemporalAdjusters.next(DayOfWeek.MONDAY));
-            case MONTHLY -> today.with(TemporalAdjusters.firstDayOfNextMonth());
-            case YEARLY -> today.with(TemporalAdjusters.firstDayOfNextYear());
+        return switch (period) {
+            case HOURLY -> now.truncatedTo(ChronoUnit.HOURS).plusHours(1).toInstant();
+            case DAILY -> startOfDay(today.plusDays(1));
+            case WEEKLY -> startOfDay(today.with(TemporalAdjusters.next(DayOfWeek.MONDAY)));
+            case MONTHLY -> startOfDay(today.with(TemporalAdjusters.firstDayOfNextMonth()));
+            case YEARLY -> startOfDay(today.with(TemporalAdjusters.firstDayOfNextYear()));
         };
+    }
 
-        return resetDate.atStartOfDay(clock.getZone()).toInstant();
+    private Instant startOfDay(LocalDate date) {
+        return date.atStartOfDay(clock.getZone()).toInstant();
     }
 }
