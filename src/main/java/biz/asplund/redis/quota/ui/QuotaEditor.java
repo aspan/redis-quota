@@ -49,6 +49,8 @@ import java.util.function.Consumer;
 // Detail panel for creating or editing one quota definition, a limit for a single period, and managing its usage
 class QuotaEditor extends VerticalLayout {
 
+    private static final String PROGRESS_COLOR = "--vaadin-progress-bar-value-background";
+
     private final QuotaRow row;
     private final QuotaDefinitionRepository quotaDefinitionRepository;
     private final QuotaManager quotaManager;
@@ -150,9 +152,7 @@ class QuotaEditor extends VerticalLayout {
         card.setSubtitle(getTranslation("usage.summary", status.used(), status.limit(), status.remaining()));
 
         var progress = new ProgressBar(0, Math.max(1, status.limit()), Math.min(status.used(), status.limit()));
-        if (status.used() >= status.limit()) {
-            progress.addThemeVariants(ProgressBarVariant.ERROR);
-        }
+        colorProgress(progress, status);
         card.add(progress, new Span(getTranslation("usage.resets", dateTimeFormatter.format(status.resetAt()))));
 
         var usageField = new IntegerField();
@@ -191,6 +191,20 @@ class QuotaEditor extends VerticalLayout {
         footer.setPadding(false);
         card.addToFooter(footer);
         return card;
+    }
+
+    // Matches the usage badge in the list. Progress Bar has no warning variant, and the docs list its success
+    // and error variants for Lumo only, so the Aura palette color is set as well
+    private static void colorProgress(ProgressBar progress, QuotaStatus status) {
+        if (QuotaView.isUsedUp(status)) {
+            progress.addThemeVariants(ProgressBarVariant.ERROR);
+            progress.getStyle().set(PROGRESS_COLOR, "var(--aura-red)");
+        } else if (QuotaView.isRunningLow(status)) {
+            progress.getStyle().set(PROGRESS_COLOR, "var(--aura-orange)");
+        } else {
+            progress.addThemeVariants(ProgressBarVariant.SUCCESS);
+            progress.getStyle().set(PROGRESS_COLOR, "var(--aura-green)");
+        }
     }
 
     private void checkAndIncrement(IntegerField amountField) {

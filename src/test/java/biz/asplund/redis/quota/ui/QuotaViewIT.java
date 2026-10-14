@@ -31,6 +31,8 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridTester;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.progressbar.ProgressBar;
+import com.vaadin.flow.component.progressbar.ProgressBarVariant;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.select.SelectTester;
 import com.vaadin.flow.component.sidenav.SideNav;
@@ -56,6 +58,8 @@ import static org.assertj.core.api.Assertions.tuple;
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 class QuotaViewIT extends SpringBrowserlessTest {
+
+	private static final String PROGRESS_COLOR = "--vaadin-progress-bar-value-background";
 
 	@Autowired
 	private QuotaDefinitionRepository quotaDefinitionRepository;
@@ -266,6 +270,34 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
+	void colorsProgressBarBySuccessWarningAndError() {
+		assertThat(progressBarWithUsage(16)).as("4 of 20 left")
+				.satisfies(bar -> assertThat(bar.getStyle().get(PROGRESS_COLOR)).isEqualTo("var(--aura-green)"))
+				.satisfies(bar -> assertThat(bar.getThemeNames()).containsExactly(ProgressBarVariant.SUCCESS.getVariantName()));
+		assertThat(progressBarWithUsage(17)).as("3 of 20 left")
+				.satisfies(bar -> assertThat(bar.getStyle().get(PROGRESS_COLOR)).isEqualTo("var(--aura-orange)"))
+				.satisfies(bar -> assertThat(bar.getThemeNames()).isEmpty());
+		assertThat(progressBarWithUsage(20)).as("none left")
+				.satisfies(bar -> assertThat(bar.getStyle().get(PROGRESS_COLOR)).isEqualTo("var(--aura-red)"))
+				.satisfies(bar -> assertThat(bar.getThemeNames()).containsExactly(ProgressBarVariant.ERROR.getVariantName()));
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
+	void badgeWarnsOnlyWhenLessThanTwentyPercentIsLeft() {
+		var exactlyTwenty = uniqueId();
+		quotaDefinitionRepository.save(new QuotaDefinition(exactlyTwenty, QuotaPeriod.DAILY, 100));
+		quotaManager.setUsage(exactlyTwenty, 80);
+
+		navigate(QuotaView.class);
+		var grid = grid();
+		var badge = (Badge) grid.getCellComponent(rowOf(grid, exactlyTwenty), 2);
+
+		assertThat(badge.getThemeNames()).contains(BadgeVariant.SUCCESS.getVariantName());
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
 	void closesEditorOfExistingQuota() {
 		var id = uniqueId();
 		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 5));
@@ -321,6 +353,13 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 	private IntegerField limitField(QuotaEditor editor) {
 		return find(IntegerField.class, editor).withLabel("Limit").single();
+	}
+
+	private ProgressBar progressBarWithUsage(int used) {
+		var id = uniqueId();
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 20));
+		quotaManager.setUsage(id, used);
+		return find(ProgressBar.class, usageCard(openEditor(id), "Daily")).single();
 	}
 
 	private void requestFromCard(Card card, int amount) {

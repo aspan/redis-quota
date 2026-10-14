@@ -186,9 +186,9 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
 
     private Component usageBadge(QuotaStatus status) {
         var badge = new Badge(status.used() + " / " + status.limit());
-        if (status.used() >= status.limit()) {
+        if (isUsedUp(status)) {
             badge.addThemeVariants(BadgeVariant.ERROR);
-        } else if (status.used() >= status.limit() * 0.8) {
+        } else if (isRunningLow(status)) {
             badge.addThemeVariants(BadgeVariant.WARNING);
         } else {
             badge.addThemeVariants(BadgeVariant.SUCCESS);
@@ -249,6 +249,15 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         grid.setItems(term.isEmpty() ? rows
                 : rows.stream().filter(row -> row.id().toLowerCase(Locale.ROOT).contains(term)).toList())
                 .setIdentifierProvider(QuotaRow::id);
+    }
+
+    static boolean isUsedUp(QuotaStatus status) {
+        return status.used() >= status.limit();
+    }
+
+    // Less than 20% of the limit is left
+    static boolean isRunningLow(QuotaStatus status) {
+        return status.remaining() < status.limit() * 0.2;
     }
 
     // Translated name of a period, for the current UI locale
