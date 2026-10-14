@@ -7,7 +7,7 @@ Usage quotas per user and period, backed by Redis and built with Spring Boot.
 ## Requirements
 
 - Java 27
-- Docker (for the local Redis instance and the integration tests)
+- Docker (for the local Valkey instance and the integration tests)
 
 ## Usage
 
@@ -89,9 +89,11 @@ When the quota is exhausted it responds with `429 Too Many Requests` and a JSON 
 ## Running
 
 ```bash
-./mvnw spring-boot:run       # starts Redis from compose.yaml via Docker Compose
-./mvnw spring-boot:test-run  # starts Redis in a Testcontainers container instead
+./mvnw spring-boot:run       # starts Valkey from compose.yaml via Docker Compose
+./mvnw spring-boot:test-run  # starts Valkey in a Testcontainers container instead
 ```
+
+Local development and the tests use [Valkey](https://valkey.io), an open source fork of Redis that speaks the same protocol, from the `valkey/valkey` image. The application itself works with either; `compose.yaml` labels the service so that Spring Boot connects to it as Redis.
 
 ### Admin UI
 
@@ -119,7 +121,7 @@ Without that file, Spring Boot generates a password at each start and logs it as
 
 All tests are integration tests (`*IT`) and run with the Maven Failsafe plugin during `verify`. Each one starts the full Spring application context.
 
-- `QuotaManagerIT` runs against a real Redis in Testcontainers with a fixed clock (Wednesday 2026-10-14, Europe/Stockholm), so reset times, key names and expiry times are checked against exact values.
+- `QuotaManagerIT` runs against a real Valkey server in Testcontainers with a fixed clock (Wednesday 2026-10-14, Europe/Stockholm), so reset times, key names and expiry times are checked against exact values.
 - `QuotaManagerFailOpenIT` points the application at a Redis port with nothing listening on it, and checks that quotas fail open. It logs the expected connection errors.
 - `QuotaViewIT` tests the admin UI with Vaadin browserless tests: the views run on the server against a real Redis, and Spring Security's `@WithMockUser` sets the logged-in user. It covers access control, the menu, listing and filtering quotas, creating, editing and deleting definitions, and setting and resetting usage.
 - `LanguagePreferenceIT` checks how the language is resolved: the best translated match for the browser's `Accept-Language`, English as fallback, and a stored choice in the `locale` cookie taking precedence.

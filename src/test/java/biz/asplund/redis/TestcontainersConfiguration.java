@@ -26,9 +26,10 @@ import org.testcontainers.utility.DockerImageName;
 public class TestcontainersConfiguration {
 
 	@Bean
+	// Valkey speaks the Redis protocol, so it connects as a Redis service
 	@ServiceConnection(name = "redis")
-	GenericContainer<?> redisContainer() {
-		return new GenericContainer<>(DockerImageName.parse("redis:latest")).withExposedPorts(6379);
+	GenericContainer<?> valkeyContainer() {
+		return new GenericContainer<>(DockerImageName.parse("valkey/valkey:latest")).withExposedPorts(6379);
 	}
 
 }

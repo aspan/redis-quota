@@ -1,5 +1,8 @@
 services:
-  redis:
-    image: 'redis:latest'
+  valkey:
+    image: 'valkey/valkey:latest'
     ports:
       - '6379'
+    labels:
+      # Spring Boot detects Redis-compatible services by image name, which does not include Valkey
+      org.springframework.boot.service-connection: redis
