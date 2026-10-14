@@ -68,21 +68,21 @@ class QuotaManagerIT {
 
 		var first = quotaManager.checkAndIncrement(userId, config, 250);
 		assertAll("first request (250)",
-				() -> assertTrue(first.isAllowed()),
-				() -> assertEquals(250, first.getUsed()),
-				() -> assertEquals(750, first.getRemaining()));
+				() -> assertTrue(first.allowed()),
+				() -> assertEquals(250, first.used()),
+				() -> assertEquals(750, first.remaining()));
 
 		var second = quotaManager.checkAndIncrement(userId, config, 300);
 		assertAll("second request (300)",
-				() -> assertTrue(second.isAllowed()),
-				() -> assertEquals(550, second.getUsed()),
-				() -> assertEquals(450, second.getRemaining()));
+				() -> assertTrue(second.allowed()),
+				() -> assertEquals(550, second.used()),
+				() -> assertEquals(450, second.remaining()));
 
 		var third = quotaManager.checkAndIncrement(userId, config, 500);
 		assertAll("third request (500) exceeds limit",
-				() -> assertFalse(third.isAllowed()),
-				() -> assertEquals(550, third.getUsed()),
-				() -> assertEquals(450, third.getRemaining()));
+				() -> assertFalse(third.allowed()),
+				() -> assertEquals(550, third.used()),
+				() -> assertEquals(450, third.remaining()));
 
 		assertEquals(550, quotaManager.getUsage(userId, QuotaPeriod.MONTHLY));
 	}
@@ -94,13 +94,13 @@ class QuotaManagerIT {
 
 		var status = quotaManager.checkAndIncrement(userId, config, 100);
 		assertAll(
-				() -> assertTrue(status.isAllowed()),
-				() -> assertEquals(100, status.getUsed()),
-				() -> assertEquals(0, status.getRemaining()));
+				() -> assertTrue(status.allowed()),
+				() -> assertEquals(100, status.used()),
+				() -> assertEquals(0, status.remaining()));
 
 		var next = quotaManager.checkAndIncrement(userId, config, 1);
-		assertFalse(next.isAllowed());
-		assertEquals(0, next.getRemaining());
+		assertFalse(next.allowed());
+		assertEquals(0, next.remaining());
 		assertEquals(100, quotaManager.getUsage(userId, QuotaPeriod.DAILY));
 	}
 
@@ -112,15 +112,15 @@ class QuotaManagerIT {
 		quotaManager.checkAndIncrement(userId, config, 60);
 		var rejected = quotaManager.checkAndIncrement(userId, config, 50);
 		assertAll("rejected request reports what is actually left",
-				() -> assertFalse(rejected.isAllowed()),
-				() -> assertEquals(60, rejected.getUsed()),
-				() -> assertEquals(40, rejected.getRemaining()));
+				() -> assertFalse(rejected.allowed()),
+				() -> assertEquals(60, rejected.used()),
+				() -> assertEquals(40, rejected.remaining()));
 
 		var status = quotaManager.checkAndIncrement(userId, config, 40);
 		assertAll("smaller request still fits after rejection",
-				() -> assertTrue(status.isAllowed()),
-				() -> assertEquals(100, status.getUsed()),
-				() -> assertEquals(0, status.getRemaining()));
+				() -> assertTrue(status.allowed()),
+				() -> assertEquals(100, status.used()),
+				() -> assertEquals(0, status.remaining()));
 	}
 
 	@Test
@@ -131,9 +131,9 @@ class QuotaManagerIT {
 		var status = quotaManager.checkAndIncrement(userId, config, 11);
 
 		assertAll(
-				() -> assertFalse(status.isAllowed()),
-				() -> assertEquals(0, status.getUsed()),
-				() -> assertEquals(10, status.getRemaining()));
+				() -> assertFalse(status.allowed()),
+				() -> assertEquals(0, status.used()),
+				() -> assertEquals(10, status.remaining()));
 		assertEquals(0, quotaManager.getUsage(userId, QuotaPeriod.DAILY));
 	}
 
@@ -147,8 +147,8 @@ class QuotaManagerIT {
 		var bobStatus = quotaManager.checkAndIncrement(bob, config, 30);
 
 		assertAll(
-				() -> assertTrue(bobStatus.isAllowed()),
-				() -> assertEquals(30, bobStatus.getUsed()),
+				() -> assertTrue(bobStatus.allowed()),
+				() -> assertEquals(30, bobStatus.used()),
 				() -> assertEquals(100, quotaManager.getUsage(alice, QuotaPeriod.DAILY)),
 				() -> assertEquals(30, quotaManager.getUsage(bob, QuotaPeriod.DAILY)));
 	}
@@ -181,7 +181,7 @@ class QuotaManagerIT {
 
 		var status = quotaManager.checkAndIncrement(uniqueUser(), config, 1);
 
-		assertEquals(expectedReset.toInstant(), status.getResetAt());
+		assertEquals(expectedReset.toInstant(), status.resetAt());
 	}
 
 	@ParameterizedTest
@@ -218,7 +218,7 @@ class QuotaManagerIT {
 		var allowed = 0;
 		try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
 			for (var future : executor.invokeAll(tasks)) {
-				if (future.get().isAllowed()) {
+				if (future.get().allowed()) {
 					allowed++;
 				}
 			}

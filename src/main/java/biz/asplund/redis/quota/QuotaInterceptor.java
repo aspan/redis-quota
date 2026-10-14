@@ -51,21 +51,21 @@ public class QuotaInterceptor implements HandlerInterceptor {
             var status = quotaManager.checkAndIncrement(userId, config, 1);
 
             // Set response headers
-            response.setHeader("X-Quota-Limit", String.valueOf(status.getLimit()));
-            response.setHeader("X-Quota-Used", String.valueOf(status.getUsed()));
-            response.setHeader("X-Quota-Remaining", String.valueOf(status.getRemaining()));
-            response.setHeader("X-Quota-Reset", status.getResetAt().toString());
+            response.setHeader("X-Quota-Limit", String.valueOf(status.limit()));
+            response.setHeader("X-Quota-Used", String.valueOf(status.used()));
+            response.setHeader("X-Quota-Remaining", String.valueOf(status.remaining()));
+            response.setHeader("X-Quota-Reset", status.resetAt().toString());
 
-            if (!status.isAllowed()) {
+            if (!status.allowed()) {
                 response.setStatus(429);
                 response.setContentType("application/json");
                 response.getWriter().write(
                     "{\n" +
                     "  \"error\": \"Quota Exceeded\",\n" +
                     "  \"message\": \"You have exceeded your " + config.period() + " quota\",\n" +
-                    "  \"limit\": " + status.getLimit() + ",\n" +
-                    "  \"used\": " + status.getUsed() + ",\n" +
-                    "  \"resetAt\": \"" + status.getResetAt().toString() + "\"\n" +
+                    "  \"limit\": " + status.limit() + ",\n" +
+                    "  \"used\": " + status.used() + ",\n" +
+                    "  \"resetAt\": \"" + status.resetAt().toString() + "\"\n" +
                     "}"
                 );
                 return false;

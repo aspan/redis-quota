@@ -18,53 +18,5 @@ package biz.asplund.redis.quota;
 
 import java.time.Instant;
 
-public class QuotaStatus {
-    private boolean allowed;
-    private int limit;
-    private int used;
-    private int remaining;
-    private Instant resetAt;
-
-    public QuotaStatus() {}
-
-    // Getters and setters
-    public boolean isAllowed() {
-        return allowed;
-    }
-
-    public void setAllowed(boolean allowed) {
-        this.allowed = allowed;
-    }
-
-    public int getLimit() {
-        return limit;
-    }
-
-    public void setLimit(int limit) {
-        this.limit = limit;
-    }
-
-    public int getUsed() {
-        return used;
-    }
-
-    public void setUsed(int used) {
-        this.used = used;
-    }
-
-    public int getRemaining() {
-        return remaining;
-    }
-
-    public void setRemaining(int remaining) {
-        this.remaining = remaining;
-    }
-
-    public Instant getResetAt() {
-        return resetAt;
-    }
-
-    public void setResetAt(Instant resetAt) {
-        this.resetAt = resetAt;
-    }
+public record QuotaStatus(boolean allowed, int limit, int used, int remaining, Instant resetAt) {
 }

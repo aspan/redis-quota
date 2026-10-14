@@ -87,34 +87,17 @@ public class QuotaManager {
                 var allowedFlag = ((Long) result.get(0)).intValue();
                 var currentUsage = ((Long) result.get(1)).intValue();
 
-                return new QuotaStatus() {{
-                    setAllowed(allowedFlag == 1);
-                    setLimit(config.limit());
-                    setUsed(currentUsage);
-                    setRemaining(Math.max(0, config.limit() - currentUsage));
-                    setResetAt(resetAt);
-                }};
+                return new QuotaStatus(allowedFlag == 1, config.limit(), currentUsage,
+                        Math.max(0, config.limit() - currentUsage), resetAt);
             }
         } catch (Exception e) {
             // Fail open in case of Redis issues
             LOGGER.error("Redis error in checkAndIncrement for user {}, failing open", userId, e);
-            return new QuotaStatus() {{
-                setAllowed(true);
-                setLimit(config.limit());
-                setUsed(0);
-                setRemaining(config.limit());
-                setResetAt(resetAt);
-            }};
+            return new QuotaStatus(true, config.limit(), 0, config.limit(), resetAt);
         }
 
         // Default return
-        return new QuotaStatus() {{
-            setAllowed(false);
-            setLimit(config.limit());
-            setUsed(0);
-            setRemaining(0);
-            setResetAt(resetAt);
-        }};
+        return new QuotaStatus(false, config.limit(), 0, 0, resetAt);
     }
 
     public int getUsage(String userId, QuotaPeriod period) {

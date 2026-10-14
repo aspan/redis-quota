@@ -34,8 +34,8 @@ public class TestController {
         // Get quota status from request attribute set by interceptor
         var status = (QuotaStatus) request.getAttribute("quotaStatus");
         if (status != null) {
-            return "Quota Status: " + status.getUsed() + "/" + status.getLimit() +
-                   ", Remaining: " + status.getRemaining();
+            return "Quota Status: " + status.used() + "/" + status.limit() +
+                   ", Remaining: " + status.remaining();
         }
         return "No quota information available";
     }

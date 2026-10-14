@@ -15,10 +15,10 @@ Usage quotas per user and period, backed by Redis and built with Spring Boot.
 var config = new QuotaConfig(1000, QuotaPeriod.MONTHLY);
 
 var status = quotaManager.checkAndIncrement("user-123", config, 250);
-status.isAllowed();   // true
-status.getUsed();     // 250
-status.getRemaining(); // 750
-status.getResetAt();  // Instant: start of next month in the clock's time zone
+status.allowed();   // true
+status.used();      // 250
+status.remaining(); // 750
+status.resetAt();   // Instant: start of next month in the clock's time zone
 
 quotaManager.getUsage("user-123", QuotaPeriod.MONTHLY); // 250
 ```

@@ -65,11 +65,11 @@ class QuotaManagerFailOpenIT {
 		var status = quotaManager.checkAndIncrement("user", config, 10);
 
 		assertAll(
-				() -> assertTrue(status.isAllowed()),
-				() -> assertEquals(100, status.getLimit()),
-				() -> assertEquals(0, status.getUsed()),
-				() -> assertEquals(100, status.getRemaining()),
-				() -> assertEquals(Instant.parse("2026-10-15T00:00:00Z"), status.getResetAt()));
+				() -> assertTrue(status.allowed()),
+				() -> assertEquals(100, status.limit()),
+				() -> assertEquals(0, status.used()),
+				() -> assertEquals(100, status.remaining()),
+				() -> assertEquals(Instant.parse("2026-10-15T00:00:00Z"), status.resetAt()));
 	}
 
 	@Test
