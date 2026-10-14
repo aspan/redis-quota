@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
-class QuotaManagerTests {
+class QuotaManagerIT {
 
 	@Autowired
 	private QuotaManager quotaManager;

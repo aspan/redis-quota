@@ -68,8 +68,10 @@ When the quota is exhausted it responds with `429 Too Many Requests` and a JSON 
 ./mvnw clean verify
 ```
 
-- `QuotaManagerTests` runs against a real Redis in Testcontainers with a fixed clock (Wednesday 2026-10-14, Europe/Stockholm), so reset times, key names and expiry times are checked against exact values.
-- `QuotaManagerFailOpenTests` is a plain unit test with a mocked `RedisTemplate`. It covers the behaviour when Redis is down.
+All tests are integration tests (`*IT`) and run with the Maven Failsafe plugin during `verify`. Each one starts the full Spring application context.
+
+- `QuotaManagerIT` runs against a real Redis in Testcontainers with a fixed clock (Wednesday 2026-10-14, Europe/Stockholm), so reset times, key names and expiry times are checked against exact values.
+- `QuotaManagerFailOpenIT` points the application at a Redis port with nothing listening on it, and checks that quotas fail open. It logs the expected connection errors.
 
 ## License
 

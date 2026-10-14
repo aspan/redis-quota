@@ -16,13 +16,16 @@
 
 package biz.asplund.redis.quota;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.RedisConnectionFailureException;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.convention.TestBean;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.ServerSocket;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -30,30 +33,33 @@ import java.time.ZoneOffset;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-class QuotaManagerFailOpenTests {
+/**
+ * Runs the application against a Redis port with nothing listening on it.
+ */
+@SpringBootTest(properties = "spring.data.redis.connect-timeout=500ms")
+class QuotaManagerFailOpenIT {
 
 	private static final Instant NOW = Instant.parse("2026-10-14T08:15:30Z");
 
-	private RedisTemplate<String, String> redisTemplate;
+	@Autowired
 	private QuotaManager quotaManager;
 
-	@BeforeEach
-	@SuppressWarnings("unchecked")
-	void setUp() {
-		redisTemplate = mock(RedisTemplate.class);
-		quotaManager = new QuotaManager(redisTemplate, Clock.fixed(NOW, ZoneOffset.UTC));
+	@TestBean
+	private Clock clock;
+
+	static Clock clock() {
+		return Clock.fixed(NOW, ZoneOffset.UTC);
+	}
+
+	@DynamicPropertySource
+	static void unreachableRedis(DynamicPropertyRegistry registry) {
+		registry.add("spring.data.redis.host", () -> "localhost");
+		registry.add("spring.data.redis.port", QuotaManagerFailOpenIT::unusedPort);
 	}
 
 	@Test
 	void checkAndIncrementAllowsRequestWhenRedisIsDown() {
-		when(redisTemplate.execute(any(RedisScript.class), anyList(), any(Object[].class)))
-				.thenThrow(new RedisConnectionFailureException("Connection refused"));
 		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
 
 		var status = quotaManager.checkAndIncrement("user", config, 10);
@@ -67,13 +73,16 @@ class QuotaManagerFailOpenTests {
 	}
 
 	@Test
-	@SuppressWarnings("unchecked")
 	void getUsageReturnsZeroWhenRedisIsDown() {
-		ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
-		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-		when(valueOperations.get(anyString())).thenThrow(new RedisConnectionFailureException("Connection refused"));
-
 		assertEquals(0, quotaManager.getUsage("user", QuotaPeriod.DAILY));
+	}
+
+	private static int unusedPort() {
+		try (var socket = new ServerSocket(0)) {
+			return socket.getLocalPort();
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
 	}
 
 }
