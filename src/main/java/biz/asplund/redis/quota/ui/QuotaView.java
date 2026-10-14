@@ -39,6 +39,9 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.data.value.ValueChangeMode;
+import com.vaadin.flow.i18n.I18NProvider;
+import com.vaadin.flow.i18n.LocaleChangeEvent;
+import com.vaadin.flow.i18n.LocaleChangeObserver;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.Menu;
@@ -48,34 +51,45 @@ import jakarta.annotation.security.RolesAllowed;
 import org.springframework.dao.DataAccessException;
 
 import java.time.Clock;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
 @Route("")
-@PageTitle("Quotas")
-@Menu(title = "Quotas", icon = "vaadin:dashboard", order = 0)
+@PageTitle("quotas.title")
+@Menu(title = "quotas.title", icon = "vaadin:dashboard", order = 0)
 @RolesAllowed("ADMIN")
-public class QuotaView extends VerticalLayout implements BeforeEnterObserver {
+public class QuotaView extends VerticalLayout implements BeforeEnterObserver, LocaleChangeObserver {
 
     private final QuotaDefinitionRepository quotaDefinitionRepository;
     private final QuotaManager quotaManager;
-    private final DateTimeFormatter dateTimeFormatter;
+    private final ZoneId zone;
+    private DateTimeFormatter dateTimeFormatter;
 
     private final Grid<QuotaRow> grid = new Grid<>();
     private final TextField filter = new TextField();
+    private final Button refreshButton = new Button(VaadinIcon.REFRESH.create());
+    private final Button addButton = new Button(VaadinIcon.PLUS.create());
     private final MasterDetailLayout masterDetail = new MasterDetailLayout();
+
+    private Grid.Column<QuotaRow> idColumn;
+    private final Map<QuotaPeriod, Grid.Column<QuotaRow>> periodColumns = new EnumMap<>(QuotaPeriod.class);
+    private Grid.Column<QuotaRow> lastUsedColumn;
 
     private List<QuotaRow> rows = List.of();
 
     public QuotaView(QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager, Clock clock) {
         this.quotaDefinitionRepository = quotaDefinitionRepository;
         this.quotaManager = quotaManager;
-        this.dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withZone(clock.getZone());
+        this.zone = clock.getZone();
+        this.dateTimeFormatter = createDateTimeFormatter(getLocale());
 
         setSizeFull();
         setPadding(false);
@@ -90,6 +104,33 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver {
         add(masterDetail);
     }
 
+    // Called when attached and whenever the language changes
+    @Override
+    public void localeChange(LocaleChangeEvent event) {
+        dateTimeFormatter = createDateTimeFormatter(event.getLocale());
+
+        filter.setPlaceholder(getTranslation("quotas.filter"));
+        refreshButton.setTooltipText(getTranslation("quotas.refresh"));
+        refreshButton.setAriaLabel(getTranslation("quotas.refresh"));
+        addButton.setText(getTranslation("quotas.new"));
+
+        idColumn.setHeader(getTranslation("quotas.column.id"));
+        periodColumns.forEach((period, column) -> column.setHeader(label(period)));
+        lastUsedColumn.setHeader(getTranslation("quotas.column.lastUsed"));
+        grid.setEmptyStateText(getTranslation("quotas.empty"));
+        grid.getDataProvider().refreshAll();
+
+        // Rebuild an open editor in the new language; unsaved input in it is lost
+        if (masterDetail.getDetail() instanceof QuotaEditor editor) {
+            showEditor(editor.quotaId() == null ? null
+                    : rows.stream().filter(row -> row.id().equals(editor.quotaId())).findFirst().orElse(null));
+        }
+    }
+
+    private DateTimeFormatter createDateTimeFormatter(Locale locale) {
+        return DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone);
+    }
+
     // Reload on every navigation, including to this view when it is already shown
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
@@ -97,38 +138,36 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver {
     }
 
     private Component createMaster() {
-        filter.setPlaceholder("Filter by id");
         filter.setWidth("20rem");
         filter.setPrefixComponent(VaadinIcon.SEARCH.create());
         filter.setClearButtonVisible(true);
         filter.setValueChangeMode(ValueChangeMode.LAZY);
         filter.addValueChangeListener(_ -> applyFilter());
 
-        var refresh = new Button(VaadinIcon.REFRESH.create(), _ -> refresh());
-        refresh.setTooltipText("Refresh");
-        refresh.setAriaLabel("Refresh");
-        refresh.addThemeVariants(ButtonVariant.TERTIARY);
+        refreshButton.addClickListener(_ -> refresh());
+        refreshButton.addThemeVariants(ButtonVariant.TERTIARY);
 
-        var add = new Button("New quota", VaadinIcon.PLUS.create(), _ -> {
+        addButton.addClickListener(_ -> {
             grid.deselectAll();
             showEditor(null);
         });
-        add.addThemeVariants(ButtonVariant.PRIMARY);
+        addButton.addThemeVariants(ButtonVariant.PRIMARY);
 
-        var toolbar = new HorizontalLayout(filter, refresh, add);
+        var toolbar = new HorizontalLayout(filter, refreshButton, addButton);
         toolbar.setWidthFull();
         toolbar.setAlignItems(FlexComponent.Alignment.CENTER);
-        add.getStyle().set("margin-inline-start", "auto");
+        addButton.getStyle().set("margin-inline-start", "auto");
 
-        grid.addColumn(QuotaRow::id).setHeader("Id").setSortable(true)
+        // Headers are set in localeChange
+        idColumn = grid.addColumn(QuotaRow::id).setSortable(true)
                 .setComparator(Comparator.comparing(QuotaRow::id)).setFlexGrow(2).setFrozen(true);
         for (var period : QuotaPeriod.values()) {
-            grid.addColumn(new ComponentRenderer<>(row -> usageBadge(row.statuses().get(period))))
-                    .setHeader(label(period)).setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
+            periodColumns.put(period, grid.addColumn(new ComponentRenderer<>(row -> usageBadge(row.statuses().get(period))))
+                    .setTextAlign(ColumnTextAlign.END).setAutoWidth(true));
         }
-        grid.addColumn(row -> row.lastUsed().map(dateTimeFormatter::format).orElse("Never"))
-                .setHeader("Last used").setAutoWidth(true);
-        grid.setEmptyStateText("No quota definitions");
+        lastUsedColumn = grid.addColumn(row -> row.lastUsed().map(dateTimeFormatter::format)
+                        .orElse(getTranslation("quotas.never")))
+                .setAutoWidth(true);
         grid.asSingleSelect().addValueChangeListener(event -> {
             if (event.getValue() != null) {
                 showEditor(event.getValue());
@@ -187,7 +226,8 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver {
                     .toList();
         } catch (DataAccessException e) {
             rows = List.of();
-            var notification = Notification.show("Could not load quotas: " + e.getMostSpecificCause().getMessage());
+            var notification = Notification.show(
+                    getTranslation("quotas.loadFailed", e.getMostSpecificCause().getMessage()));
             notification.addThemeVariants(NotificationVariant.ERROR);
         }
         applyFilter();
@@ -208,8 +248,8 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver {
                 .setIdentifierProvider(QuotaRow::id);
     }
 
+    // Translated name of a period, for the current UI locale
     static String label(QuotaPeriod period) {
-        var name = period.name().toLowerCase(Locale.ROOT);
-        return Character.toUpperCase(name.charAt(0)) + name.substring(1);
+        return I18NProvider.translate("period." + period.name().toLowerCase(Locale.ROOT));
     }
 }

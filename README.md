@@ -99,6 +99,8 @@ The application includes a Vaadin admin UI at <http://localhost:8080/>. It lists
 
 The UI requires a login with the `ADMIN` role. Views are listed in the side menu, and the user menu at the bottom logs out. Requests under `/api/**` are not behind the login, since API clients are identified by the quota interceptor.
 
+The UI is available in English and Swedish. It starts in the browser's language, or English for other languages, and the language picker in the side menu and on the login page switches it for all open tabs of the session without reloading. Spring's `LocaleResolver` (a `CookieLocaleResolver` in `I18nConfiguration`) remembers the choice in a `locale` cookie for a year, so it also applies after logging out and in later sessions; Spring MVC uses the same resolver. Texts are in `src/main/resources/vaadin-i18n/` (`translations.properties` for English, `translations_sv.properties` for Swedish). To add a language, add a `translations_<language>.properties` file and its locale in `I18nConfiguration`.
+
 The application itself defines no accounts. For local development, `./mvnw spring-boot:test-run` adds an `admin` user with the `ADMIN` role from `src/test/resources/config/application.properties`. Its password is read from `config/local.properties`, which Git ignores:
 
 ```properties
@@ -118,6 +120,8 @@ All tests are integration tests (`*IT`) and run with the Maven Failsafe plugin d
 - `QuotaManagerIT` runs against a real Redis in Testcontainers with a fixed clock (Wednesday 2026-10-14, Europe/Stockholm), so reset times, key names and expiry times are checked against exact values.
 - `QuotaManagerFailOpenIT` points the application at a Redis port with nothing listening on it, and checks that quotas fail open. It logs the expected connection errors.
 - `QuotaViewIT` tests the admin UI with Vaadin browserless tests: the views run on the server against a real Redis, and Spring Security's `@WithMockUser` sets the logged-in user. It covers access control, the menu, listing and filtering quotas, creating, editing and deleting definitions, and setting and resetting usage.
+- `LanguagePreferenceIT` checks how the language is resolved: the best translated match for the browser's `Accept-Language`, English as fallback, and a stored choice in the `locale` cookie taking precedence.
+- `I18nIT` checks that the UI uses English by default, that the language picker switches the open views and the login form to Swedish and back, and that both translation files have the same keys.
 - `SecurityConfigurationIT` checks the HTTP security rules with MockMvc: the login redirect, form login, and that `/api/**` needs no login.
 
 ## License

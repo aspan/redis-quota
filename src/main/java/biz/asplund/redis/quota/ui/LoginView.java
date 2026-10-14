@@ -17,7 +17,10 @@
 package biz.asplund.redis.quota.ui;
 
 import com.vaadin.flow.component.login.LoginForm;
+import com.vaadin.flow.component.login.LoginI18n;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.i18n.LocaleChangeEvent;
+import com.vaadin.flow.i18n.LocaleChangeObserver;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.PageTitle;
@@ -25,20 +28,44 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
 
 @Route(value = "login", autoLayout = false)
-@PageTitle("Log in · Quotas")
+@PageTitle("login.title")
 @AnonymousAllowed
-public class LoginView extends VerticalLayout implements BeforeEnterObserver {
+public class LoginView extends VerticalLayout implements BeforeEnterObserver, LocaleChangeObserver {
 
     private final LoginForm login = new LoginForm();
 
-    public LoginView() {
+    public LoginView(LanguagePreference languagePreference) {
         setSizeFull();
         setAlignItems(Alignment.CENTER);
         setJustifyContentMode(JustifyContentMode.CENTER);
 
         login.setAction("login");
         login.setForgotPasswordButtonVisible(false);
-        add(login);
+        add(login, new LanguageSelect(languagePreference));
+    }
+
+    @Override
+    public void localeChange(LocaleChangeEvent event) {
+        login.setI18n(createI18n());
+        // The router sets the browser tab title only on navigation
+        event.getUI().getPage().setTitle(getTranslation("login.title"));
+    }
+
+    private LoginI18n createI18n() {
+        var form = new LoginI18n.Form();
+        form.setTitle(getTranslation("login.form.title"));
+        form.setUsername(getTranslation("login.form.username"));
+        form.setPassword(getTranslation("login.form.password"));
+        form.setSubmit(getTranslation("login.form.submit"));
+
+        var errorMessage = new LoginI18n.ErrorMessage();
+        errorMessage.setTitle(getTranslation("login.error.title"));
+        errorMessage.setMessage(getTranslation("login.error.message"));
+
+        var i18n = new LoginI18n();
+        i18n.setForm(form);
+        i18n.setErrorMessage(errorMessage);
+        return i18n;
     }
 
     @Override

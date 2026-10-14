@@ -31,6 +31,8 @@ import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
+import com.vaadin.flow.i18n.LocaleChangeEvent;
+import com.vaadin.flow.i18n.LocaleChangeObserver;
 import com.vaadin.flow.router.AfterNavigationEvent;
 import com.vaadin.flow.router.AfterNavigationObserver;
 import com.vaadin.flow.router.Layout;
@@ -39,42 +41,63 @@ import com.vaadin.flow.server.menu.MenuEntry;
 import com.vaadin.flow.spring.security.AuthenticationContext;
 import jakarta.annotation.security.PermitAll;
 
-// Shell around every view except the login view; the menu lists the @Menu views the user may open
+// Shell around every view except the login view; the menu lists the @Menu views the user may open,
+// whose titles are translation keys. Texts are set in localeChange, so they follow the language picker
 @Layout
 @PermitAll
-public class MainLayout extends AppLayout implements AfterNavigationObserver {
+public class MainLayout extends AppLayout implements AfterNavigationObserver, LocaleChangeObserver {
 
     private final H1 viewTitle = new H1();
+    private final Span appName = new Span();
+    private final SideNav nav = new SideNav();
+    private final Button logout = new Button(VaadinIcon.SIGN_OUT.create());
 
-    public MainLayout(AuthenticationContext authenticationContext) {
+    public MainLayout(AuthenticationContext authenticationContext, LanguagePreference languagePreference) {
         setPrimarySection(Section.DRAWER);
 
         viewTitle.getStyle().set("font-size", "1.125rem").set("margin", "0");
         addToNavbar(new DrawerToggle(), viewTitle);
 
-        var appName = new Span("Redis Quota");
         appName.getStyle().set("font-weight", "600").set("font-size", "1.125rem");
         var header = new HorizontalLayout(VaadinIcon.DASHBOARD.create(), appName);
         header.setAlignItems(FlexComponent.Alignment.CENTER);
         header.setPadding(true);
 
-        var nav = new Scroller(createSideNav());
-        var drawer = new VerticalLayout(header, nav, createUserFooter(authenticationContext));
+        nav.setWidthFull();
+        var scroller = new Scroller(nav);
+
+        var languageSelect = new LanguageSelect(languagePreference);
+        languageSelect.setWidthFull();
+        var language = new HorizontalLayout(languageSelect);
+        language.setWidthFull();
+        language.setPadding(true);
+
+        var drawer = new VerticalLayout(header, scroller, language, createUserFooter(authenticationContext));
         drawer.setSizeFull();
         drawer.setPadding(false);
-        drawer.setFlexGrow(1, nav);
+        drawer.setSpacing(false);
+        drawer.setFlexGrow(1, scroller);
         addToDrawer(drawer);
     }
 
-    private SideNav createSideNav() {
-        var nav = new SideNav();
-        nav.setWidthFull();
+    @Override
+    public void localeChange(LocaleChangeEvent event) {
+        appName.setText(getTranslation("app.name"));
+        logout.setTooltipText(getTranslation("nav.logout"));
+        logout.setAriaLabel(getTranslation("nav.logout"));
+
+        nav.removeAll();
         MenuConfiguration.getMenuEntries().forEach(entry -> nav.addItem(createSideNavItem(entry)));
-        return nav;
+
+        if (getContent() != null) {
+            updateViewTitle();
+            // The router sets the browser tab title only on navigation
+            event.getUI().getPage().setTitle(viewTitle.getText());
+        }
     }
 
     private SideNavItem createSideNavItem(MenuEntry entry) {
-        var item = new SideNavItem(entry.title(), entry.path());
+        var item = new SideNavItem(getTranslation(entry.title()), entry.path());
         item.setMatchNested(true);
         if (entry.icon() != null) {
             item.setPrefixComponent(new Icon(entry.icon()));
@@ -87,9 +110,7 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver {
         var avatar = new Avatar(name);
         var userName = new Span(name);
 
-        var logout = new Button(VaadinIcon.SIGN_OUT.create(), _ -> authenticationContext.logout());
-        logout.setTooltipText("Log out");
-        logout.setAriaLabel("Log out");
+        logout.addClickListener(_ -> authenticationContext.logout());
         logout.addThemeVariants(ButtonVariant.TERTIARY);
 
         var footer = new HorizontalLayout(avatar, userName, logout);
@@ -102,6 +123,11 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver {
 
     @Override
     public void afterNavigation(AfterNavigationEvent event) {
+        updateViewTitle();
+    }
+
+    private void updateViewTitle() {
+        // Already translated by the PageTitleGenerator in I18nConfiguration
         viewTitle.setText(MenuConfiguration.getPageHeader(getContent()).orElse(""));
     }
 }
