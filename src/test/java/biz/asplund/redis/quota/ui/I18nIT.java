@@ -27,8 +27,10 @@ import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.i18n.I18NProvider;
 import com.vaadin.flow.server.VaadinSession;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -38,6 +40,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.ResourceBundle;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -45,6 +48,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @WithMockUser(username = "admin", roles = "ADMIN")
 class I18nIT extends SpringBrowserlessTest {
+
+	@Autowired
+	private I18nProperties i18nProperties;
+
+	@Autowired
+	private I18NProvider i18nProvider;
 
 	private static final Locale SWEDISH = Locale.of("sv");
 
@@ -134,6 +143,28 @@ class I18nIT extends SpringBrowserlessTest {
 		menu.open();
 		menu.clickItem(language);
 		menu.close();
+	}
+
+	@Test
+	void hasTranslationsForEveryConfiguredLocale() {
+		assertThat(i18nProperties.locales()).allSatisfy(locale ->
+				assertThat(I18nIT.class.getResource("/vaadin-i18n/translations_" + locale + ".properties"))
+						.as("translations_%s.properties", locale).isNotNull());
+	}
+
+	@Test
+	void servesEnglishWhenJvmDefaultLocaleIsSwedish() {
+		var defaultLocale = Locale.getDefault();
+		try {
+			Locale.setDefault(SWEDISH);
+			ResourceBundle.clearCache();
+
+			assertThat(i18nProvider.getTranslation("quotas.title", Locale.ENGLISH)).isEqualTo("Quotas");
+			assertThat(i18nProvider.getTranslation("quotas.title", SWEDISH)).isEqualTo("Kvoter");
+		} finally {
+			Locale.setDefault(defaultLocale);
+			ResourceBundle.clearCache();
+		}
 	}
 
 	private static Properties translations(String name) throws IOException {
