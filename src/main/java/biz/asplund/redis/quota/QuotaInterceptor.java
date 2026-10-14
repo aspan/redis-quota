@@ -62,7 +62,7 @@ public class QuotaInterceptor implements HandlerInterceptor {
                 response.getWriter().write(
                     "{\n" +
                     "  \"error\": \"Quota Exceeded\",\n" +
-                    "  \"message\": \"You have exceeded your " + config.getPeriod() + " quota\",\n" +
+                    "  \"message\": \"You have exceeded your " + config.period() + " quota\",\n" +
                     "  \"limit\": " + status.getLimit() + ",\n" +
                     "  \"used\": " + status.getUsed() + ",\n" +
                     "  \"resetAt\": \"" + status.getResetAt().toString() + "\"\n" +

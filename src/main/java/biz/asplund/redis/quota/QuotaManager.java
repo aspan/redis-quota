@@ -49,9 +49,9 @@ public class QuotaManager {
     }
 
     public QuotaStatus checkAndIncrement(String userId, QuotaConfig config, int amount) {
-        var key = getPeriodKey(userId, config.getPeriod());
-        var ttl = getTTL(config.getPeriod());
-        var resetAt = getResetTime(config.getPeriod());
+        var key = getPeriodKey(userId, config.period());
+        var ttl = getTTL(config.period());
+        var resetAt = getResetTime(config.period());
 
         // Lua script for atomic operations
         var script = """
@@ -80,7 +80,7 @@ public class QuotaManager {
                 Collections.singletonList(key),
                 String.valueOf(amount),
                 String.valueOf(ttl),
-                String.valueOf(config.getLimit())
+                String.valueOf(config.limit())
             );
 
             if (result != null && result.size() >= 2) {
@@ -89,9 +89,9 @@ public class QuotaManager {
 
                 return new QuotaStatus() {{
                     setAllowed(allowedFlag == 1);
-                    setLimit(config.getLimit());
+                    setLimit(config.limit());
                     setUsed(currentUsage);
-                    setRemaining(Math.max(0, config.getLimit() - currentUsage));
+                    setRemaining(Math.max(0, config.limit() - currentUsage));
                     setResetAt(resetAt);
                 }};
             }
@@ -100,9 +100,9 @@ public class QuotaManager {
             LOGGER.error("Redis error in checkAndIncrement for user {}, failing open", userId, e);
             return new QuotaStatus() {{
                 setAllowed(true);
-                setLimit(config.getLimit());
+                setLimit(config.limit());
                 setUsed(0);
-                setRemaining(config.getLimit());
+                setRemaining(config.limit());
                 setResetAt(resetAt);
             }};
         }
@@ -110,7 +110,7 @@ public class QuotaManager {
         // Default return
         return new QuotaStatus() {{
             setAllowed(false);
-            setLimit(config.getLimit());
+            setLimit(config.limit());
             setUsed(0);
             setRemaining(0);
             setResetAt(resetAt);

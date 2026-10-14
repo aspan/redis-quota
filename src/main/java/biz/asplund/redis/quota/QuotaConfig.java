@@ -16,31 +16,5 @@
 
 package biz.asplund.redis.quota;
 
-public class QuotaConfig {
-    private int limit;
-    private QuotaPeriod period;
-
-    public QuotaConfig() {}
-
-    public QuotaConfig(int limit, QuotaPeriod period) {
-        this.limit = limit;
-        this.period = period;
-    }
-
-    // Getters and setters
-    public int getLimit() {
-        return limit;
-    }
-
-    public void setLimit(int limit) {
-        this.limit = limit;
-    }
-
-    public QuotaPeriod getPeriod() {
-        return period;
-    }
-
-    public void setPeriod(QuotaPeriod period) {
-        this.period = period;
-    }
+public record QuotaConfig(int limit, QuotaPeriod period) {
 }
