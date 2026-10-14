@@ -42,6 +42,8 @@ import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.spring.security.AuthenticationContext;
+import jakarta.annotation.security.RolesAllowed;
 import org.springframework.dao.DataAccessException;
 
 import java.time.Clock;
@@ -55,10 +57,12 @@ import java.util.stream.StreamSupport;
 
 @Route("")
 @PageTitle("Quotas")
+@RolesAllowed("ADMIN")
 public class QuotaView extends VerticalLayout {
 
     private final QuotaDefinitionRepository quotaDefinitionRepository;
     private final QuotaManager quotaManager;
+    private final AuthenticationContext authenticationContext;
     private final DateTimeFormatter dateTimeFormatter;
 
     private final Grid<QuotaRow> grid = new Grid<>();
@@ -67,9 +71,11 @@ public class QuotaView extends VerticalLayout {
 
     private List<QuotaRow> rows = List.of();
 
-    public QuotaView(QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager, Clock clock) {
+    public QuotaView(QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager, Clock clock,
+            AuthenticationContext authenticationContext) {
         this.quotaDefinitionRepository = quotaDefinitionRepository;
         this.quotaManager = quotaManager;
+        this.authenticationContext = authenticationContext;
         this.dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withZone(clock.getZone());
 
         setSizeFull();
@@ -107,7 +113,12 @@ public class QuotaView extends VerticalLayout {
         });
         add.addThemeVariants(ButtonVariant.PRIMARY);
 
-        var toolbar = new HorizontalLayout(title, filter, refresh, add);
+        var logout = new Button(VaadinIcon.SIGN_OUT.create(), _ -> authenticationContext.logout());
+        logout.setTooltipText("Log out " + authenticationContext.getPrincipalName().orElse(""));
+        logout.setAriaLabel("Log out");
+        logout.addThemeVariants(ButtonVariant.TERTIARY);
+
+        var toolbar = new HorizontalLayout(title, filter, refresh, add, logout);
         toolbar.setWidthFull();
         toolbar.setAlignItems(FlexComponent.Alignment.CENTER);
         toolbar.expand(title);
