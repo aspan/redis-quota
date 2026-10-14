@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -43,6 +44,16 @@ public class QuotaManager {
 
     private static final String QUOTA_PREFIX = "quota";
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHxx");
+
+    // Adds a (possibly negative) delta to the usage, never going below zero
+    private static final RedisScript<Long> ADJUST_USAGE_SCRIPT = RedisScript.of("""
+            local usage = tonumber(redis.call('GET', KEYS[1]) or '0') + tonumber(ARGV[1])
+            if usage < 0 then
+                usage = 0
+            end
+            redis.call('SET', KEYS[1], usage, 'EX', tonumber(ARGV[2]))
+            return usage
+            """, Long.class);
 
     private final RedisTemplate<String, String> redisTemplate;
     private final Clock clock;
@@ -113,6 +124,28 @@ public class QuotaManager {
             LOGGER.error("Redis error in getUsage for id {}", id, e);
             return 0;
         }
+    }
+
+    public void resetQuota(String id, QuotaPeriod period) {
+        redisTemplate.delete(getPeriodKey(id, period));
+    }
+
+    public int adjustUsage(String id, QuotaPeriod period, int delta) {
+        var usage = redisTemplate.execute(
+            ADJUST_USAGE_SCRIPT,
+            Collections.singletonList(getPeriodKey(id, period)),
+            String.valueOf(delta),
+            String.valueOf(getTTL(period))
+        );
+        return usage.intValue();
+    }
+
+    public void setUsage(String id, QuotaPeriod period, int usage) {
+        if (usage < 0) {
+            throw new IllegalArgumentException("usage must not be negative: " + usage);
+        }
+        redisTemplate.opsForValue().set(getPeriodKey(id, period), String.valueOf(usage),
+            Duration.ofSeconds(getTTL(period)));
     }
 
     private String getPeriodKey(String id, QuotaPeriod period) {

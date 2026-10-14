@@ -25,6 +25,16 @@ quotaManager.getUsage("user-123", QuotaPeriod.MONTHLY); // 250
 
 A rejected request does not consume quota, and its status reports the usage and remaining quota as they actually are.
 
+### Changing usage
+
+```java
+quotaManager.adjustUsage("user-123", QuotaPeriod.MONTHLY, -50); // 200: refund 50, never below 0
+quotaManager.setUsage("user-123", QuotaPeriod.MONTHLY, 900);    // overwrite usage
+quotaManager.resetQuota("user-123", QuotaPeriod.MONTHLY);       // clear usage for the current period
+```
+
+These act on the current period only, and keys they write expire with the period like any other.
+
 ### How usage is stored
 
 Each user and period gets its own Redis key:
@@ -42,6 +52,8 @@ Reset times use the time zone of the injected `java.time.Clock` (the system defa
 ### Failing open
 
 If Redis cannot be reached, `checkAndIncrement` logs an error and allows the request with full remaining quota, and `getUsage` returns 0. A Redis outage never blocks traffic, but quotas are not enforced while it lasts, so watch for `Redis error in checkAndIncrement` in the logs.
+
+`resetQuota`, `adjustUsage` and `setUsage` do not fail open: they throw the Redis exception, so callers know the change was not made.
 
 ### HTTP interceptor
 

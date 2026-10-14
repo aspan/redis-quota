@@ -37,6 +37,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 
 @Import(TestcontainersConfiguration.class)
@@ -258,8 +259,112 @@ class QuotaManagerIT {
 	}
 
 	@Test
+	void resetQuotaClearsUsageSoRequestsAreAllowedAgain() {
+		var id = uniqueId();
+		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
+		quotaManager.checkAndIncrement(id, config, 100);
+
+		quotaManager.resetQuota(id, QuotaPeriod.DAILY);
+
+		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isZero();
+		assertThat(quotaManager.checkAndIncrement(id, config, 100))
+				.returns(true, QuotaStatus::allowed)
+				.returns(100, QuotaStatus::used);
+	}
+
+	@Test
+	void resetQuotaOnlyAffectsGivenPeriod() {
+		var id = uniqueId();
+		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 10);
+		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.MONTHLY), 20);
+
+		quotaManager.resetQuota(id, QuotaPeriod.DAILY);
+
+		assertSoftly(softly -> {
+			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).as("daily").isZero();
+			softly.assertThat(quotaManager.getUsage(id, QuotaPeriod.MONTHLY)).as("monthly").isEqualTo(20);
+		});
+	}
+
+	@Test
+	void adjustUsageAddsAndSubtracts() {
+		var id = uniqueId();
+		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 50);
+
+		assertThat(quotaManager.adjustUsage(id, QuotaPeriod.DAILY, -20)).isEqualTo(30);
+		assertThat(quotaManager.adjustUsage(id, QuotaPeriod.DAILY, 5)).isEqualTo(35);
+		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isEqualTo(35);
+	}
+
+	@Test
+	void adjustUsageNeverGoesBelowZero() {
+		var id = uniqueId();
+		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 10);
+
+		assertThat(quotaManager.adjustUsage(id, QuotaPeriod.DAILY, -100)).isZero();
+		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isZero();
+	}
+
+	@Test
+	void refundLetsPreviouslyRejectedRequestThrough() {
+		var id = uniqueId();
+		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
+		quotaManager.checkAndIncrement(id, config, 100);
+		assertThat(quotaManager.checkAndIncrement(id, config, 10).allowed()).isFalse();
+
+		quotaManager.adjustUsage(id, QuotaPeriod.DAILY, -10);
+
+		assertThat(quotaManager.checkAndIncrement(id, config, 10))
+				.returns(true, QuotaStatus::allowed)
+				.returns(100, QuotaStatus::used);
+	}
+
+	@Test
+	void adjustUsageOnNewIdStartsFromZeroAndExpiresWithPeriod() {
+		var id = uniqueId();
+
+		assertThat(quotaManager.adjustUsage(id, QuotaPeriod.DAILY, 3)).isEqualTo(3);
+
+		assertExpiresOneHourAfterDailyReset(id);
+	}
+
+	@Test
+	void setUsageOverwritesUsage() {
+		var id = uniqueId();
+		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
+		quotaManager.checkAndIncrement(id, config, 10);
+
+		quotaManager.setUsage(id, QuotaPeriod.DAILY, 80);
+
+		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isEqualTo(80);
+		assertThat(quotaManager.checkAndIncrement(id, config, 30))
+				.returns(false, QuotaStatus::allowed)
+				.returns(80, QuotaStatus::used)
+				.returns(20, QuotaStatus::remaining);
+		assertExpiresOneHourAfterDailyReset(id);
+	}
+
+	@Test
+	void setUsageRejectsNegativeUsage() {
+		var id = uniqueId();
+
+		assertThatIllegalArgumentException()
+				.isThrownBy(() -> quotaManager.setUsage(id, QuotaPeriod.DAILY, -1))
+				.withMessageContaining("-1");
+		assertThat(quotaManager.getUsage(id, QuotaPeriod.DAILY)).isZero();
+	}
+
+	@Test
 	void usageIsZeroForUnknownUser() {
 		assertThat(quotaManager.getUsage(uniqueId(), QuotaPeriod.MONTHLY)).isZero();
+	}
+
+	private void assertExpiresOneHourAfterDailyReset(String id) {
+		var reset = OffsetDateTime.parse("2026-10-15T00:00+02:00").toInstant();
+		var expectedTtl = Duration.between(NOW.toInstant(), reset).plusHours(1).toSeconds();
+		assertThat(redisTemplate.getExpire("quota:" + id + ":daily:20261014"))
+				.as("TTL in seconds")
+				.isBetween(expectedTtl - 4, expectedTtl);
 	}
 
 	private static String uniqueId() {

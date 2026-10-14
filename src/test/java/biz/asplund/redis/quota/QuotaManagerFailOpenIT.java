@@ -19,6 +19,7 @@ package biz.asplund.redis.quota;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.convention.TestBean;
@@ -31,6 +32,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 /**
  * Runs the application against a Redis port with nothing listening on it.
@@ -68,6 +70,16 @@ class QuotaManagerFailOpenIT {
 	@Test
 	void getUsageReturnsZeroWhenRedisIsDown() {
 		assertThat(quotaManager.getUsage("user", QuotaPeriod.DAILY)).isZero();
+	}
+
+	@Test
+	void writeOperationsFailWhenRedisIsDown() {
+		assertThatExceptionOfType(RedisConnectionFailureException.class)
+				.isThrownBy(() -> quotaManager.resetQuota("user", QuotaPeriod.DAILY));
+		assertThatExceptionOfType(RedisConnectionFailureException.class)
+				.isThrownBy(() -> quotaManager.adjustUsage("user", QuotaPeriod.DAILY, -1));
+		assertThatExceptionOfType(RedisConnectionFailureException.class)
+				.isThrownBy(() -> quotaManager.setUsage("user", QuotaPeriod.DAILY, 0));
 	}
 
 	private static int unusedPort() {
