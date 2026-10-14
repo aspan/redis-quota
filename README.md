@@ -97,7 +97,15 @@ When the quota is exhausted it responds with `429 Too Many Requests` and a JSON 
 
 The application includes a Vaadin admin UI at <http://localhost:8080/>. It lists the stored quota definitions with current usage per period and the last-used time. Select a definition to change its limits or delete it, or to set or reset the usage of the current period. **New quota** creates a definition.
 
-The UI requires a login with the `ADMIN` role. The user is `admin`; set its password with the `SPRING_SECURITY_USER_PASSWORD` environment variable. Without it, Spring Boot generates a password at each start and logs it as `Using generated security password`. Requests under `/api/**` are not behind the login, since API clients are identified by the quota interceptor.
+The UI requires a login with the `ADMIN` role. Views are listed in the side menu, and the user menu at the bottom logs out. Requests under `/api/**` are not behind the login, since API clients are identified by the quota interceptor.
+
+The application itself defines no accounts. For local development, `./mvnw spring-boot:test-run` adds an `admin` user with the `ADMIN` role from `src/test/resources/config/application.properties`. Its password is read from `config/local.properties`, which Git ignores:
+
+```properties
+spring.security.user.password=<your password>
+```
+
+Without that file, Spring Boot generates a password at each start and logs it as `Using generated security password`. A deployment has to provide its own users, for example with `spring.security.user.*` properties or a `UserDetailsService` bean.
 
 ## Building and testing
 

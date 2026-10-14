@@ -34,3 +34,6 @@ build/
 
 ### Vaadin ###
 src/main/frontend/generated/
+
+### Local configuration ###
+config/local.properties
