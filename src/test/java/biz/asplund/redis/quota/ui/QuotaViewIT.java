@@ -266,6 +266,30 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
+	void closesEditorOfExistingQuota() {
+		var id = uniqueId();
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 5));
+		var editor = openEditor(id);
+
+		test(find(Button.class, editor).withAriaLabel("Close").single()).click();
+
+		assertThat(find(QuotaEditor.class).exists()).isFalse();
+		assertThat(grid().getSelected()).isEmpty();
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
+	void closesEditorOfNewQuota() {
+		navigate(QuotaView.class);
+		test(find(Button.class).withText("New quota").single()).click();
+
+		test(find(Button.class, find(QuotaEditor.class).single()).withAriaLabel("Close").single()).click();
+
+		assertThat(find(QuotaEditor.class).exists()).isFalse();
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
 	void deletesDefinitionAfterConfirmation() {
 		var id = uniqueId();
 		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));

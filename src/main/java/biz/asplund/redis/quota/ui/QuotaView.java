@@ -97,8 +97,8 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         masterDetail.setMaster(createMaster());
         masterDetail.setMasterSize("40rem", true);
         masterDetail.setDetailSize("28rem");
-        masterDetail.addDetailEscapePressListener(_ -> grid.deselectAll());
-        masterDetail.addBackdropClickListener(_ -> grid.deselectAll());
+        masterDetail.addDetailEscapePressListener(_ -> closeEditor());
+        masterDetail.addBackdropClickListener(_ -> closeEditor());
         masterDetail.setSizeFull();
         add(masterDetail);
     }
@@ -198,7 +198,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
 
     private void showEditor(QuotaRow row) {
         masterDetail.setDetail(new QuotaEditor(row, quotaDefinitionRepository, quotaManager, dateTimeFormatter,
-                this::onSaved, this::onDeleted, () -> grid.deselectAll()));
+                this::onSaved, this::onDeleted, this::closeEditor));
     }
 
     private void onSaved(QuotaDefinition definition) {
@@ -210,9 +210,14 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     }
 
     private void onDeleted(QuotaDefinition definition) {
+        closeEditor();
+        refresh();
+    }
+
+    // Deselecting on the server does not close the editor by itself, as refreshes deselect too
+    private void closeEditor() {
         grid.deselectAll();
         masterDetail.setDetail(null);
-        refresh();
     }
 
     void refresh() {
