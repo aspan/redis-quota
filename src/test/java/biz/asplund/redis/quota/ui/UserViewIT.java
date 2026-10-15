@@ -330,6 +330,7 @@ class UserViewIT extends SpringBrowserlessTest {
 		test(find(Button.class, editor).withText("Delete").single()).click();
 		var dialog = test(find(ConfirmDialog.class).single());
 		assertThat(dialog.getHeader()).isEqualTo("Delete user " + account.getUsername() + "?");
+		assertThat(dialog.getText()).contains("their quota, usage and usage history are deleted too");
 		dialog.confirm();
 
 		assertThat(userAccountRepository.existsByUsername(account.getUsername())).isFalse();
