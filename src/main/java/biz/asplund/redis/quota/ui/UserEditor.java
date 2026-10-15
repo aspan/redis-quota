@@ -16,6 +16,7 @@
 
 package biz.asplund.redis.quota.ui;
 
+import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.AccountRuleException;
 import biz.asplund.redis.security.Role;
@@ -30,6 +31,7 @@ import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.H4;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
@@ -44,14 +46,18 @@ import com.vaadin.flow.data.binder.BeanValidationBinder;
 import com.vaadin.flow.data.binder.ValidationException;
 import org.springframework.dao.DataAccessException;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.function.Consumer;
 
-// Detail panel for creating or editing one user: password, whether it may log in, its roles and its quota
+// Detail panel for creating or editing one user: password, whether it may log in, its roles and its quota, and
+// for a user with a quota, its usage in the current period
 class UserEditor extends VerticalLayout {
 
     private final UserAccount account;
     private final UserAccountService userAccountService;
+    private final QuotaManager quotaManager;
+    private final DateTimeFormatter dateTimeFormatter;
     private final String actingUsername;
     private final Consumer<UserAccount> onSaved;
     private final Runnable onDeleted;
@@ -66,10 +72,13 @@ class UserEditor extends VerticalLayout {
     // UserAccount, so the user shown in the grid is not changed before the service has accepted the change
     private final BeanValidationBinder<UserAccount> binder = new BeanValidationBinder<>(UserAccount.class);
 
-    UserEditor(UserAccount account, List<Role> roles, UserAccountService userAccountService, String actingUsername,
-            Consumer<UserAccount> onSaved, Runnable onDeleted, Runnable onClose) {
+    UserEditor(UserAccount account, List<Role> roles, UserAccountService userAccountService, QuotaManager quotaManager,
+            DateTimeFormatter dateTimeFormatter, String actingUsername, Consumer<UserAccount> onSaved,
+            Runnable onDeleted, Runnable onClose) {
         this.account = account;
         this.userAccountService = userAccountService;
+        this.quotaManager = quotaManager;
+        this.dateTimeFormatter = dateTimeFormatter;
         this.actingUsername = actingUsername;
         this.onSaved = onSaved;
         this.onDeleted = onDeleted;
@@ -85,6 +94,7 @@ class UserEditor extends VerticalLayout {
         header.setAlignItems(FlexComponent.Alignment.CENTER);
         header.expand(title);
         add(header, createForm(roles), new H4(getTranslation("userEditor.quota")), createQuotaForm(), createButtons());
+        addUsage();
 
         // A new user starts enabled, without roles or a quota
         binder.readBean(account != null ? account : new UserAccount());
@@ -191,6 +201,26 @@ class UserEditor extends VerticalLayout {
 
         form.add(quotaPeriodField, quotaLimitField);
         return form;
+    }
+
+    // The usage of the saved quota, which the quota form above may since have been changed from. The quota is read
+    // from Redis, where it is copied when the user is saved
+    private void addUsage() {
+        if (account == null || account.getQuota().isEmpty()) {
+            return;
+        }
+        var username = account.getUsername();
+        try {
+            var status = quotaManager.getStatus(username);
+            add(new H4(getTranslation("editor.currentUsage")));
+            add(new Span(getTranslation("editor.lastUsed", quotaManager.getLastUsed(username)
+                    .map(dateTimeFormatter::format).orElse(getTranslation("quotas.never")))));
+            add(new QuotaUsageCard(username, account.getQuota().get().period(), status, quotaManager,
+                    dateTimeFormatter, () -> onSaved.accept(account)));
+        } catch (IllegalArgumentException e) {
+            // The copy in Redis is missing; saving the user writes it again
+            add(new Span(getTranslation("userEditor.usageMissing")));
+        }
     }
 
     private Component createButtons() {

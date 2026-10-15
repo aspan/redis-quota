@@ -20,6 +20,7 @@ import biz.asplund.redis.TestcontainersConfiguration;
 import biz.asplund.redis.quota.QuotaConfig;
 import biz.asplund.redis.quota.QuotaDefinition;
 import biz.asplund.redis.quota.QuotaDefinitionRepository;
+import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.Role;
 import biz.asplund.redis.security.UserAccount;
@@ -32,6 +33,7 @@ import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridTester;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.select.SelectTester;
@@ -72,6 +74,9 @@ class UserViewIT extends SpringBrowserlessTest {
 
 	@Autowired
 	private QuotaDefinitionRepository quotaDefinitionRepository;
+
+	@Autowired
+	private QuotaManager quotaManager;
 
 	@BeforeEach
 	void storeLoggedInUser() {
@@ -205,6 +210,49 @@ class UserViewIT extends SpringBrowserlessTest {
 		assertThat(find(Button.class, editor).withText("Delete").exists()).isFalse();
 		// Usage can still be changed there
 		assertThat(find(Button.class, editor).withText("Reset").exists()).isTrue();
+	}
+
+	@Test
+	void showsAndChangesUsageOfUserQuota() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(),
+				new QuotaConfig(10, QuotaPeriod.DAILY));
+		var username = account.getUsername();
+		quotaManager.checkAndIncrement(username, 3);
+		var editor = openEditor(username);
+
+		var card = find(QuotaUsageCard.class, editor).single();
+		assertThat(card.getTitleAsText()).isEqualTo("Daily");
+		assertThat(card.getSubtitle().getElement().getText()).isEqualTo("3 of 10 used, 7 left");
+		assertThat(find(Span.class, editor).withText("Last used: Never").exists()).isFalse();
+
+		test(find(Button.class, card).withText("Reset").single()).click();
+
+		assertThat(quotaManager.getUsage(username)).isZero();
+		// The editor is rebuilt with the new usage
+		var refreshed = find(QuotaUsageCard.class, find(UserEditor.class).single()).single();
+		assertThat(refreshed.getSubtitle().getElement().getText()).isEqualTo("0 of 10 used, 10 left");
+	}
+
+	@Test
+	void showsNoUsageWithoutQuota() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null);
+
+		var editor = openEditor(account.getUsername());
+
+		assertThat(find(QuotaUsageCard.class, editor).exists()).isFalse();
+	}
+
+	@Test
+	void tellsWhenQuotaIsMissingInRedis() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(),
+				new QuotaConfig(10, QuotaPeriod.DAILY));
+		quotaDefinitionRepository.deleteById(account.getUsername());
+
+		var editor = openEditor(account.getUsername());
+
+		assertThat(find(QuotaUsageCard.class, editor).exists()).isFalse();
+		assertThat(find(Span.class, editor)
+				.withText("The quota is missing in Redis. Save the user to copy it there again.").exists()).isTrue();
 	}
 
 	@Test

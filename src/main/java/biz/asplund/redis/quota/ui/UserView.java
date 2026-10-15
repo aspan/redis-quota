@@ -16,6 +16,7 @@
 
 package biz.asplund.redis.quota.ui;
 
+import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.security.AccountRuleException;
 import biz.asplund.redis.security.Role;
 import biz.asplund.redis.security.UserAccount;
@@ -47,6 +48,10 @@ import com.vaadin.flow.spring.security.AuthenticationContext;
 import jakarta.annotation.security.RolesAllowed;
 import org.springframework.dao.DataAccessException;
 
+import java.time.Clock;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -60,7 +65,10 @@ import java.util.stream.Collectors;
 public class UserView extends VerticalLayout implements BeforeEnterObserver, LocaleChangeObserver {
 
     private final UserAccountService userAccountService;
+    private final QuotaManager quotaManager;
+    private final ZoneId zone;
     private final String actingUsername;
+    private DateTimeFormatter dateTimeFormatter;
 
     private final Grid<UserAccount> grid = new Grid<>();
     private final TextField filter = new TextField();
@@ -77,9 +85,13 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     private List<UserAccount> users = List.of();
     private List<Role> roles = List.of();
 
-    public UserView(UserAccountService userAccountService, AuthenticationContext authenticationContext) {
+    public UserView(UserAccountService userAccountService, QuotaManager quotaManager, Clock clock,
+            AuthenticationContext authenticationContext) {
         this.userAccountService = userAccountService;
+        this.quotaManager = quotaManager;
+        this.zone = clock.getZone();
         this.actingUsername = authenticationContext.getPrincipalName().orElse("");
+        this.dateTimeFormatter = createDateTimeFormatter(getLocale());
 
         setSizeFull();
         setPadding(false);
@@ -97,6 +109,8 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     // Called when attached and whenever the language changes
     @Override
     public void localeChange(LocaleChangeEvent event) {
+        dateTimeFormatter = createDateTimeFormatter(event.getLocale());
+
         filter.setPlaceholder(getTranslation("users.filter"));
         refreshButton.setTooltipText(getTranslation("users.refresh"));
         refreshButton.setAriaLabel(getTranslation("users.refresh"));
@@ -114,6 +128,11 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
         if (masterDetail.getDetail() instanceof UserEditor editor) {
             showEditor(findUser(editor.userId()));
         }
+    }
+
+    // As in the quotas view, for the reset and last-used times of a user's quota
+    private DateTimeFormatter createDateTimeFormatter(Locale locale) {
+        return DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone);
     }
 
     // Reload on every navigation, including to this view when it is already shown
@@ -180,8 +199,8 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     }
 
     private void showEditor(UserAccount account) {
-        masterDetail.setDetail(new UserEditor(account, roles, userAccountService, actingUsername,
-                this::onSaved, this::onDeleted, this::closeEditor));
+        masterDetail.setDetail(new UserEditor(account, roles, userAccountService, quotaManager, dateTimeFormatter,
+                actingUsername, this::onSaved, this::onDeleted, this::closeEditor));
     }
 
     private void onSaved(UserAccount account) {
