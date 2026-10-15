@@ -254,6 +254,11 @@ class UserAccountServiceIT {
 	}
 
 	@Test
+	void hasAdminAndUserRolesFromMigrations() {
+		assertThat(userAccountService.findAllRoles()).extracting(Role::getName).contains("ADMIN", "USER");
+	}
+
+	@Test
 	void keepsAdminRole() {
 		var admin = userAccountService.findAllRoles().stream()
 				.filter(role -> role.getName().equals("ADMIN")).findFirst().orElseThrow();
