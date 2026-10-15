@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 // Manages the admin UI's users, their roles and quotas. The acting user cannot delete or disable their own
-// account or take the ADMIN role from it, and the ADMIN role cannot be deleted, so at least one admin always
+// account or take the ADMIN role from it, and the built-in ADMIN and USER roles cannot be deleted, so at least one admin always
 // remains. A user's quota is kept in PostgreSQL and copied to Redis as the QuotaDefinition under the username,
 // which QuotaManager reads. The copy is written inside the transaction, so a Redis error rolls back the change.
 // Quotas belong to users: Redis holds no other definitions, and syncQuotasToRedis removes any that appear
@@ -46,6 +46,10 @@ import java.util.stream.StreamSupport;
 public class UserAccountService {
 
     public static final String ADMIN_ROLE = "ADMIN";
+    public static final String USER_ROLE = "USER";
+    // The roles the migrations create, which cannot be deleted: the views require ADMIN, and USER is the role
+    // for users who are not admins
+    public static final Set<String> BUILT_IN_ROLES = Set.of(ADMIN_ROLE, USER_ROLE);
     public static final int MIN_PASSWORD_LENGTH = 8;
 
     // Upper case, as role names are conventionally written in hasRole and @RolesAllowed
@@ -187,8 +191,8 @@ public class UserAccountService {
     @Transactional
     public void deleteRole(long id) {
         var role = roleRepository.findById(id).orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
-        if (ADMIN_ROLE.equals(role.getName())) {
-            throw new AccountRuleException(Rule.ADMIN_ROLE_DELETE);
+        if (BUILT_IN_ROLES.contains(role.getName())) {
+            throw new AccountRuleException(Rule.BUILT_IN_ROLE_DELETE);
         }
         roleRepository.delete(role);
     }

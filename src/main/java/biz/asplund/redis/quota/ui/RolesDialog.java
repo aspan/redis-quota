@@ -40,7 +40,7 @@ import org.springframework.dao.DataAccessException;
 import java.util.Locale;
 import java.util.Map;
 
-// Adds and deletes the roles that can be given to users; the ADMIN role, which the views require, stays
+// Adds and deletes the roles that can be given to users; the built-in ADMIN and USER roles stay
 class RolesDialog extends Dialog {
 
     private final UserAccountService userAccountService;
@@ -94,8 +94,8 @@ class RolesDialog extends Dialog {
         delete.addThemeVariants(ButtonVariant.ERROR, ButtonVariant.TERTIARY);
         delete.setAriaLabel(getTranslation("roles.delete", role.getName()));
         delete.setTooltipText(getTranslation("roles.delete", role.getName()));
-        // The views require ADMIN, so it cannot be deleted
-        delete.setEnabled(!UserAccountService.ADMIN_ROLE.equals(role.getName()));
+        // The built-in ADMIN and USER roles cannot be deleted
+        delete.setEnabled(!UserAccountService.BUILT_IN_ROLES.contains(role.getName()));
         return delete;
     }
 

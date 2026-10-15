@@ -307,6 +307,7 @@ class UserViewIT extends SpringBrowserlessTest {
 
 		assertThat(userAccountService.findAllRoles()).extracting(Role::getName).contains(roleName);
 		assertThat(deleteRoleButton(dialog, "ADMIN").isEnabled()).isFalse();
+		assertThat(deleteRoleButton(dialog, "USER").isEnabled()).isFalse();
 
 		test(deleteRoleButton(dialog, roleName)).click();
 		var confirm = test(find(ConfirmDialog.class).single());

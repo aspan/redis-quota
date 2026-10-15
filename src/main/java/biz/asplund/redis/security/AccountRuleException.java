@@ -29,7 +29,7 @@ public class AccountRuleException extends RuntimeException {
         OWN_ADMIN_ROLE,
         ROLE_NAME_INVALID,
         ROLE_EXISTS,
-        ADMIN_ROLE_DELETE,
+        BUILT_IN_ROLE_DELETE,
         NOT_FOUND
     }
 

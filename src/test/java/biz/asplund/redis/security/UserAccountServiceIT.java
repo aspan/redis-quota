@@ -259,11 +259,14 @@ class UserAccountServiceIT {
 	}
 
 	@Test
-	void keepsAdminRole() {
-		var admin = userAccountService.findAllRoles().stream()
-				.filter(role -> role.getName().equals("ADMIN")).findFirst().orElseThrow();
+	void keepsBuiltInRoles() {
+		for (var name : List.of("ADMIN", "USER")) {
+			var role = userAccountService.findAllRoles().stream()
+					.filter(candidate -> candidate.getName().equals(name)).findFirst().orElseThrow();
 
-		assertRule(Rule.ADMIN_ROLE_DELETE, () -> userAccountService.deleteRole(admin.getId()));
+			assertRule(Rule.BUILT_IN_ROLE_DELETE, () -> userAccountService.deleteRole(role.getId()));
+		}
+		assertThat(userAccountService.findAllRoles()).extracting(Role::getName).contains("ADMIN", "USER");
 	}
 
 	// The message of the ConstraintViolationException that Hibernate throws, wherever it is in the causes
