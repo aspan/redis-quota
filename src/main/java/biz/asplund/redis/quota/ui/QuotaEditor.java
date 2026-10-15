@@ -25,7 +25,6 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.card.Card;
-import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H3;
@@ -50,7 +49,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.function.Consumer;
 
-// Detail panel for editing or deleting one quota definition, a limit for a single period, and managing its usage
+// Detail panel for editing one quota definition, a limit for a single period, and managing its usage
 class QuotaEditor extends VerticalLayout {
 
     private static final String PROGRESS_COLOR = "--vaadin-progress-bar-value-background";
@@ -62,7 +61,6 @@ class QuotaEditor extends VerticalLayout {
     private final QuotaManager quotaManager;
     private final DateTimeFormatter dateTimeFormatter;
     private final Consumer<QuotaDefinition> onSaved;
-    private final Consumer<QuotaDefinition> onDeleted;
 
     private final TextField idField = new TextField();
     private final Select<QuotaPeriod> periodField = new Select<>();
@@ -72,14 +70,13 @@ class QuotaEditor extends VerticalLayout {
 
     QuotaEditor(QuotaRow row, boolean userQuota, QuotaDefinitionRepository quotaDefinitionRepository,
             QuotaManager quotaManager, DateTimeFormatter dateTimeFormatter, Consumer<QuotaDefinition> onSaved,
-            Consumer<QuotaDefinition> onDeleted, Runnable onClose) {
+            Runnable onClose) {
         this.row = row;
         this.userQuota = userQuota;
         this.quotaDefinitionRepository = quotaDefinitionRepository;
         this.quotaManager = quotaManager;
         this.dateTimeFormatter = dateTimeFormatter;
         this.onSaved = onSaved;
-        this.onDeleted = onDeleted;
 
         setWidthFull();
 
@@ -142,11 +139,9 @@ class QuotaEditor extends VerticalLayout {
         var save = new Button(getTranslation("editor.save"), _ -> save());
         save.addThemeVariants(ButtonVariant.PRIMARY);
         var buttons = new HorizontalLayout(save);
-        // A user's quota is saved and deleted with the user
+        // A user's quota is saved with the user. Quotas belong to users, so none is deleted here: deleting the
+        // user or removing their quota deletes it
         buttons.setVisible(!userQuota);
-        var delete = new Button(getTranslation("editor.delete"), VaadinIcon.TRASH.create(), _ -> confirmDelete());
-        delete.addThemeVariants(ButtonVariant.ERROR, ButtonVariant.TERTIARY);
-        buttons.add(delete);
 
         var layout = new VerticalLayout(new H4(getTranslation("editor.quota")), form, buttons);
         layout.setWidthFull();
@@ -287,25 +282,6 @@ class QuotaEditor extends VerticalLayout {
             onSaved.accept(saved);
         } catch (DataAccessException e) {
             notify(getTranslation("editor.saveFailed", e.getMostSpecificCause().getMessage()), NotificationVariant.ERROR);
-        }
-    }
-
-    private void confirmDelete() {
-        var dialog = new ConfirmDialog(getTranslation("editor.deleteTitle", row.id()),
-                getTranslation("editor.deleteText"), getTranslation("editor.delete"), _ -> delete());
-        dialog.setCancelText(getTranslation("editor.cancel"));
-        dialog.setConfirmButtonTheme("error primary");
-        dialog.setCancelable(true);
-        dialog.open();
-    }
-
-    private void delete() {
-        try {
-            quotaDefinitionRepository.deleteById(row.id());
-            notify(getTranslation("editor.deleted", row.id()), NotificationVariant.SUCCESS);
-            onDeleted.accept(row.definition());
-        } catch (DataAccessException e) {
-            notify(getTranslation("editor.deleteFailed", e.getMostSpecificCause().getMessage()), NotificationVariant.ERROR);
         }
     }
 

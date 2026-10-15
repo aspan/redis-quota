@@ -26,7 +26,6 @@ import com.vaadin.flow.component.badge.Badge;
 import com.vaadin.flow.component.badge.BadgeVariant;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.card.Card;
-import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridTester;
@@ -361,21 +360,14 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
-	void deletesDefinitionAfterConfirmation() {
+	void hasNoDeleteButton() {
 		var id = uniqueId();
 		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
 		var editor = openEditor(id);
 
-		test(find(Button.class, editor).withText("Delete").single()).click();
-		var dialog = test(find(ConfirmDialog.class).single());
-		assertThat(dialog.getHeader()).isEqualTo("Delete quota " + id + "?");
-		dialog.confirm();
-
-		assertThat(quotaDefinitionRepository.existsById(id)).isFalse();
-		assertThat(find(QuotaEditor.class).exists()).isFalse();
-		var grid = grid();
-		assertThat(IntStream.range(0, grid.size()).mapToObj(grid::getRow))
-				.extracting(QuotaRow::id).doesNotContain(id);
+		// Quotas belong to users, and are deleted with the user or by removing the user's quota
+		assertThat(find(Button.class, editor).withText("Delete").exists()).isFalse();
+		assertThat(find(Button.class, editor).withText("Save").exists()).isTrue();
 	}
 
 	private QuotaEditor openEditor(String id) {

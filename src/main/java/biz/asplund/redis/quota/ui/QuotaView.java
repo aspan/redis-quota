@@ -197,8 +197,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
 
     private void showEditor(QuotaRow row) {
         masterDetail.setDetail(new QuotaEditor(row, userQuotaIds.contains(row.id()),
-                quotaDefinitionRepository, quotaManager, dateTimeFormatter, this::onSaved, this::onDeleted,
-                this::closeEditor));
+                quotaDefinitionRepository, quotaManager, dateTimeFormatter, this::onSaved, this::closeEditor));
     }
 
     private void onSaved(QuotaDefinition definition) {
@@ -207,11 +206,6 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
             grid.select(row);
             showEditor(row);
         });
-    }
-
-    private void onDeleted(QuotaDefinition definition) {
-        closeEditor();
-        refresh();
     }
 
     // Deselecting on the server does not close the editor by itself, as refreshes deselect too
