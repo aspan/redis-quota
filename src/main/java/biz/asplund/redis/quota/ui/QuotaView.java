@@ -196,11 +196,11 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     }
 
     private void showEditor(QuotaRow row) {
-        masterDetail.setDetail(new QuotaEditor(row, userQuotaIds.contains(row.id()),
-                quotaDefinitionRepository, quotaManager, dateTimeFormatter, this::onSaved, this::closeEditor));
+        masterDetail.setDetail(new QuotaEditor(row, userQuotaIds.contains(row.id()), quotaManager, dateTimeFormatter,
+                () -> onUsageChanged(row.definition()), this::closeEditor));
     }
 
-    private void onSaved(QuotaDefinition definition) {
+    private void onUsageChanged(QuotaDefinition definition) {
         refresh();
         rows.stream().filter(row -> row.id().equals(definition.id())).findFirst().ifPresent(row -> {
             grid.select(row);

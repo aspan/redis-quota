@@ -35,7 +35,6 @@ import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.progressbar.ProgressBarVariant;
 import com.vaadin.flow.component.select.Select;
-import com.vaadin.flow.component.select.SelectTester;
 import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.component.textfield.IntegerField;
@@ -145,43 +144,22 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
-	void requiresLimitOfZeroOrMore() {
+	void showsPeriodAndLimitReadOnly() {
 		var id = uniqueId();
 		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
 		var editor = openEditor(id);
+
+		var period = find(Select.class, editor).withLabel("Period").single();
+		assertThat(period.getValue()).isEqualTo(QuotaPeriod.HOURLY);
+		assertThat(period.isReadOnly()).isTrue();
 		var limit = limitField(editor);
-
-		test(limit).clear();
-		test(find(Button.class, editor).withText("Save").single()).click();
-
-		assertThat(limit.isInvalid()).isTrue();
-		assertThat(limit.getErrorMessage()).isEqualTo("Enter a limit of 0 or more");
-
-		test(limit).setValue(-1);
-		test(find(Button.class, editor).withText("Save").single()).click();
-
-		assertThat(limit.isInvalid()).isTrue();
-		assertThat(limit.getErrorMessage()).isEqualTo("Enter a limit of 0 or more");
-		assertThat(quotaDefinitionRepository.findById(id)).contains(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
-	}
-
-	@Test
-	@WithMockUser(username = "admin", roles = "ADMIN")
-	void changesPeriodAndLimit() {
-		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
-		var editor = openEditor(id);
-
-		var period = periodField(editor);
-		assertThat(period.getSelected()).isEqualTo(QuotaPeriod.HOURLY);
-		assertThat(find(Select.class, editor).withLabel("Period").single().getHelperText())
-				.isEqualTo("Changing the period starts counting usage from zero");
-		period.selectItem("Daily");
-		test(limitField(editor)).setValue(20);
-		test(find(Button.class, editor).withText("Save").single()).click();
-
-		assertThat(quotaDefinitionRepository.findById(id)).contains(new QuotaDefinition(id, QuotaPeriod.DAILY, 20));
-		assertThat(usageCard(find(QuotaEditor.class).single(), "Daily")).isNotNull();
+		assertThat(limit.getValue()).isEqualTo(10);
+		assertThat(limit.isReadOnly()).isTrue();
+		assertThat(limit.getHelperText())
+				.isEqualTo("No user has this quota; give users their quotas in the Users view");
+		// Quotas are set and removed on users, so only usage changes here
+		assertThat(find(Button.class, editor).withText("Save").exists()).isFalse();
+		assertThat(find(Button.class, editor).withText("Delete").exists()).isFalse();
 	}
 
 	@Test
@@ -358,28 +336,11 @@ class QuotaViewIT extends SpringBrowserlessTest {
 		assertThat(grid().getSelected()).isEmpty();
 	}
 
-	@Test
-	@WithMockUser(username = "admin", roles = "ADMIN")
-	void hasNoDeleteButton() {
-		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
-		var editor = openEditor(id);
-
-		// Quotas belong to users, and are deleted with the user or by removing the user's quota
-		assertThat(find(Button.class, editor).withText("Delete").exists()).isFalse();
-		assertThat(find(Button.class, editor).withText("Save").exists()).isTrue();
-	}
-
 	private QuotaEditor openEditor(String id) {
 		navigate(QuotaView.class);
 		var grid = grid();
 		grid.select(rowOf(grid, id));
 		return find(QuotaEditor.class).single();
-	}
-
-	@SuppressWarnings("unchecked")
-	private SelectTester<Select<QuotaPeriod>, QuotaPeriod> periodField(QuotaEditor editor) {
-		return test((Select<QuotaPeriod>) find(Select.class, editor).withLabel("Period").single());
 	}
 
 	private IntegerField limitField(QuotaEditor editor) {

@@ -26,6 +26,7 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.login.LoginForm;
+import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.component.textfield.IntegerField;
@@ -106,7 +107,7 @@ class I18nIT extends SpringBrowserlessTest {
 
 		var editor = find(QuotaEditor.class).single();
 		assertThat(find(IntegerField.class, editor).withLabel("Gräns").exists()).isTrue();
-		assertThat(find(Button.class, editor).withText("Spara").exists()).isTrue();
+		assertThat(find(Button.class, editor).withText("Nollställ").exists()).isTrue();
 	}
 
 	@Test
@@ -149,12 +150,15 @@ class I18nIT extends SpringBrowserlessTest {
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
 	void showsValidationMessagesInUiLanguage() {
-		openEditor();
+		navigate(UserView.class);
 		pickLanguage("Svenska");
+		test(find(Button.class).withText("Ny användare").single()).click();
 
-		// The rebuilt editor is in Swedish; a negative limit breaks @PositiveOrZero on QuotaDefinition
-		var editor = find(QuotaEditor.class).single();
+		// A negative limit breaks @PositiveOrZero on UserAccount
+		var editor = find(UserEditor.class).single();
+		test((Select<QuotaPeriod>) find(Select.class, editor).withLabel("Period").single()).selectItem("Dag");
 		var limit = find(IntegerField.class, editor).withLabel("Gräns").single();
 		test(limit).setValue(-1);
 		test(find(Button.class, editor).withText("Spara").single()).click();
