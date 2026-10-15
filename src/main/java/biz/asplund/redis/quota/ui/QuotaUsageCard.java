@@ -23,7 +23,6 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.card.Card;
 import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
@@ -33,7 +32,9 @@ import com.vaadin.flow.component.textfield.IntegerField;
 import org.springframework.dao.DataAccessException;
 
 import java.time.format.DateTimeFormatter;
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 // The usage of one quota id in its current period, with actions to set, adjust or reset it and to run a request
 // as a client would. Shown in the quota editor and, for a user with a quota, in the user editor. After a change
@@ -47,8 +48,8 @@ class QuotaUsageCard extends Card {
     private final QuotaManager quotaManager;
     private final Runnable onChanged;
 
-    QuotaUsageCard(String id, QuotaPeriod period, QuotaStatus status, QuotaManager quotaManager,
-            DateTimeFormatter dateTimeFormatter, Runnable onChanged) {
+    QuotaUsageCard(String id, QuotaPeriod period, QuotaStatus status, Optional<Instant> lastUsed,
+            QuotaManager quotaManager, DateTimeFormatter dateTimeFormatter, Runnable onChanged) {
         this.id = id;
         this.period = period;
         this.quotaManager = quotaManager;
@@ -60,7 +61,9 @@ class QuotaUsageCard extends Card {
 
         var progress = new ProgressBar(0, Math.max(1, status.limit()), Math.min(status.used(), status.limit()));
         colorProgress(progress, status);
-        add(progress, new Span(getTranslation("usage.resets", dateTimeFormatter.format(status.resetAt()))));
+        add(progress, new Div(getTranslation("usage.resets", dateTimeFormatter.format(status.resetAt()))),
+                new Div(getTranslation("usage.lastUsed",
+                        lastUsed.map(dateTimeFormatter::format).orElse(getTranslation("quotas.never")))));
 
         var usageField = new IntegerField();
         usageField.setPlaceholder(getTranslation("usage.placeholder"));

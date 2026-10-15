@@ -32,6 +32,7 @@ import com.vaadin.flow.component.card.Card;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridTester;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
@@ -189,6 +190,17 @@ class QuotaViewIT extends SpringBrowserlessTest {
 		assertThat(((BarChartConfig) chart.getConfig()).data().getLabels()).hasSize(1);
 		assertThat(((BarDataset) ((BarChartConfig) chart.getConfig()).data().getDatasetAtIndex(0)).getData())
 				.containsExactly(7.0);
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
+	void showsLastUseInUsageCard() {
+		var id = uniqueId();
+		createQuota(id, QuotaPeriod.HOURLY, 5);
+
+		var card = usageCard(openEditor(id), "Hourly");
+
+		assertThat(find(Div.class, card).withText("Last used Never").exists()).isTrue();
 	}
 
 	@Test

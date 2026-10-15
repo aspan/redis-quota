@@ -35,6 +35,7 @@ import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridTester;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.select.Select;
@@ -233,7 +234,9 @@ class UserViewIT extends SpringBrowserlessTest {
 		var card = find(QuotaUsageCard.class, editor).single();
 		assertThat(card.getTitleAsText()).isEqualTo("Daily");
 		assertThat(card.getSubtitle().getElement().getText()).isEqualTo("3 of 10 used, 7 left");
-		assertThat(find(Span.class, editor).withText("Last used: Never").exists()).isFalse();
+		// Used just now, so not never
+		assertThat(find(Div.class, card).withText("Last used Never").exists()).isFalse();
+		assertThat(find(Div.class, card).withCondition(div -> div.getText().startsWith("Last used ")).exists()).isTrue();
 
 		test(find(Button.class, card).withText("Reset").single()).click();
 

@@ -217,10 +217,8 @@ class UserEditor extends VerticalLayout {
         try {
             var status = quotaManager.getStatus(username);
             add(new H4(getTranslation("editor.currentUsage")));
-            add(new Span(getTranslation("editor.lastUsed", quotaManager.getLastUsed(username)
-                    .map(dateTimeFormatter::format).orElse(getTranslation("quotas.never")))));
-            add(new QuotaUsageCard(username, account.getQuota().get().period(), status, quotaManager,
-                    dateTimeFormatter, () -> onSaved.accept(account)));
+            add(new QuotaUsageCard(username, account.getQuota().get().period(), status,
+                    quotaManager.getLastUsed(username), quotaManager, dateTimeFormatter, () -> onSaved.accept(account)));
         } catch (IllegalArgumentException e) {
             // The copy in Redis is missing; saving the user writes it again
             add(new Span(getTranslation("userEditor.usageMissing")));

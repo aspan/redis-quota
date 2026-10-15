@@ -25,7 +25,6 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.H4;
-import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -56,12 +55,10 @@ class QuotaEditor extends VerticalLayout {
         header.setAlignItems(FlexComponent.Alignment.CENTER);
         header.expand(title);
         add(header);
-        add(new Span(getTranslation("editor.lastUsed",
-                row.lastUsed().map(dateTimeFormatter::format).orElse(getTranslation("quotas.never")))));
         add(new H4(getTranslation("editor.quota")), createQuotaForm());
         add(new H4(getTranslation("editor.currentUsage")));
-        add(new QuotaUsageCard(row.id(), row.definition().period(), row.status(), quotaManager, dateTimeFormatter,
-                onUsageChanged));
+        add(new QuotaUsageCard(row.id(), row.definition().period(), row.status(), row.lastUsed(), quotaManager,
+                dateTimeFormatter, onUsageChanged));
         // Every quota is a user's, under the username
         add(new UsageHistorySection(quotaHistoryService, row.id(), dateTimeFormatter));
     }
