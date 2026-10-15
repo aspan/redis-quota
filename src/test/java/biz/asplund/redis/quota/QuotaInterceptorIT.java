@@ -117,8 +117,22 @@ class QuotaInterceptorIT {
 		assertUsage(username, 0);
 	}
 
+	@Test
+	void refusesUserWithoutUserRole() throws Exception {
+		var username = userAccountService.createUser("api-" + UUID.randomUUID(), PASSWORD, true, List.of("ADMIN"),
+				new QuotaConfig(2, QuotaPeriod.DAILY)).getUsername();
+
+		mockMvc.perform(get("/api/ping").with(httpBasic(username, PASSWORD)))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.error").value("Forbidden"))
+				.andExpect(jsonPath("$.message").value("The API requires the USER role"));
+
+		assertUsage(username, 0);
+	}
+
+	// API clients have the USER role
 	private String createUser(QuotaConfig quota) {
-		return userAccountService.createUser("api-" + UUID.randomUUID(), PASSWORD, true, List.of(), quota)
+		return userAccountService.createUser("api-" + UUID.randomUUID(), PASSWORD, true, List.of("USER"), quota)
 				.getUsername();
 	}
 

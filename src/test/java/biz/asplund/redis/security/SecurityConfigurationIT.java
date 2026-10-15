@@ -92,10 +92,11 @@ class SecurityConfigurationIT {
 	}
 
 	@Test
-	void acceptsBasicLoginForApiWithoutSession() throws Exception {
-		// The status endpoint is not counted against a quota, so it shows the login on its own
+	void logsInWithBasicForApiWithoutSessionAndRequiresUserRole() throws Exception {
+		// The admin logs in, but lacks the USER role the API requires
 		mockMvc.perform(get("/api/quota").with(httpBasic("admin", "secret")))
 				.andExpect(authenticated().withUsername("admin"))
-				.andExpect(request().sessionAttributeDoesNotExist("SPRING_SECURITY_CONTEXT"));
+				.andExpect(request().sessionAttributeDoesNotExist("SPRING_SECURITY_CONTEXT"))
+				.andExpect(status().isForbidden());
 	}
 }

@@ -108,8 +108,9 @@ class QuotaStatusControllerIT {
 				.andExpect(status().isUnauthorized());
 	}
 
+	// API clients have the USER role
 	private String createUser(QuotaConfig quota) {
-		return userAccountService.createUser("api-" + UUID.randomUUID(), PASSWORD, true, List.of(), quota)
+		return userAccountService.createUser("api-" + UUID.randomUUID(), PASSWORD, true, List.of("USER"), quota)
 				.getUsername();
 	}
 }
