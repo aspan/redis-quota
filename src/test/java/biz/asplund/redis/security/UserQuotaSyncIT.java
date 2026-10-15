@@ -16,23 +16,29 @@
 
 package biz.asplund.redis.security;
 
+import biz.asplund.redis.quota.QuotaConfig;
 import biz.asplund.redis.quota.QuotaDefinition;
 import biz.asplund.redis.quota.QuotaDefinitionRepository;
+import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.testcontainers.TestcontainersConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.config.CronTask;
 import org.springframework.scheduling.config.ScheduledTaskHolder;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The sync of the users' quotas to Redis, which runs at startup and once a day.
+ * The sync of the users' quotas to Redis, which runs at startup and once a day, and the hourly usage history.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -47,14 +53,47 @@ class UserQuotaSyncIT {
 	@Autowired
 	private QuotaDefinitionRepository quotaDefinitionRepository;
 
+	@Autowired
+	private UserAccountService userAccountService;
+
+	@Autowired
+	private QuotaHistoryService quotaHistoryService;
+
+	@Autowired
+	private QuotaManager quotaManager;
+
+	@Autowired
+	private StringRedisTemplate redisTemplate;
+
+	@Autowired
+	private Clock clock;
+
 	@Test
-	void runsDailyAtHalfPastThree() {
-		// The sync is the application's only cron task
+	void runsSyncDailyAndHistoryHourly() {
+		// The application's only cron tasks
 		assertThat(scheduledTaskHolder.getScheduledTasks())
 				.map(scheduled -> scheduled.getTask())
 				.filteredOn(CronTask.class::isInstance)
-				.singleElement()
-				.satisfies(task -> assertThat(((CronTask) task).getExpression()).isEqualTo("0 30 3 * * *"));
+				.map(task -> ((CronTask) task).getExpression())
+				.containsExactlyInAnyOrder("0 30 3 * * *", "0 5 * * * *");
+	}
+
+	@Test
+	void recordsHistoryBeforeDeletingCountersOfFinishedPeriods() {
+		var account = userAccountService.createUser("sync-" + UUID.randomUUID(), "password1", true, List.of(),
+				new QuotaConfig(10, QuotaPeriod.DAILY));
+		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 6);
+
+		userQuotaSync.sync();
+
+		assertThat(quotaHistoryService.findHistory(account)).singleElement()
+				.satisfies(record -> assertThat(record.getUsed()).isEqualTo(6));
+		// The sync deleted yesterday's counter after recording it
+		assertThat(quotaManager.getPreviousPeriodUsage(account.getUsername(), QuotaPeriod.DAILY)).isEmpty();
+	}
+
+	private QuotaManager yesterday() {
+		return new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.offset(clock, Duration.ofDays(-1)));
 	}
 
 	@Test

@@ -485,6 +485,24 @@ class QuotaManagerIT {
 	}
 
 	@Test
+	void readsUsageOfPreviousPeriod() {
+		var id = uniqueId();
+		managerAt(NOW.minusDays(1).toInstant()).checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 4);
+		managerAt(NOW.minusHours(1).toInstant()).checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.HOURLY), 2);
+		managerAt(NOW.minusMonths(1).toInstant()).checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.MONTHLY), 7);
+		// The current period does not count
+		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 1);
+
+		assertThat(quotaManager.getPreviousPeriodUsage(id, QuotaPeriod.DAILY))
+				.contains(new QuotaManager.PeriodUsage(Instant.parse("2026-10-12T22:00:00Z"), 4));
+		assertThat(quotaManager.getPreviousPeriodUsage(id, QuotaPeriod.HOURLY))
+				.contains(new QuotaManager.PeriodUsage(Instant.parse("2026-10-14T07:00:00Z"), 2));
+		assertThat(quotaManager.getPreviousPeriodUsage(id, QuotaPeriod.MONTHLY))
+				.contains(new QuotaManager.PeriodUsage(Instant.parse("2026-08-31T22:00:00Z"), 7));
+		assertThat(quotaManager.getPreviousPeriodUsage(id, QuotaPeriod.WEEKLY)).isEmpty();
+	}
+
+	@Test
 	void deletesAllUsageOfId() {
 		var id = uniqueId();
 		var daily = new QuotaConfig(100, QuotaPeriod.DAILY);

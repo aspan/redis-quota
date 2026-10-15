@@ -278,8 +278,35 @@ public class QuotaManager {
         return keep;
     }
 
+    // The usage of a finished period: when it started, and the final count
+    public record PeriodUsage(Instant start, int used) {
+    }
+
+    // The final usage of the period before the current one, while its counter has not yet expired, which happens
+    // an hour after the period ends. Empty if nothing was counted then. Does not fail open
+    public Optional<PeriodUsage> getPreviousPeriodUsage(String id, QuotaPeriod period) {
+        var previous = getPeriodStart(period, ZonedDateTime.now(clock)).minusSeconds(1);
+        var value = redisTemplate.opsForValue().get(getPeriodKey(id, period, previous));
+        return Optional.ofNullable(value)
+                .map(used -> new PeriodUsage(getPeriodStart(period, previous).toInstant(), Integer.parseInt(used)));
+    }
+
+    private ZonedDateTime getPeriodStart(QuotaPeriod period, ZonedDateTime now) {
+        var today = now.toLocalDate();
+        return switch (period) {
+            case HOURLY -> now.truncatedTo(ChronoUnit.HOURS);
+            case DAILY -> today.atStartOfDay(now.getZone());
+            case WEEKLY -> today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay(now.getZone());
+            case MONTHLY -> today.withDayOfMonth(1).atStartOfDay(now.getZone());
+            case YEARLY -> today.withDayOfYear(1).atStartOfDay(now.getZone());
+        };
+    }
+
     private String getPeriodKey(String id, QuotaPeriod period) {
-        var now = ZonedDateTime.now(clock);
+        return getPeriodKey(id, period, ZonedDateTime.now(clock));
+    }
+
+    private String getPeriodKey(String id, QuotaPeriod period, ZonedDateTime now) {
         var today = now.toLocalDate();
 
         var periodId = switch (period) {

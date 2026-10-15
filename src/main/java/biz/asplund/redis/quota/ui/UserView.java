@@ -18,6 +18,7 @@ package biz.asplund.redis.quota.ui;
 
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.security.AccountRuleException;
+import biz.asplund.redis.security.QuotaHistoryService;
 import biz.asplund.redis.security.Role;
 import biz.asplund.redis.security.UserAccount;
 import biz.asplund.redis.security.UserAccountService;
@@ -66,6 +67,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
 
     private final UserAccountService userAccountService;
     private final QuotaManager quotaManager;
+    private final QuotaHistoryService quotaHistoryService;
     private final ZoneId zone;
     private final String actingUsername;
     private DateTimeFormatter dateTimeFormatter;
@@ -85,10 +87,11 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     private List<UserAccount> users = List.of();
     private List<Role> roles = List.of();
 
-    public UserView(UserAccountService userAccountService, QuotaManager quotaManager, Clock clock,
-            AuthenticationContext authenticationContext) {
+    public UserView(UserAccountService userAccountService, QuotaManager quotaManager,
+            QuotaHistoryService quotaHistoryService, Clock clock, AuthenticationContext authenticationContext) {
         this.userAccountService = userAccountService;
         this.quotaManager = quotaManager;
+        this.quotaHistoryService = quotaHistoryService;
         this.zone = clock.getZone();
         this.actingUsername = authenticationContext.getPrincipalName().orElse("");
         this.dateTimeFormatter = createDateTimeFormatter(getLocale());
@@ -199,8 +202,8 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     }
 
     private void showEditor(UserAccount account) {
-        masterDetail.setDetail(new UserEditor(account, roles, userAccountService, quotaManager, dateTimeFormatter,
-                actingUsername, this::onSaved, this::onDeleted, this::closeEditor));
+        masterDetail.setDetail(new UserEditor(account, roles, userAccountService, quotaManager, quotaHistoryService,
+                dateTimeFormatter, actingUsername, this::onSaved, this::onDeleted, this::closeEditor));
     }
 
     private void onSaved(UserAccount account) {

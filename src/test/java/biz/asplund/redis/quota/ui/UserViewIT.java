@@ -21,6 +21,8 @@ import biz.asplund.redis.quota.QuotaDefinition;
 import biz.asplund.redis.quota.QuotaDefinitionRepository;
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
+import biz.asplund.redis.security.QuotaUsageRecord;
+import biz.asplund.redis.security.QuotaUsageRecordRepository;
 import biz.asplund.redis.security.Role;
 import biz.asplund.redis.security.UserAccount;
 import biz.asplund.redis.security.UserAccountRepository;
@@ -48,6 +50,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -77,6 +81,9 @@ class UserViewIT extends SpringBrowserlessTest {
 
 	@Autowired
 	private QuotaManager quotaManager;
+
+	@Autowired
+	private QuotaUsageRecordRepository quotaUsageRecordRepository;
 
 	@BeforeEach
 	void storeLoggedInUser() {
@@ -234,12 +241,29 @@ class UserViewIT extends SpringBrowserlessTest {
 	}
 
 	@Test
+	void showsUsageHistory() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(),
+				new QuotaConfig(10, QuotaPeriod.DAILY));
+		var day = LocalDate.of(2026, 10, 13).atStartOfDay(ZoneId.systemDefault()).toInstant();
+		var record = new QuotaUsageRecord(account, QuotaPeriod.DAILY, day);
+		record.update(10, 10);
+		quotaUsageRecordRepository.save(record);
+
+		var history = test(find(UsageHistoryGrid.class, openEditor(account.getUsername())).single());
+
+		assertThat(history.size()).isEqualTo(1);
+		assertThat(history.getCellText(0, 0)).isEqualTo("Oct 13, 2026");
+		assertThat(history.getCellComponent(0, 1).getElement().getText()).isEqualTo("10 / 10");
+	}
+
+	@Test
 	void showsNoUsageWithoutQuota() {
 		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null);
 
 		var editor = openEditor(account.getUsername());
 
 		assertThat(find(QuotaUsageCard.class, editor).exists()).isFalse();
+		assertThat(find(UsageHistoryGrid.class, editor).exists()).isFalse();
 	}
 
 	@Test
@@ -356,7 +380,8 @@ class UserViewIT extends SpringBrowserlessTest {
 
 	@SuppressWarnings("unchecked")
 	private GridTester<Grid<UserAccount>, UserAccount> grid() {
-		return test((Grid<UserAccount>) find(Grid.class).single());
+		// The users grid, not an open editor's usage history
+		return test((Grid<UserAccount>) find(Grid.class).withCondition(grid -> grid.getClass() == Grid.class).single());
 	}
 
 	private static int rowOf(GridTester<Grid<UserAccount>, UserAccount> grid, String username) {

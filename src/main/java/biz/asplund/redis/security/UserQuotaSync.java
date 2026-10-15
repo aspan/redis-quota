@@ -20,27 +20,35 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.dao.DataAccessException;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.stereotype.Component;
 
 // Makes Redis match the users' quotas in PostgreSQL: copies them, so they come back after Redis has lost its data,
-// removes definitions that belong to no user, and deletes stale usage counters and last-used times. It runs at
-// startup and then once a day, at quota.sync.cron (QuotaSyncProperties). A Redis outage is logged rather than stopping the application,
-// which fails open on quotas meanwhile, and the next run tries again
+// removes definitions that belong to no user, and deletes stale usage counters and last-used times. Before that it
+// records the users' finished periods in the usage history, and after it deletes history past its retention. It
+// runs at startup and then once a day, at quota.sync.cron (QuotaSyncProperties); the history is also recorded every
+// hour, before the counters of finished periods expire. A Redis outage is logged rather than stopping the
+// application, which fails open on quotas meanwhile, and the next run tries again
 @Component
 @EnableConfigurationProperties(QuotaSyncProperties.class)
 public class UserQuotaSync implements ApplicationRunner, SchedulingConfigurer {
 
+    // Five minutes past every hour; an hourly period's counter lives until an hour after the period ends
+    static final String HISTORY_CRON = "0 5 * * * *";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(UserQuotaSync.class);
 
     private final UserAccountService userAccountService;
+    private final QuotaHistoryService quotaHistoryService;
     private final QuotaSyncProperties properties;
 
-    public UserQuotaSync(UserAccountService userAccountService, QuotaSyncProperties properties) {
+    public UserQuotaSync(UserAccountService userAccountService, QuotaHistoryService quotaHistoryService,
+            QuotaSyncProperties properties) {
         this.userAccountService = userAccountService;
+        this.quotaHistoryService = quotaHistoryService;
         this.properties = properties;
     }
 
@@ -49,21 +57,35 @@ public class UserQuotaSync implements ApplicationRunner, SchedulingConfigurer {
         sync();
     }
 
-    // Daily at 03:30 by default; "-" as quota.sync.cron turns the daily run off
+    // The sync daily at 03:30 by default, where "-" as quota.sync.cron turns it off, and the history every hour
     @Override
     public void configureTasks(ScheduledTaskRegistrar registrar) {
         if (properties.daily()) {
             registrar.addCronTask(this::sync, properties.cron());
         }
+        registrar.addCronTask(this::recordHistory, HISTORY_CRON);
     }
 
     public void sync() {
         try {
+            // First, as deleting stale counters also deletes those of finished periods
+            var recorded = quotaHistoryService.recordPreviousPeriods();
             var result = userAccountService.syncQuotasToRedis();
-            LOGGER.info("Copied {} user quota(s) to Redis, removed {} definition(s) of no user and {} stale usage key(s)",
-                    result.copied(), result.removed(), result.staleUsage());
+            var expired = quotaHistoryService.deleteExpired();
+            LOGGER.info("Recorded {} finished period(s), copied {} user quota(s) to Redis, removed {} definition(s) of "
+                    + "no user and {} stale usage key(s), and deleted {} period(s) of history past its retention",
+                    recorded, result.copied(), result.removed(), result.staleUsage(), expired);
         } catch (DataAccessException e) {
+            // A failure to record stops the sync before it deletes counters that are not yet in the history
             LOGGER.error("Could not sync user quotas to Redis", e);
+        }
+    }
+
+    public void recordHistory() {
+        try {
+            LOGGER.debug("Recorded {} finished period(s)", quotaHistoryService.recordPreviousPeriods());
+        } catch (DataAccessException e) {
+            LOGGER.error("Could not record the usage history", e);
         }
     }
 }

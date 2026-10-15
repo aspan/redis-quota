@@ -19,6 +19,8 @@ package biz.asplund.redis.quota.ui;
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.AccountRuleException;
+import biz.asplund.redis.security.QuotaHistoryService;
+import biz.asplund.redis.security.QuotaUsageRecord;
 import biz.asplund.redis.security.Role;
 import biz.asplund.redis.security.UserAccount;
 import biz.asplund.redis.security.UserAccountService;
@@ -51,13 +53,14 @@ import java.util.List;
 import java.util.function.Consumer;
 
 // Detail panel for creating or editing one user: password, whether it may log in, its roles and its quota, and
-// for a user with a quota, its usage in the current period
+// for a user with a quota, its usage in the current period and in finished periods
 class UserEditor extends VerticalLayout {
 
     private final UserAccount account;
     private final UserAccountService userAccountService;
     private final QuotaManager quotaManager;
     private final DateTimeFormatter dateTimeFormatter;
+    private final QuotaHistoryService quotaHistoryService;
     private final String actingUsername;
     private final Consumer<UserAccount> onSaved;
     private final Runnable onDeleted;
@@ -73,12 +76,13 @@ class UserEditor extends VerticalLayout {
     private final BeanValidationBinder<UserAccount> binder = new BeanValidationBinder<>(UserAccount.class);
 
     UserEditor(UserAccount account, List<Role> roles, UserAccountService userAccountService, QuotaManager quotaManager,
-            DateTimeFormatter dateTimeFormatter, String actingUsername, Consumer<UserAccount> onSaved,
-            Runnable onDeleted, Runnable onClose) {
+            QuotaHistoryService quotaHistoryService, DateTimeFormatter dateTimeFormatter, String actingUsername,
+            Consumer<UserAccount> onSaved, Runnable onDeleted, Runnable onClose) {
         this.account = account;
         this.userAccountService = userAccountService;
         this.quotaManager = quotaManager;
         this.dateTimeFormatter = dateTimeFormatter;
+        this.quotaHistoryService = quotaHistoryService;
         this.actingUsername = actingUsername;
         this.onSaved = onSaved;
         this.onDeleted = onDeleted;
@@ -95,6 +99,7 @@ class UserEditor extends VerticalLayout {
         header.expand(title);
         add(header, createForm(roles), new H4(getTranslation("userEditor.quota")), createQuotaForm(), createButtons());
         addUsage();
+        addHistory();
 
         // A new user starts enabled, without roles or a quota
         binder.readBean(account != null ? account : new UserAccount());
@@ -221,6 +226,26 @@ class UserEditor extends VerticalLayout {
             // The copy in Redis is missing; saving the user writes it again
             add(new Span(getTranslation("userEditor.usageMissing")));
         }
+    }
+
+    // The final usage of the user's finished periods, for a user who has or had a quota
+    private void addHistory() {
+        if (account == null) {
+            return;
+        }
+        List<QuotaUsageRecord> records;
+        try {
+            records = quotaHistoryService.findHistory(account);
+        } catch (DataAccessException e) {
+            add(new H4(getTranslation("history.title")),
+                    new Span(getTranslation("history.loadFailed", e.getMostSpecificCause().getMessage())));
+            return;
+        }
+        if (account.getQuota().isEmpty() && records.isEmpty()) {
+            return;
+        }
+        add(new H4(getTranslation("history.title")),
+                new UsageHistoryGrid(records, dateTimeFormatter.getZone(), dateTimeFormatter.getLocale()));
     }
 
     private Component createButtons() {
