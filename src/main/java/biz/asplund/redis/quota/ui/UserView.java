@@ -58,6 +58,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 // Lists the admin UI's users, and creates, edits and deletes them, their roles and quotas
 @Route("users")
@@ -84,6 +85,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
 
     private Grid.Column<UserAccount> usernameColumn;
     private Grid.Column<UserAccount> nameColumn;
+    private Grid.Column<UserAccount> emailColumn;
     private Grid.Column<UserAccount> rolesColumn;
     private Grid.Column<UserAccount> quotaColumn;
     private Grid.Column<UserAccount> statusColumn;
@@ -130,6 +132,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
 
         usernameColumn.setHeader(getTranslation("users.column.username"));
         nameColumn.setHeader(getTranslation("users.column.name"));
+        emailColumn.setHeader(getTranslation("users.column.email"));
         rolesColumn.setHeader(getTranslation("users.column.roles"));
         quotaColumn.setHeader(getTranslation("users.column.quota"));
         statusColumn.setHeader(getTranslation("users.column.status"));
@@ -181,6 +184,9 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
                 .setComparator(Comparator.comparing(UserAccount::getUsername)).setFlexGrow(2).setFrozen(true);
         nameColumn = grid.addColumn(UserAccount::getName).setSortable(true)
                 .setComparator(Comparator.comparing(UserAccount::getName, Comparator.nullsLast(Comparator.naturalOrder())))
+                .setFlexGrow(2);
+        emailColumn = grid.addColumn(UserAccount::getEmail).setSortable(true)
+                .setComparator(Comparator.comparing(UserAccount::getEmail, Comparator.nullsLast(Comparator.naturalOrder())))
                 .setFlexGrow(2);
         rolesColumn = grid.addColumn(UserView::roleNames).setFlexGrow(1);
         quotaColumn = grid.addColumn(account -> account.getQuota()
@@ -292,10 +298,10 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
                 .setIdentifierProvider(UserAccount::getId);
     }
 
-    // The filter matches the username or the name
+    // The filter matches the username, the name or the email address
     private static boolean matches(UserAccount user, String term) {
-        return user.getUsername().toLowerCase(Locale.ROOT).contains(term)
-                || user.getName() != null && user.getName().toLowerCase(Locale.ROOT).contains(term);
+        return Stream.of(user.getUsername(), user.getName(), user.getEmail())
+                .anyMatch(text -> text != null && text.toLowerCase(Locale.ROOT).contains(term));
     }
 
     // The translated message for a rule the service refused a change by

@@ -22,6 +22,7 @@ public class AccountRuleException extends RuntimeException {
     public enum Rule {
         USERNAME_REQUIRED,
         USERNAME_TAKEN,
+        EMAIL_TAKEN,
         PASSWORD_TOO_SHORT,
         WRONG_PASSWORD,
         QUOTA_LIMIT_INVALID,

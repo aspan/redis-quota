@@ -18,7 +18,7 @@ package biz.asplund.redis.quota.ui;
 
 import biz.asplund.redis.security.AccountRuleException;
 import biz.asplund.redis.security.UserAccountService;
-import biz.asplund.redis.security.UserSettings;
+import biz.asplund.redis.security.UserAccount;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -28,8 +28,11 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.EmailField;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.binder.BeanValidationBinder;
+import com.vaadin.flow.data.binder.ValidationException;
 import com.vaadin.flow.i18n.LocaleChangeEvent;
 import com.vaadin.flow.i18n.LocaleChangeObserver;
 import com.vaadin.flow.router.Menu;
@@ -38,8 +41,6 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.spring.security.AuthenticationContext;
 import jakarta.annotation.security.PermitAll;
 import org.springframework.dao.DataAccessException;
-
-import java.util.Objects;
 
 // The logged-in user's own page, open to every user: their language and appearance, which apply at once when
 // saved, and a new password, for which they confirm their current one
@@ -56,6 +57,8 @@ public class ProfileView extends VerticalLayout implements LocaleChangeObserver 
 
     // Created in localeChange, so the page is built in the current language
     private TextField nameField;
+    private EmailField emailField;
+    private BeanValidationBinder<UserAccount> binder;
     private UserSettingsField settingsField;
     private PasswordField currentPasswordField;
     private PasswordField newPasswordField;
@@ -82,14 +85,25 @@ public class ProfileView extends VerticalLayout implements LocaleChangeObserver 
         nameField = new TextField(getTranslation("userEditor.name"));
         nameField.setHelperText(getTranslation("userEditor.nameHint"));
         nameField.setClearButtonVisible(true);
-        nameField.setMaxLength(200);
         nameField.setWidthFull();
-        nameField.setValue(Objects.requireNonNullElse(userAccountService.findName(username), ""));
+        emailField = new EmailField();
+        UserEditor.configureEmailField(emailField);
+        emailField.setWidthFull();
         settingsField = new UserSettingsField(languagePreference.locales());
-        settingsField.setValue(userAccountService.findSettings(username));
+
+        // Validates with the constraints on UserAccount, as the user editor does
+        binder = new BeanValidationBinder<>(UserAccount.class);
+        binder.forField(nameField).withNullRepresentation("").bind("name");
+        binder.forField(emailField).withNullRepresentation("").bind("email");
+        binder.forField(settingsField).bind(UserAccount::getSettings, UserAccount::setSettings);
+        var current = new UserAccount();
+        current.setProfile(userAccountService.findProfile(username));
+        binder.readBean(current);
+
         var save = new Button(getTranslation("profile.saveSettings"), _ -> saveSettings());
         save.addThemeVariants(ButtonVariant.PRIMARY);
-        var layout = new VerticalLayout(new H4(getTranslation("profile.settings")), nameField, settingsField, save);
+        var layout = new VerticalLayout(new H4(getTranslation("profile.settings")), nameField, emailField,
+                settingsField, save);
         layout.setPadding(false);
         return layout;
     }
@@ -119,11 +133,24 @@ public class ProfileView extends VerticalLayout implements LocaleChangeObserver 
 
     // Saved for the user and applied to the session at once, as when saving your own account in the user editor
     private void saveSettings() {
-        UserSettings settings = settingsField.getValue();
+        var changed = new UserAccount();
         try {
-            userAccountService.changeOwnProfile(username, nameField.getValue(), settings);
+            binder.writeBean(changed);
+        } catch (ValidationException e) {
+            // The binder shows the errors on the fields
+            return;
+        }
+        var profile = changed.getProfile();
+        try {
+            userAccountService.changeOwnProfile(username, profile);
         } catch (AccountRuleException e) {
-            notify(UserView.ruleMessage(this, e), NotificationVariant.ERROR);
+            var message = UserView.ruleMessage(this, e);
+            if (e.rule() == AccountRuleException.Rule.EMAIL_TAKEN) {
+                emailField.setInvalid(true);
+                emailField.setErrorMessage(message);
+            } else {
+                notify(message, NotificationVariant.ERROR);
+            }
             return;
         } catch (DataAccessException e) {
             notify(getTranslation("profile.saveFailed", e.getMostSpecificCause().getMessage()),
@@ -132,8 +159,8 @@ public class ProfileView extends VerticalLayout implements LocaleChangeObserver 
         }
         notify(getTranslation("profile.settingsSaved"), NotificationVariant.SUCCESS);
         DisplayNameChangeEvent.fire();
-        languagePreference.applySetting(settings.locale());
-        colorSchemePreference.applySetting(settings.colorScheme());
+        languagePreference.applySetting(profile.settings().locale());
+        colorSchemePreference.applySetting(profile.settings().colorScheme());
     }
 
     private void changePassword() {

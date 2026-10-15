@@ -18,6 +18,7 @@ package biz.asplund.redis.quota.ui;
 
 import biz.asplund.redis.security.UserAccountRepository;
 import biz.asplund.redis.security.UserAccountService;
+import biz.asplund.redis.security.UserProfile;
 import biz.asplund.redis.security.UserSettings;
 import biz.asplund.testcontainers.TestcontainersConfiguration;
 import com.vaadin.browserless.SpringBrowserlessTest;
@@ -29,6 +30,7 @@ import com.vaadin.flow.component.page.ColorScheme;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
+import com.vaadin.flow.component.textfield.EmailField;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.RouteNotFoundError;
@@ -78,8 +80,8 @@ class ProfileViewIT extends SpringBrowserlessTest {
 	@AfterEach
 	void reset() {
 		var account = userAccountRepository.findByUsername(USERNAME).orElseThrow();
-		userAccountService.updateUser(account.getId(), null, PASSWORD, true, List.of("USER"), null,
-				UserSettings.NONE, "someone-else");
+		userAccountService.updateUser(account.getId(), PASSWORD, true, List.of("USER"), null, UserProfile.NONE,
+				"someone-else");
 	}
 
 	@Test
@@ -114,6 +116,29 @@ class ProfileViewIT extends SpringBrowserlessTest {
 		assertThat(find(TextField.class).withLabel("Namn").single().getValue()).isEqualTo("Anna Andersson");
 		assertThat(((Select<Locale>) find(Select.class).withLabel("Språk").single()).getValue())
 				.isEqualTo(Locale.of("sv"));
+	}
+
+	@Test
+	void checksEmailAddress() {
+		var other = userAccountService.createUser("profile-other-" + System.nanoTime(), PASSWORD, true, List.of(),
+				null, new UserProfile(null, "taken-" + System.nanoTime() + "@example.com", UserSettings.NONE));
+		navigate(ProfileView.class);
+		var email = find(EmailField.class).withLabel("Email").single();
+		var save = find(Button.class).withText("Save").single();
+
+		test(email).setValue("not an address");
+		test(save).click();
+		assertThat(email.isInvalid()).isTrue();
+		assertThat(email.getErrorMessage()).isEqualTo("Enter a valid email address");
+
+		test(email).setValue(userAccountService.findProfile(other.getUsername()).email().toUpperCase(Locale.ROOT));
+		test(save).click();
+		assertThat(email.isInvalid()).isTrue();
+		assertThat(email.getErrorMessage()).isEqualTo("Another user already has this email address");
+
+		test(email).setValue("me@example.com");
+		test(save).click();
+		assertThat(userAccountService.findProfile(USERNAME).email()).isEqualTo("me@example.com");
 	}
 
 	@Test

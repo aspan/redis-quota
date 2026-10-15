@@ -228,8 +228,8 @@ class UserAccountServiceIT {
 
 	@Test
 	void storesSettingsAndKeepsThemOnUpdateWithoutSettings() {
-		var account = userAccountService.createUser(uniqueName(), null, "password1", true, List.of(), null,
-				new UserSettings("dark", "sv"));
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null,
+				new UserProfile(null, null, new UserSettings("dark", "sv")));
 
 		userAccountService.updateUser(account.getId(), null, false, List.of(), null, "someone-else");
 		assertThat(userAccountService.findSettings(account.getUsername())).isEqualTo(new UserSettings("dark", "sv"));
@@ -243,8 +243,8 @@ class UserAccountServiceIT {
 
 	@Test
 	void storesNameAndKeepsItOnUpdateWithoutName() {
-		var account = userAccountService.createUser(uniqueName(), " Anna Andersson ", "password1", true, List.of(),
-				null, UserSettings.NONE);
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null,
+				new UserProfile(" Anna Andersson ", null, UserSettings.NONE));
 		var username = account.getUsername();
 
 		assertThat(userAccountService.findName(username)).isEqualTo("Anna Andersson");
@@ -254,10 +254,27 @@ class UserAccountServiceIT {
 		assertThat(userAccountService.findName(username)).isEqualTo("Anna Andersson");
 
 		// Blank clears it, and the username is shown instead
-		userAccountService.updateUser(account.getId(), " ", null, true, List.of(), null, null, "someone-else");
+		userAccountService.updateUser(account.getId(), null, true, List.of(), null,
+				new UserProfile(" ", null, UserSettings.NONE), "someone-else");
 		assertThat(userAccountService.findName(username)).isNull();
 		assertThat(userAccountService.findDisplayName(username)).isEqualTo(username);
 		assertThat(userAccountService.findDisplayName("no-such-user")).isEqualTo("no-such-user");
+	}
+
+	@Test
+	void keepsEmailAddressesUniqueWhateverTheirCase() {
+		var email = uniqueName() + "@example.com";
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null,
+				new UserProfile(null, email, UserSettings.NONE));
+		assertThat(userAccountService.findProfile(account.getUsername()).email()).isEqualTo(email);
+
+		assertRule(Rule.EMAIL_TAKEN, () -> userAccountService.createUser(uniqueName(), "password1", true, List.of(),
+				null, new UserProfile(null, email.toUpperCase(Locale.ROOT), UserSettings.NONE)));
+		// Saving the user with their own address again is fine
+		userAccountService.updateUser(account.getId(), null, true, List.of(), null,
+				new UserProfile("Anna", email, UserSettings.NONE), "someone-else");
+		assertThat(violationOf(() -> userAccountService.changeOwnProfile(account.getUsername(),
+				new UserProfile(null, "not an address", UserSettings.NONE)))).contains("email");
 	}
 
 	@Test

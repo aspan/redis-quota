@@ -97,16 +97,16 @@ public class UserAccountService {
                 .map(UserAccount::getUsername).collect(Collectors.toSet());
     }
 
-    // A null quota means none; the user starts without a name or settings
+    // A null quota means none; the user starts without a name, email address or settings
     @Transactional
     public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota) {
-        return createUser(username, null, password, enabled, roleNames, quota, UserSettings.NONE);
+        return createUser(username, password, enabled, roleNames, quota, UserProfile.NONE);
     }
 
     @Transactional
-    public UserAccount createUser(String username, String name, String password, boolean enabled,
-            Collection<String> roleNames, QuotaConfig quota, UserSettings settings) {
+    public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
+            QuotaConfig quota, UserProfile profile) {
         var trimmedUsername = username == null ? "" : username.trim();
         if (trimmedUsername.isEmpty()) {
             throw new AccountRuleException(Rule.USERNAME_REQUIRED);
@@ -119,25 +119,24 @@ public class UserAccountService {
         account.setEnabled(enabled);
         account.getRoles().addAll(roles(roleNames));
         account.setQuota(quota);
-        account.setName(name);
-        account.setSettings(settings);
+        checkEmailFree(profile.email(), trimmedUsername);
+        account.setProfile(profile);
         var saved = userAccountRepository.save(account);
         copyQuota(saved);
         return saved;
     }
 
-    // A null or empty password keeps the current one; a null quota removes it. The name and settings are kept
+    // A null or empty password keeps the current one; a null quota removes it. The profile is kept
     @Transactional
     public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota, String actingUsername) {
-        var name = userAccountRepository.findById(id).map(UserAccount::getName).orElse(null);
-        return updateUser(id, name, password, enabled, roleNames, quota, null, actingUsername);
+        return updateUser(id, password, enabled, roleNames, quota, null, actingUsername);
     }
 
-    // As above, with the name, where null or blank clears it; null settings keep the current ones
+    // As above, with the profile, where a null profile keeps the current one
     @Transactional
-    public UserAccount updateUser(long id, String name, String password, boolean enabled,
-            Collection<String> roleNames, QuotaConfig quota, UserSettings settings, String actingUsername) {
+    public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
+            QuotaConfig quota, UserProfile profile, String actingUsername) {
         var account = userAccountRepository.findById(id).orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
         if (account.getUsername().equals(actingUsername)) {
             if (!enabled) {
@@ -155,9 +154,9 @@ public class UserAccountService {
         account.getRoles().clear();
         account.getRoles().addAll(roles(roleNames));
         account.setQuota(quota);
-        account.setName(name);
-        if (settings != null) {
-            account.setSettings(settings);
+        if (profile != null) {
+            checkEmailFree(profile.email(), account.getUsername());
+            account.setProfile(profile);
         }
         copyQuota(account);
         return account;
@@ -181,13 +180,19 @@ public class UserAccountService {
         return userAccountRepository.findByUsername(username).map(UserAccount::getName).orElse(null);
     }
 
-    // Changes the name and settings of the user with the username, as the user does on their profile page
+    // Changes the profile of the user with the username, as the user does on their profile page
     @Transactional
-    public void changeOwnProfile(String username, String name, UserSettings settings) {
+    public void changeOwnProfile(String username, UserProfile profile) {
         var account = userAccountRepository.findByUsername(username)
                 .orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
-        account.setName(name);
-        account.setSettings(settings);
+        checkEmailFree(profile.email(), username);
+        account.setProfile(profile);
+    }
+
+    // The profile of the user with the username, or none for a name no user has
+    @Transactional(readOnly = true)
+    public UserProfile findProfile(String username) {
+        return userAccountRepository.findByUsername(username).map(UserAccount::getProfile).orElse(UserProfile.NONE);
     }
 
     // The settings of the user with the username, or none for a name no user has
@@ -270,6 +275,18 @@ public class UserAccountService {
             throw new AccountRuleException(Rule.BUILT_IN_ROLE_DELETE);
         }
         roleRepository.delete(role);
+    }
+
+    // Another user's address, whatever its case, is refused; the database's unique index backs this up. Checked
+    // before the user is changed, as the query would otherwise first flush the change and fail on the index
+    private void checkEmailFree(String email, String username) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        if (userAccountRepository.findByEmailIgnoreCase(email.trim())
+                .filter(other -> !other.getUsername().equals(username)).isPresent()) {
+            throw new AccountRuleException(Rule.EMAIL_TAKEN);
+        }
     }
 
     private static void validate(QuotaConfig quota) {

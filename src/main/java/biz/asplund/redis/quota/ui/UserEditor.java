@@ -40,6 +40,7 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.textfield.EmailField;
 import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.textfield.TextField;
@@ -67,6 +68,7 @@ class UserEditor extends VerticalLayout {
 
     private final TextField usernameField = new TextField();
     private final TextField nameField = new TextField();
+    private final EmailField emailField = new EmailField();
     private final PasswordField passwordField = new PasswordField();
     private final Checkbox enabledField = new Checkbox();
     private final MultiSelectComboBox<Role> rolesField = new MultiSelectComboBox<>();
@@ -137,7 +139,10 @@ class UserEditor extends VerticalLayout {
         nameField.setClearButtonVisible(true);
         // Not set is shown as empty, and an empty field clears the name
         binder.forField(nameField).withNullRepresentation("").bind("name");
-        form.add(nameField);
+
+        configureEmailField(emailField);
+        binder.forField(emailField).withNullRepresentation("").bind("email");
+        form.add(nameField, emailField);
 
         passwordField.setLabel(getTranslation("userEditor.password"));
         passwordField.setRequired(account == null);
@@ -246,6 +251,15 @@ class UserEditor extends VerticalLayout {
         }
     }
 
+    // The field checks the address itself before the binder does, with its own message, so it gets the same one as
+    // the @Email constraint on UserAccount
+    static void configureEmailField(EmailField field) {
+        field.setLabel(field.getTranslation("userEditor.email"));
+        field.setClearButtonVisible(true);
+        field.setI18n(new EmailField.EmailFieldI18n()
+                .setPatternErrorMessage(field.getTranslation("userEditor.emailInvalid")));
+    }
+
     // The language and appearance the user's pages open in, also set from the toolbar while the user is logged in
     private Component createSettingsForm(List<Locale> locales) {
         var settingsField = new UserSettingsField(locales);
@@ -278,10 +292,10 @@ class UserEditor extends VerticalLayout {
         var quota = user.getQuota().orElse(null);
         try {
             var saved = account == null
-                    ? userAccountService.createUser(user.getUsername(), user.getName(), passwordField.getValue(),
-                            user.isEnabled(), roleNames, quota, user.getSettings())
-                    : userAccountService.updateUser(account.getId(), user.getName(), passwordField.getValue(),
-                            user.isEnabled(), roleNames, quota, user.getSettings(), actingUsername);
+                    ? userAccountService.createUser(user.getUsername(), passwordField.getValue(), user.isEnabled(),
+                            roleNames, quota, user.getProfile())
+                    : userAccountService.updateUser(account.getId(), passwordField.getValue(), user.isEnabled(),
+                            roleNames, quota, user.getProfile(), actingUsername);
             notify(getTranslation("userEditor.saved", saved.getUsername()), NotificationVariant.SUCCESS);
             onSaved.accept(saved);
         } catch (AccountRuleException e) {
@@ -290,6 +304,9 @@ class UserEditor extends VerticalLayout {
             if (e.rule() == AccountRuleException.Rule.USERNAME_TAKEN) {
                 usernameField.setInvalid(true);
                 usernameField.setErrorMessage(message);
+            } else if (e.rule() == AccountRuleException.Rule.EMAIL_TAKEN) {
+                emailField.setInvalid(true);
+                emailField.setErrorMessage(message);
             } else {
                 notify(message, NotificationVariant.ERROR);
             }

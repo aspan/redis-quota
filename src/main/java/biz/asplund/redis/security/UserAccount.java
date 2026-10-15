@@ -31,6 +31,7 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -58,6 +59,12 @@ public class UserAccount {
     @Size(max = 200, message = "{userAccount.name.size}")
     @Column(length = 200)
     private String name;
+
+    // Unique whatever its case, or null when not set
+    @Email(message = "{userAccount.email.invalid}")
+    @Size(max = 254, message = "{userAccount.email.size}")
+    @Column(length = 254)
+    private String email;
 
     // Encoded, with the encoding id prefix of the DelegatingPasswordEncoder
     @NotBlank(message = "{userAccount.password.notBlank}")
@@ -124,6 +131,25 @@ public class UserAccount {
     // The name, or the username when no name is set
     public String getDisplayName() {
         return name != null ? name : username;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    // Blank is stored as not set
+    public void setEmail(String email) {
+        this.email = email == null || email.isBlank() ? null : email.trim();
+    }
+
+    public UserProfile getProfile() {
+        return new UserProfile(name, email, getSettings());
+    }
+
+    public void setProfile(UserProfile profile) {
+        setName(profile.name());
+        setEmail(profile.email());
+        setSettings(profile.settings());
     }
 
     public String getPassword() {
