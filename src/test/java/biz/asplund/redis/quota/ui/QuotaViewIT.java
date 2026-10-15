@@ -32,6 +32,7 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridTester;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.progressbar.ProgressBarVariant;
 import com.vaadin.flow.component.select.Select;
@@ -343,6 +344,18 @@ class QuotaViewIT extends SpringBrowserlessTest {
 				.allSatisfy(field -> assertThat(field.getWidth()).isEqualTo("100%"));
 		assertThat(find(Button.class, card).withText("Adjust").single().getWidth()).isEqualTo("100%");
 		assertThat(find(Button.class, card).withText("Check and increment").single().getWidth()).isEqualTo("100%");
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
+	void widensDrawerAndStretchesMenu() {
+		navigate(QuotaView.class);
+
+		var layout = find(MainLayout.class).single();
+		assertThat(layout.getStyle().get("--vaadin-app-layout-drawer-width")).isEqualTo("20rem");
+		var nav = find(SideNav.class).single();
+		assertThat(nav.getWidth()).isEqualTo("100%");
+		assertThat(((Scroller) nav.getParent().orElseThrow()).getWidth()).isEqualTo("100%");
 	}
 
 	@Test

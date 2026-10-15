@@ -55,6 +55,8 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
     public MainLayout(AuthenticationContext authenticationContext, LanguagePreference languagePreference,
             ColorSchemePreference colorSchemePreference) {
         setPrimarySection(Section.DRAWER);
+        // Wider than the default, so longer translated menu labels fit
+        getStyle().set("--vaadin-app-layout-drawer-width", "20rem");
 
         viewTitle.getStyle().set("font-size", "1.125rem").set("margin", "0");
         // Language and appearance menus sit at the right end of the navbar
@@ -69,8 +71,11 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
         header.setAlignItems(FlexComponent.Alignment.CENTER);
         header.setPadding(true);
 
+        // The drawer layout aligns its children to the start, so the menu is stretched to fill the drawer
         nav.setWidthFull();
+        nav.getStyle().set("padding-inline", "var(--vaadin-gap-s)").set("box-sizing", "border-box");
         var scroller = new Scroller(nav);
+        scroller.setWidthFull();
 
         var drawer = new VerticalLayout(header, scroller, createUserFooter(authenticationContext));
         drawer.setSizeFull();
