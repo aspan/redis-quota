@@ -35,6 +35,7 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
@@ -124,7 +125,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         grid.getDataProvider().refreshAll();
 
         // Rebuild an open editor in the new language; unsaved input in it is lost
-        if (masterDetail.getDetail() instanceof QuotaEditor editor) {
+        if (openEditor() instanceof QuotaEditor editor) {
             rows.stream().filter(row -> row.id().equals(editor.quotaId())).findFirst()
                     .ifPresentOrElse(this::showEditor, this::closeEditor);
         }
@@ -193,8 +194,11 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     }
 
     private void showEditor(QuotaRow row) {
-        masterDetail.setDetail(new QuotaEditor(row, quotaManager, dateTimeFormatter,
+        // The detail area does not scroll by itself, so the editor, which can be taller, scrolls in a Scroller
+        var scroller = new Scroller(new QuotaEditor(row, quotaManager, dateTimeFormatter,
                 () -> onUsageChanged(row.definition()), this::closeEditor));
+        scroller.setSizeFull();
+        masterDetail.setDetail(scroller);
     }
 
     private void onUsageChanged(QuotaDefinition definition) {
@@ -203,6 +207,11 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
             grid.select(row);
             showEditor(row);
         });
+    }
+
+    // The editor in the detail area, or null
+    private Component openEditor() {
+        return masterDetail.getDetail() instanceof Scroller scroller ? scroller.getContent() : null;
     }
 
     // Deselecting on the server does not close the editor by itself, as refreshes deselect too
@@ -230,7 +239,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         applyFilter();
 
         // Keep the open editor showing current usage
-        if (masterDetail.getDetail() instanceof QuotaEditor editor && editor.quotaId() != null) {
+        if (openEditor() instanceof QuotaEditor editor && editor.quotaId() != null) {
             rows.stream().filter(row -> row.id().equals(editor.quotaId())).findFirst().ifPresent(row -> {
                 grid.select(row);
                 showEditor(row);

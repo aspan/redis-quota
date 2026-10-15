@@ -17,6 +17,7 @@
 package biz.asplund.redis.quota.ui;
 
 import biz.asplund.redis.security.QuotaUsageRecord;
+import com.vaadin.flow.component.AttachEvent;
 import org.vaadin.addons.chartjs.ChartJs;
 import org.vaadin.addons.chartjs.config.BarChartConfig;
 import org.vaadin.addons.chartjs.data.BarDataset;
@@ -71,6 +72,27 @@ class UsageHistoryChart extends ChartJs {
         configure(config);
         setWidthFull();
         setHeight("16rem");
+    }
+
+    // Replaces the add-on's own setup, which looks the canvas up by id with document.getElementById as soon as the
+    // component is attached. In the editor, which MasterDetailLayout puts into the page only after that, the lookup
+    // fails and no chart is drawn. This setup runs on the chart's own element and waits until it is in the page.
+    // The chart is kept on the element as the add-on keeps it, so its update and destroy still find it
+    @Override
+    protected void onAttach(AttachEvent attachEvent) {
+        getElement().executeJs("""
+                const element = this;
+                const config = JSON.parse($0);
+                const create = () => {
+                    if (!element.isConnected) {
+                        requestAnimationFrame(create);
+                        return;
+                    }
+                    element.chartjs?.destroy();
+                    element.chartjs = new Chart(element.querySelector('canvas').getContext('2d'), config);
+                };
+                create();
+                """, getConfig().buildJson().toJson());
     }
 
     private static String color(QuotaUsageRecord record) {

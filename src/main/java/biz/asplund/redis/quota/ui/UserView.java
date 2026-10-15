@@ -34,6 +34,7 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
@@ -128,7 +129,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
         grid.getDataProvider().refreshAll();
 
         // Rebuild an open editor in the new language; unsaved input in it is lost
-        if (masterDetail.getDetail() instanceof UserEditor editor) {
+        if (openEditor() instanceof UserEditor editor) {
             showEditor(findUser(editor.userId()));
         }
     }
@@ -202,8 +203,12 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     }
 
     private void showEditor(UserAccount account) {
-        masterDetail.setDetail(new UserEditor(account, roles, userAccountService, quotaManager, quotaHistoryService,
-                dateTimeFormatter, actingUsername, this::onSaved, this::onDeleted, this::closeEditor));
+        // The detail area does not scroll by itself, so the editor, which can be taller, scrolls in a Scroller
+        var scroller = new Scroller(new UserEditor(account, roles, userAccountService, quotaManager,
+                quotaHistoryService, dateTimeFormatter, actingUsername, this::onSaved, this::onDeleted,
+                this::closeEditor));
+        scroller.setSizeFull();
+        masterDetail.setDetail(scroller);
     }
 
     private void onSaved(UserAccount account) {
@@ -218,6 +223,11 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     private void onDeleted() {
         closeEditor();
         refresh();
+    }
+
+    // The editor in the detail area, or null
+    private Component openEditor() {
+        return masterDetail.getDetail() instanceof Scroller scroller ? scroller.getContent() : null;
     }
 
     // Deselecting on the server does not close the editor by itself, as refreshes deselect too
@@ -242,7 +252,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
         applyFilter();
 
         // Keep the open editor showing current roles, which the roles dialog may have changed
-        if (masterDetail.getDetail() instanceof UserEditor editor) {
+        if (openEditor() instanceof UserEditor editor) {
             var account = findUser(editor.userId());
             if (account != null) {
                 grid.select(account);
