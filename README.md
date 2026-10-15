@@ -7,7 +7,7 @@ Usage quotas per user and period, backed by Redis and built with Spring Boot.
 ## Requirements
 
 - Java 27
-- Docker (for the local Valkey instance and the integration tests)
+- Docker (for the local Valkey and PostgreSQL instances and the integration tests)
 
 ## Usage
 
@@ -92,11 +92,13 @@ When the quota is exhausted it responds with `429 Too Many Requests` and a JSON 
 ## Running
 
 ```bash
-./mvnw spring-boot:run       # starts Valkey from compose.yaml via Docker Compose
-./mvnw spring-boot:test-run  # starts Valkey in a Testcontainers container instead
+./mvnw spring-boot:run       # starts Valkey and PostgreSQL from compose.yaml via Docker Compose
+./mvnw spring-boot:test-run  # starts them in Testcontainers containers instead
 ```
 
 Local development and the tests use [Valkey](https://valkey.io), an open source fork of Redis that speaks the same protocol, from the `valkey/valkey` image. The application itself works with either; `compose.yaml` labels the service so that Spring Boot connects to it as Redis. Its data is kept in the `valkey-data` volume with append-only persistence turned on, so quotas and usage survive removing the container; `docker compose down -v` deletes them.
+
+The admin UI's users and roles are stored in PostgreSQL with Spring Data JPA. Flyway creates the schema from `src/main/resources/db/migration`, and Hibernate only validates that the entities match it. `compose.yaml` runs PostgreSQL 18 with the `quota` database, user and password, which are for local development only, and keeps its data in the `postgres-data` volume. A deployment sets `spring.datasource.url`, `spring.datasource.username` and `spring.datasource.password`.
 
 ### Admin UI
 
@@ -108,13 +110,15 @@ The UI is available in English and Swedish. It starts in the browser's language,
 
 Next to it, the appearance button cycles through following the operating system (the default), the light color scheme and the dark color scheme; its icon shows the current one. The choice is remembered in a `color-scheme` cookie for a year and is already set in the first page the browser loads, so a dark choice does not flash light while the app starts.
 
-The application itself defines no accounts. For local development, `./mvnw spring-boot:test-run` adds an `admin` user with the `ADMIN` role from `src/test/resources/config/application.properties`. Its password is read from `config/local.properties`, which Git ignores:
+Logins are checked against the `users`, `roles` and `user_roles` tables by `DatabaseUserDetailsService`. A role is stored without the `ROLE_` prefix, so the `ADMIN` role, which the first migration creates, grants `ROLE_ADMIN`. Passwords are encoded with Spring Security's `DelegatingPasswordEncoder`, which uses bcrypt and stores the encoding as a `{bcrypt}` prefix. A disabled user cannot log in.
+
+The application itself defines no accounts. At startup, `AdminAccountInitializer` stores the user set by the `spring.security.user.name`, `spring.security.user.password` and `spring.security.user.roles` properties in the database, if no user with that name exists yet. It does nothing while the password is not set, and never changes a user that is already stored. For local development, `./mvnw spring-boot:test-run` sets the name `admin` and the `ADMIN` role in `src/test/resources/config/application.properties`, and reads the password from `config/local.properties`, which Git ignores:
 
 ```properties
 spring.security.user.password=<your password>
 ```
 
-Without that file, Spring Boot generates a password at each start and logs it as `Using generated security password`. A deployment has to provide its own users, for example with `spring.security.user.*` properties or a `UserDetailsService` bean.
+A deployment can create its first admin the same way, with these properties set outside the repository, and then remove the password once the user is stored.
 
 ## Building and testing
 
@@ -131,7 +135,8 @@ All tests are integration tests (`*IT`) and run with the Maven Failsafe plugin d
 - `ColorSchemeIT` checks the appearance toggle: the system default, cycling through light and dark and back to system, keeping the choice across views, the translated label, reading the cookie, and setting the scheme in the first page.
 - `I18nPropertiesIT` checks how `quota.ui.i18n.locales` binds: the defaults, a custom order and fallback, limiting the languages, and rejecting an empty list.
 - `I18nIT` checks that the UI uses English by default, that the language menu switches the open views and the login form to Swedish and back, that both translation files have the same keys, that every configured locale has a translation file, and that English is served when the JVM's default locale is Swedish.
-- `SecurityConfigurationIT` checks the HTTP security rules with MockMvc: the login redirect, form login, and that `/api/**` needs no login.
+- `SecurityConfigurationIT` checks the HTTP security rules with MockMvc: the login redirect, form login with the user stored in the database, rejecting a disabled user, and that `/api/**` needs no login.
+- `DatabaseUserDetailsServiceIT` checks the users and roles in a PostgreSQL server in Testcontainers: storing the configured admin with a bcrypt password at startup and leaving it alone on later starts, loading a user's roles, loading a disabled user, and rejecting an unknown user.
 
 ## License
 

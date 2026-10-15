@@ -24,8 +24,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -47,6 +50,12 @@ class SecurityConfigurationIT {
 	// The real interceptor has no config or key extractor yet; this test is about the security rules only
 	@MockitoBean
 	private QuotaInterceptor quotaInterceptor;
+
+	@Autowired
+	private UserAccountRepository userAccountRepository;
+
+	@Autowired
+	private PasswordEncoder passwordEncoder;
 
 	@BeforeEach
 	void allowApiRequests() throws Exception {
@@ -70,6 +79,17 @@ class SecurityConfigurationIT {
 	@Test
 	void rejectsWrongPassword() throws Exception {
 		mockMvc.perform(formLogin("/login").user("admin").password("wrong"))
+				.andExpect(unauthenticated())
+				.andExpect(redirectedUrl("/login?error"));
+	}
+
+	@Test
+	void rejectsDisabledUser() throws Exception {
+		var account = new UserAccount("disabled-" + UUID.randomUUID(), passwordEncoder.encode("secret"));
+		account.setEnabled(false);
+		userAccountRepository.save(account);
+
+		mockMvc.perform(formLogin("/login").user(account.getUsername()).password("secret"))
 				.andExpect(unauthenticated())
 				.andExpect(redirectedUrl("/login?error"));
 	}

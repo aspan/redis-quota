@@ -12,5 +12,20 @@ services:
       # Spring Boot detects Redis-compatible services by image name, which does not include Valkey
       org.springframework.boot.service-connection: redis
 
+  postgres:
+    # Pinned to a major version, since a newer major cannot read an older one's data directory
+    image: 'postgres:18'
+    environment:
+      # Local development only; Spring Boot reads these to connect
+      POSTGRES_DB: quota
+      POSTGRES_USER: quota
+      POSTGRES_PASSWORD: quota
+    ports:
+      - '5432'
+    volumes:
+      # Keeps users and roles when the container is removed; PostgreSQL 18 images keep their data under this path
+      - 'postgres-data:/var/lib/postgresql'
+
 volumes:
   valkey-data:
+  postgres-data:
