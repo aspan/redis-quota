@@ -89,7 +89,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 		assertThat(find(H1.class).single().getText()).isEqualTo("Quotas");
 		assertThat(find(SideNav.class).single().getItems())
 				.extracting(SideNavItem::getLabel, SideNavItem::getPath)
-				.containsExactly(tuple("Quotas", ""));
+				.containsExactly(tuple("Quotas", ""), tuple("Users", "users"));
 	}
 
 	@Test

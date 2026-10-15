@@ -17,10 +17,16 @@
 package biz.asplund.redis.security;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface RoleRepository extends JpaRepository<Role, Long> {
 
     Optional<Role> findByName(String name);
+
+    // Pairs of role id and the number of users holding it; roles no user holds are left out
+    @Query("select r.id, count(u) from UserAccount u join u.roles r group by r.id")
+    List<Object[]> countUsersByRole();
 }

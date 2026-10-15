@@ -76,7 +76,8 @@ class I18nIT extends SpringBrowserlessTest {
 		assertThat(getCurrentView()).isSameAs(view);
 		assertThat(UI.getCurrent().getInternals().getTitle()).isEqualTo("Kvoter");
 		assertThat(find(H1.class).single().getText()).isEqualTo("Kvoter");
-		assertThat(find(SideNav.class).single().getItems()).extracting(SideNavItem::getLabel).containsExactly("Kvoter");
+		assertThat(find(SideNav.class).single().getItems()).extracting(SideNavItem::getLabel)
+				.containsExactly("Kvoter", "Användare");
 		assertThat(find(TextField.class).withPlaceholder("Filtrera på id").exists()).isTrue();
 		assertThat(find(Button.class).withText("Ny kvot").exists()).isTrue();
 		var columns = grid().getColumns();
