@@ -70,6 +70,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     private final QuotaManager quotaManager;
     private final QuotaHistoryService quotaHistoryService;
     private final LanguagePreference languagePreference;
+    private final ColorSchemePreference colorSchemePreference;
     private final ZoneId zone;
     private final String actingUsername;
     private DateTimeFormatter dateTimeFormatter;
@@ -90,10 +91,11 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     private List<Role> roles = List.of();
 
     public UserView(UserAccountService userAccountService, QuotaManager quotaManager,
-            QuotaHistoryService quotaHistoryService, LanguagePreference languagePreference, Clock clock,
-            AuthenticationContext authenticationContext) {
+            QuotaHistoryService quotaHistoryService, LanguagePreference languagePreference,
+            ColorSchemePreference colorSchemePreference, Clock clock, AuthenticationContext authenticationContext) {
         this.userAccountService = userAccountService;
         this.languagePreference = languagePreference;
+        this.colorSchemePreference = colorSchemePreference;
         this.quotaManager = quotaManager;
         this.quotaHistoryService = quotaHistoryService;
         this.zone = clock.getZone();
@@ -221,6 +223,12 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
         if (saved != null) {
             grid.select(saved);
             showEditor(saved);
+        }
+        // Your own settings apply at once; another user's from their next page load
+        if (account.getUsername().equals(actingUsername)) {
+            var settings = account.getSettings();
+            languagePreference.applySetting(settings.locale());
+            colorSchemePreference.applySetting(settings.colorScheme());
         }
     }
 

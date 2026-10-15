@@ -16,7 +16,12 @@
 
 package biz.asplund.redis.quota.ui;
 
+import com.vaadin.flow.component.ComponentEvent;
+import com.vaadin.flow.component.ComponentUtil;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.server.VaadinRequest;
 import com.vaadin.flow.server.VaadinResponse;
+import com.vaadin.flow.server.VaadinServletRequest;
 import com.vaadin.flow.server.VaadinSession;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -61,9 +66,7 @@ public class ColorSchemePreference {
     // Applies the choice to every UI of the session and remembers it for the logged-in user and in the cookie
     void select(ColorSchemeChoice choice) {
         loggedInUserSettings.change(settings -> settings.withColorScheme(choice.key()));
-        var session = VaadinSession.getCurrent();
-        session.setAttribute(ColorSchemeChoice.class, choice);
-        session.getUIs().forEach(ui -> ui.getPage().setColorScheme(choice.value()));
+        applyToSession(choice);
 
         if (VaadinResponse.getCurrent() instanceof VaadinResponse response) {
             var cookie = new Cookie(COOKIE, choice.key());
@@ -72,6 +75,34 @@ public class ColorSchemePreference {
             cookie.setHttpOnly(true);
             cookie.setAttribute("SameSite", "Lax");
             response.addCookie(cookie);
+        }
+    }
+
+    // Applies the scheme the logged-in user's settings were just saved with: a set scheme as if picked in the
+    // toolbar, or, when not set, the one the cookie gives
+    void applySetting(String key) {
+        if (key != null) {
+            select(ColorSchemeChoice.fromKey(key));
+        } else if (VaadinRequest.getCurrent() instanceof VaadinServletRequest request) {
+            applyToSession(resolve(request.getHttpServletRequest()));
+        }
+    }
+
+    // Also tells each UI, so the toggle buttons in every open tab show the new scheme
+    private static void applyToSession(ColorSchemeChoice choice) {
+        var session = VaadinSession.getCurrent();
+        session.setAttribute(ColorSchemeChoice.class, choice);
+        session.getUIs().forEach(ui -> {
+            ui.getPage().setColorScheme(choice.value());
+            ComponentUtil.fireEvent(ui, new ColorSchemeChangeEvent(ui));
+        });
+    }
+
+    // Fired on each UI of the session when its color scheme changes
+    static class ColorSchemeChangeEvent extends ComponentEvent<UI> {
+
+        ColorSchemeChangeEvent(UI ui) {
+            super(ui, false);
         }
     }
 

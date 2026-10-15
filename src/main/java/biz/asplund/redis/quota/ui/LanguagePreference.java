@@ -76,4 +76,14 @@ public class LanguagePreference {
             localeResolver.setLocale(request.getHttpServletRequest(), response.getHttpServletResponse(), locale);
         }
     }
+
+    // Applies the language the logged-in user's settings were just saved with: a set language as if picked in the
+    // toolbar, or, when not set, the one the cookie or the browser gives
+    void applySetting(String localeTag) {
+        if (localeTag != null) {
+            select(supported(Locale.forLanguageTag(localeTag)));
+        } else if (VaadinRequest.getCurrent() instanceof VaadinServletRequest request) {
+            VaadinSession.getCurrent().setLocale(resolve(request.getHttpServletRequest()));
+        }
+    }
 }

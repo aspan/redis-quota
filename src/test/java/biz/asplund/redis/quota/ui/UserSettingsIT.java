@@ -22,9 +22,13 @@ import biz.asplund.redis.security.UserAccountService;
 import biz.asplund.redis.security.UserSettings;
 import biz.asplund.testcontainers.TestcontainersConfiguration;
 import com.vaadin.browserless.SpringBrowserlessTest;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.page.ColorScheme;
 import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.server.VaadinRequest;
+import com.vaadin.flow.server.VaadinServletRequest;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -134,6 +138,9 @@ class UserSettingsIT extends SpringBrowserlessTest {
 		test(find(Button.class, editor).withText("Save").single()).click();
 
 		assertThat(userAccountService.findSettings(username)).isEqualTo(new UserSettings("dark", "sv"));
+		// Another user's settings leave this session alone
+		assertThat(UI.getCurrent().getLocale().getLanguage()).isEqualTo("en");
+		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.LIGHT_DARK);
 
 		// Not set clears them again
 		var reopened = openEditor(username);
@@ -141,6 +148,35 @@ class UserSettingsIT extends SpringBrowserlessTest {
 		test(find(Button.class, reopened).withText("Save").single()).click();
 
 		assertThat(userAccountService.findSettings(username)).isEqualTo(new UserSettings("dark", null));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void appliesOwnSettingsWhenSaved() {
+		var editor = openEditor(USERNAME);
+
+		test((Select<Locale>) find(Select.class, editor).withLabel("Language").single()).selectItem("Svenska");
+		test((Select<ColorSchemeChoice>) find(Select.class, editor).withLabel("Appearance").single())
+				.selectItem("Dark");
+		test(find(Button.class, editor).withText("Save").single()).click();
+
+		assertThat(UI.getCurrent().getLocale().getLanguage()).isEqualTo("sv");
+		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.DARK);
+		assertThat(find(ColorSchemeToggleButton.class).single().getIcon().getElement().getAttribute("icon"))
+				.isEqualTo("vaadin:moon");
+
+		// Not set stops overriding the browser: the page uses what the cookie or the browser gives, where the cookie
+		// now remembers the choice applied above, as a toolbar choice would
+		var swedishEditor = find(UserEditor.class).single();
+		((Select<Locale>) find(Select.class, swedishEditor).withLabel("Språk").single()).clear();
+		((Select<ColorSchemeChoice>) find(Select.class, swedishEditor).withLabel("Utseende").single()).clear();
+		test(find(Button.class, swedishEditor).withText("Spara").single()).click();
+
+		assertThat(userAccountService.findSettings(USERNAME)).isEqualTo(UserSettings.NONE);
+		var request = ((VaadinServletRequest) VaadinRequest.getCurrent()).getHttpServletRequest();
+		assertThat(UI.getCurrent().getLocale()).isEqualTo(languagePreference.resolve(request));
+		assertThat(UI.getCurrent().getPage().getColorScheme())
+				.isEqualTo(colorSchemePreference.resolve(request).value());
 	}
 
 	@SuppressWarnings("unchecked")

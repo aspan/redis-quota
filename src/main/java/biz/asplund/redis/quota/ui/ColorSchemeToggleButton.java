@@ -16,16 +16,21 @@
 
 package biz.asplund.redis.quota.ui;
 
+import com.vaadin.flow.component.AttachEvent;
+import com.vaadin.flow.component.ComponentUtil;
+import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.i18n.LocaleChangeEvent;
 import com.vaadin.flow.i18n.LocaleChangeObserver;
+import com.vaadin.flow.shared.Registration;
 
 // Cycles through the system, light and dark color schemes; the choice applies to the session and is remembered
 // in a cookie
 class ColorSchemeToggleButton extends Button implements LocaleChangeObserver {
 
     private final ColorSchemePreference colorSchemePreference;
+    private Registration changeRegistration;
 
     ColorSchemeToggleButton(ColorSchemePreference colorSchemePreference) {
         this.colorSchemePreference = colorSchemePreference;
@@ -45,6 +50,20 @@ class ColorSchemeToggleButton extends Button implements LocaleChangeObserver {
     @Override
     public void localeChange(LocaleChangeEvent event) {
         update();
+    }
+
+    // Follows changes made elsewhere, such as saving your own settings in the user editor or toggling in another tab
+    @Override
+    protected void onAttach(AttachEvent attachEvent) {
+        super.onAttach(attachEvent);
+        changeRegistration = ComponentUtil.addListener(attachEvent.getUI(),
+                ColorSchemePreference.ColorSchemeChangeEvent.class, _ -> update());
+    }
+
+    @Override
+    protected void onDetach(DetachEvent detachEvent) {
+        changeRegistration.remove();
+        super.onDetach(detachEvent);
     }
 
     // Shows the current scheme, and names the one a click switches to
