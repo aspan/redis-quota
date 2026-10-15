@@ -50,7 +50,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.function.Consumer;
 
-// Detail panel for creating or editing one quota definition, a limit for a single period, and managing its usage
+// Detail panel for editing or deleting one quota definition, a limit for a single period, and managing its usage
 class QuotaEditor extends VerticalLayout {
 
     private static final String PROGRESS_COLOR = "--vaadin-progress-bar-value-background";
@@ -83,7 +83,7 @@ class QuotaEditor extends VerticalLayout {
 
         setWidthFull();
 
-        var title = new H3(row == null ? getTranslation("editor.newTitle") : row.id());
+        var title = new H3(row.id());
         var close = new Button(VaadinIcon.CLOSE.create(), _ -> onClose.run());
         close.setAriaLabel(getTranslation("editor.close"));
         close.addThemeVariants(ButtonVariant.TERTIARY);
@@ -92,23 +92,16 @@ class QuotaEditor extends VerticalLayout {
         header.setAlignItems(FlexComponent.Alignment.CENTER);
         header.expand(title);
         add(header);
-
-        if (row != null) {
-            add(new Span(getTranslation("editor.lastUsed",
-                    row.lastUsed().map(dateTimeFormatter::format).orElse(getTranslation("quotas.never")))));
-        }
-
+        add(new Span(getTranslation("editor.lastUsed",
+                row.lastUsed().map(dateTimeFormatter::format).orElse(getTranslation("quotas.never")))));
         add(createQuotaForm());
-
-        if (row != null) {
-            add(new H4(getTranslation("editor.currentUsage")));
-            add(createUsageCard(row.definition().period(), row.status()));
-        }
+        add(new H4(getTranslation("editor.currentUsage")));
+        add(createUsageCard(row.definition().period(), row.status()));
     }
 
-    // Id of the edited definition, or null for a new one
+    // Id of the edited definition
     String quotaId() {
-        return row == null ? null : row.id();
+        return row.id();
     }
 
     private Component createQuotaForm() {
@@ -120,31 +113,23 @@ class QuotaEditor extends VerticalLayout {
         form.setExpandFields(true);
         form.setWidthFull();
 
-        if (row == null) {
-            idField.setLabel(getTranslation("editor.id"));
-            idField.setRequired(true);
-            form.add(idField);
-        }
-
         periodField.setLabel(getTranslation("editor.period"));
         periodField.setItems(QuotaPeriod.values());
         periodField.setItemLabelGenerator(QuotaView::label);
 
         limitField.setLabel(getTranslation("editor.limit"));
-        limitField.setMin(0);
+        // No min: the field's own range check would show its own, empty message instead of @PositiveOrZero's
         limitField.setStepButtonsVisible(false);
 
-        // The id is bound for an existing definition too, though not shown, as writeRecord needs every component
-        binder.forField(idField).withConverter(String::trim, id -> id).bind("id");
+        // The id is not edited, but writeRecord needs a binding for every component, so a field not shown holds it
+        binder.forField(idField).bind("id");
         binder.forField(periodField).bind("period");
         // The limit is an int, so an empty field is refused before it reaches the record
         binder.forField(limitField).asRequired(getTranslation("editor.limitRequired")).bind("limit");
 
-        if (row != null) {
-            binder.readRecord(row.definition());
-            // Usage is counted per period, so a new period starts from zero
-            periodField.setHelperText(getTranslation("editor.periodChangeHint"));
-        }
+        binder.readRecord(row.definition());
+        // Usage is counted per period, so a new period starts from zero
+        periodField.setHelperText(getTranslation("editor.periodChangeHint"));
         form.add(periodField, limitField);
 
         if (userQuota) {
@@ -159,11 +144,9 @@ class QuotaEditor extends VerticalLayout {
         var buttons = new HorizontalLayout(save);
         // A user's quota is saved and deleted with the user
         buttons.setVisible(!userQuota);
-        if (row != null) {
-            var delete = new Button(getTranslation("editor.delete"), VaadinIcon.TRASH.create(), _ -> confirmDelete());
-            delete.addThemeVariants(ButtonVariant.ERROR, ButtonVariant.TERTIARY);
-            buttons.add(delete);
-        }
+        var delete = new Button(getTranslation("editor.delete"), VaadinIcon.TRASH.create(), _ -> confirmDelete());
+        delete.addThemeVariants(ButtonVariant.ERROR, ButtonVariant.TERTIARY);
+        buttons.add(delete);
 
         var layout = new VerticalLayout(new H4(getTranslation("editor.quota")), form, buttons);
         layout.setWidthFull();
@@ -299,11 +282,6 @@ class QuotaEditor extends VerticalLayout {
         }
 
         try {
-            if (row == null && quotaDefinitionRepository.existsById(definition.id())) {
-                idField.setInvalid(true);
-                idField.setErrorMessage(getTranslation("editor.idExists"));
-                return;
-            }
             var saved = quotaDefinitionRepository.save(definition);
             notify(getTranslation("editor.saved", saved.id()), NotificationVariant.SUCCESS);
             onSaved.accept(saved);

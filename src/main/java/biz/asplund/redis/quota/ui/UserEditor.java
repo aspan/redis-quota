@@ -173,7 +173,7 @@ class UserEditor extends VerticalLayout {
         quotaPeriodField.setHelperText(getTranslation("userEditor.quotaHint"));
 
         quotaLimitField.setLabel(getTranslation("editor.limit"));
-        quotaLimitField.setMin(0);
+        // No min, as in the quota editor, so @PositiveOrZero on UserAccount gives the message
         quotaLimitField.setStepButtonsVisible(false);
 
         binder.forField(quotaPeriodField).bind("quotaPeriod");

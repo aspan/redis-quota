@@ -76,7 +76,6 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     private final Grid<QuotaRow> grid = new Grid<>();
     private final TextField filter = new TextField();
     private final Button refreshButton = new Button(VaadinIcon.REFRESH.create());
-    private final Button addButton = new Button(VaadinIcon.PLUS.create());
     private final MasterDetailLayout masterDetail = new MasterDetailLayout();
 
     private Grid.Column<QuotaRow> idColumn;
@@ -118,7 +117,6 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         filter.setPlaceholder(getTranslation("quotas.filter"));
         refreshButton.setTooltipText(getTranslation("quotas.refresh"));
         refreshButton.setAriaLabel(getTranslation("quotas.refresh"));
-        addButton.setText(getTranslation("quotas.new"));
 
         idColumn.setHeader(getTranslation("quotas.column.id"));
         periodColumn.setHeader(getTranslation("quotas.column.period"));
@@ -130,8 +128,8 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
 
         // Rebuild an open editor in the new language; unsaved input in it is lost
         if (masterDetail.getDetail() instanceof QuotaEditor editor) {
-            showEditor(editor.quotaId() == null ? null
-                    : rows.stream().filter(row -> row.id().equals(editor.quotaId())).findFirst().orElse(null));
+            rows.stream().filter(row -> row.id().equals(editor.quotaId())).findFirst()
+                    .ifPresentOrElse(this::showEditor, this::closeEditor);
         }
     }
 
@@ -155,16 +153,10 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         refreshButton.addClickListener(_ -> refresh());
         refreshButton.addThemeVariants(ButtonVariant.TERTIARY);
 
-        addButton.addClickListener(_ -> {
-            grid.deselectAll();
-            showEditor(null);
-        });
-        addButton.addThemeVariants(ButtonVariant.PRIMARY);
-
-        var toolbar = new HorizontalLayout(filter, refreshButton, addButton);
+        // Quotas are created with users in the users view, so there is no button for a new one here
+        var toolbar = new HorizontalLayout(filter, refreshButton);
         toolbar.setWidthFull();
         toolbar.setAlignItems(FlexComponent.Alignment.CENTER);
-        addButton.getStyle().set("margin-inline-start", "auto");
 
         // Headers are set in localeChange
         idColumn = grid.addColumn(QuotaRow::id).setSortable(true)
@@ -204,7 +196,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     }
 
     private void showEditor(QuotaRow row) {
-        masterDetail.setDetail(new QuotaEditor(row, row != null && userQuotaIds.contains(row.id()),
+        masterDetail.setDetail(new QuotaEditor(row, userQuotaIds.contains(row.id()),
                 quotaDefinitionRepository, quotaManager, dateTimeFormatter, this::onSaved, this::onDeleted,
                 this::closeEditor));
     }

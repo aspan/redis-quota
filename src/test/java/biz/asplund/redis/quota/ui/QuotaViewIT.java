@@ -137,58 +137,32 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
-	void createsDefinition() {
-		var id = uniqueId();
+	void hasNoNewQuotaButton() {
 		navigate(QuotaView.class);
 
-		test(find(Button.class).withText("New quota").single()).click();
-		var editor = find(QuotaEditor.class).single();
-		test(find(TextField.class, editor).withLabel("Id").single()).setValue(id);
-		periodField(editor).selectItem("Monthly");
-		test(limitField(editor)).setValue(1000);
-		test(find(Button.class, editor).withText("Save").single()).click();
-
-		assertThat(quotaDefinitionRepository.findById(id)).contains(new QuotaDefinition(id, QuotaPeriod.MONTHLY, 1000));
-		assertThat(notifications()).contains("Quota " + id + " saved");
-		assertThat(grid().getSelected()).extracting(QuotaRow::id).containsExactly(id);
+		// Quotas are created with users in the users view
+		assertThat(find(Button.class).withText("New quota").exists()).isFalse();
 	}
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
-	void requiresPeriodAndLimit() {
-		var id = uniqueId();
-		navigate(QuotaView.class);
-
-		test(find(Button.class).withText("New quota").single()).click();
-		var editor = find(QuotaEditor.class).single();
-		test(find(TextField.class, editor).withLabel("Id").single()).setValue(id);
-		test(find(Button.class, editor).withText("Save").single()).click();
-
-		var period = find(Select.class, editor).withLabel("Period").single();
-		assertThat(period.isInvalid()).isTrue();
-		assertThat(period.getErrorMessage()).isEqualTo("Choose a period");
-		assertThat(limitField(editor).isInvalid()).isTrue();
-		assertThat(limitField(editor).getErrorMessage()).isEqualTo("Enter a limit of 0 or more");
-		assertThat(quotaDefinitionRepository.existsById(id)).isFalse();
-	}
-
-	@Test
-	@WithMockUser(username = "admin", roles = "ADMIN")
-	void rejectsDuplicateId() {
+	void requiresLimitOfZeroOrMore() {
 		var id = uniqueId();
 		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
-		navigate(QuotaView.class);
+		var editor = openEditor(id);
+		var limit = limitField(editor);
 
-		test(find(Button.class).withText("New quota").single()).click();
-		var editor = find(QuotaEditor.class).single();
-		var idField = find(TextField.class, editor).withLabel("Id").single();
-		test(idField).setValue(id);
-		periodField(editor).selectItem("Daily");
-		test(limitField(editor)).setValue(99);
+		test(limit).clear();
 		test(find(Button.class, editor).withText("Save").single()).click();
 
-		assertThat(idField.isInvalid()).isTrue();
-		assertThat(idField.getErrorMessage()).isEqualTo("A quota with this id already exists");
+		assertThat(limit.isInvalid()).isTrue();
+		assertThat(limit.getErrorMessage()).isEqualTo("Enter a limit of 0 or more");
+
+		test(limit).setValue(-1);
+		test(find(Button.class, editor).withText("Save").single()).click();
+
+		assertThat(limit.isInvalid()).isTrue();
+		assertThat(limit.getErrorMessage()).isEqualTo("Enter a limit of 0 or more");
 		assertThat(quotaDefinitionRepository.findById(id)).contains(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
 	}
 
@@ -361,10 +335,10 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void stretchesFormFieldsAcrossEditor() {
-		navigate(QuotaView.class);
-		test(find(Button.class).withText("New quota").single()).click();
+		var id = uniqueId();
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 5));
 
-		var form = find(FormLayout.class, find(QuotaEditor.class).single()).single();
+		var form = find(FormLayout.class, openEditor(id)).single();
 
 		assertThat(form.getWidth()).isEqualTo("100%");
 		assertThat(form.getMaxColumns()).isEqualTo(1);
@@ -383,17 +357,6 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 		assertThat(find(QuotaEditor.class).exists()).isFalse();
 		assertThat(grid().getSelected()).isEmpty();
-	}
-
-	@Test
-	@WithMockUser(username = "admin", roles = "ADMIN")
-	void closesEditorOfNewQuota() {
-		navigate(QuotaView.class);
-		test(find(Button.class).withText("New quota").single()).click();
-
-		test(find(Button.class, find(QuotaEditor.class).single()).withAriaLabel("Close").single()).click();
-
-		assertThat(find(QuotaEditor.class).exists()).isFalse();
 	}
 
 	@Test

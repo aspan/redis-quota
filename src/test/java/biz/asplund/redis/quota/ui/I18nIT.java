@@ -17,6 +17,9 @@
 package biz.asplund.redis.quota.ui;
 
 import biz.asplund.redis.TestcontainersConfiguration;
+import biz.asplund.redis.quota.QuotaDefinition;
+import biz.asplund.redis.quota.QuotaDefinitionRepository;
+import biz.asplund.redis.quota.QuotaPeriod;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -41,6 +44,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.ResourceBundle;
+import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,6 +60,9 @@ class I18nIT extends SpringBrowserlessTest {
 	@Autowired
 	private I18NProvider i18nProvider;
 
+	@Autowired
+	private QuotaDefinitionRepository quotaDefinitionRepository;
+
 	private static final Locale SWEDISH = Locale.of("sv");
 
 	@Test
@@ -63,7 +71,7 @@ class I18nIT extends SpringBrowserlessTest {
 
 		assertThat(UI.getCurrent().getLocale().getLanguage()).isEqualTo("en");
 		assertThat(UI.getCurrent().getInternals().getTitle()).isEqualTo("Quotas");
-		assertThat(find(Button.class).withText("New quota").exists()).isTrue();
+		assertThat(find(TextField.class).withPlaceholder("Filter by id").exists()).isTrue();
 	}
 
 	@Test
@@ -79,7 +87,6 @@ class I18nIT extends SpringBrowserlessTest {
 		assertThat(find(SideNav.class).single().getItems()).extracting(SideNavItem::getLabel)
 				.containsExactly("Kvoter", "Användare");
 		assertThat(find(TextField.class).withPlaceholder("Filtrera på id").exists()).isTrue();
-		assertThat(find(Button.class).withText("Ny kvot").exists()).isTrue();
 		var columns = grid().getColumns();
 		assertThat(columns.get(1).getHeaderText()).isEqualTo("Period");
 		assertThat(columns.get(2).getHeaderText()).isEqualTo("Förbrukning");
@@ -88,13 +95,12 @@ class I18nIT extends SpringBrowserlessTest {
 		pickLanguage("English");
 
 		assertThat(find(H1.class).single().getText()).isEqualTo("Quotas");
-		assertThat(find(Button.class).withText("New quota").exists()).isTrue();
+		assertThat(find(TextField.class).withPlaceholder("Filter by id").exists()).isTrue();
 	}
 
 	@Test
 	void rebuildsOpenEditorInNewLanguage() {
-		navigate(QuotaView.class);
-		test(find(Button.class).withText("New quota").single()).click();
+		openEditor();
 
 		pickLanguage("Svenska");
 
@@ -144,16 +150,27 @@ class I18nIT extends SpringBrowserlessTest {
 
 	@Test
 	void showsValidationMessagesInUiLanguage() {
-		navigate(QuotaView.class);
+		openEditor();
 		pickLanguage("Svenska");
-		test(find(Button.class).withText("Ny kvot").single()).click();
 
+		// The rebuilt editor is in Swedish; a negative limit breaks @PositiveOrZero on QuotaDefinition
 		var editor = find(QuotaEditor.class).single();
+		var limit = find(IntegerField.class, editor).withLabel("Gräns").single();
+		test(limit).setValue(-1);
 		test(find(Button.class, editor).withText("Spara").single()).click();
 
-		var id = find(TextField.class, editor).withLabel("Id").single();
-		assertThat(id.isInvalid()).isTrue();
-		assertThat(id.getErrorMessage()).isEqualTo("Id krävs");
+		assertThat(limit.isInvalid()).isTrue();
+		assertThat(limit.getErrorMessage()).isEqualTo("Ange en gräns på 0 eller mer");
+	}
+
+	// Opens the editor of a new definition, as quotas are no longer created in the quotas view
+	private void openEditor() {
+		var id = "i18n-" + UUID.randomUUID();
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 10));
+		navigate(QuotaView.class);
+		var grid = test(grid());
+		grid.select(IntStream.range(0, grid.size()).filter(row -> grid.getRow(row).id().equals(id))
+				.findFirst().orElseThrow());
 	}
 
 	@SuppressWarnings("unchecked")
