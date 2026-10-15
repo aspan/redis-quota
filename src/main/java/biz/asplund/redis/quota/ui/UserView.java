@@ -69,6 +69,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     private final UserAccountService userAccountService;
     private final QuotaManager quotaManager;
     private final QuotaHistoryService quotaHistoryService;
+    private final LanguagePreference languagePreference;
     private final ZoneId zone;
     private final String actingUsername;
     private DateTimeFormatter dateTimeFormatter;
@@ -89,8 +90,10 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     private List<Role> roles = List.of();
 
     public UserView(UserAccountService userAccountService, QuotaManager quotaManager,
-            QuotaHistoryService quotaHistoryService, Clock clock, AuthenticationContext authenticationContext) {
+            QuotaHistoryService quotaHistoryService, LanguagePreference languagePreference, Clock clock,
+            AuthenticationContext authenticationContext) {
         this.userAccountService = userAccountService;
+        this.languagePreference = languagePreference;
         this.quotaManager = quotaManager;
         this.quotaHistoryService = quotaHistoryService;
         this.zone = clock.getZone();
@@ -205,8 +208,8 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
 
     private void showEditor(UserAccount account) {
         // The detail area does not scroll by itself, so the editor, which can be taller, scrolls in a Scroller
-        var scroller = new Scroller(new UserEditor(account, roles, userAccountService, quotaManager,
-                quotaHistoryService, dateTimeFormatter, actingUsername, this::onSaved, this::onDeleted,
+        var scroller = new Scroller(new UserEditor(account, roles, languagePreference.locales(), userAccountService,
+                quotaManager, quotaHistoryService, dateTimeFormatter, actingUsername, this::onSaved, this::onDeleted,
                 this::closeEditor));
         scroller.setSizeFull();
         masterDetail.setDetail(scroller);

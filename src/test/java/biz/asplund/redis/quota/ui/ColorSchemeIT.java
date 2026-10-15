@@ -35,7 +35,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
-@WithMockUser(username = "admin", roles = "ADMIN")
+// A user that is not stored, so choices are kept in cookies only and tests do not change each other's settings;
+// UserSettingsIT covers the settings of a stored user
+@WithMockUser(username = "not-a-stored-user", roles = "ADMIN")
 class ColorSchemeIT extends SpringBrowserlessTest {
 
 	@Autowired

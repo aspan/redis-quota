@@ -32,6 +32,7 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
@@ -75,6 +76,15 @@ public class UserAccount {
     @PositiveOrZero(message = "{userAccount.quotaLimit.positiveOrZero}")
     @Column(name = "quota_limit")
     private Integer quotaLimit;
+
+    // The appearance and language the user picked, or null when not set; see UserSettings
+    @Pattern(regexp = "system|light|dark")
+    @Column(name = "color_scheme", length = 10)
+    private String colorScheme;
+
+    @Size(max = 35)
+    @Column(name = "locale", length = 35)
+    private String locale;
 
     // An empty user, for forms to write into
     public UserAccount() {
@@ -135,6 +145,15 @@ public class UserAccount {
 
     public void setQuotaLimit(Integer quotaLimit) {
         this.quotaLimit = quotaLimit;
+    }
+
+    public UserSettings getSettings() {
+        return new UserSettings(colorScheme, locale);
+    }
+
+    public void setSettings(UserSettings settings) {
+        this.colorScheme = settings.colorScheme();
+        this.locale = settings.locale();
     }
 
     // As the users_quota_complete check in the database: both the period and the limit, or neither

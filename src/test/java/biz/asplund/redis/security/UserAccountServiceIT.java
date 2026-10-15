@@ -227,6 +227,21 @@ class UserAccountServiceIT {
 	}
 
 	@Test
+	void storesSettingsAndKeepsThemOnUpdateWithoutSettings() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null,
+				new UserSettings("dark", "sv"));
+
+		userAccountService.updateUser(account.getId(), null, false, List.of(), null, "someone-else");
+		assertThat(userAccountService.findSettings(account.getUsername())).isEqualTo(new UserSettings("dark", "sv"));
+
+		userAccountService.changeSettings(account.getUsername(), settings -> settings.withLocale(null));
+		assertThat(userAccountService.findSettings(account.getUsername())).isEqualTo(new UserSettings("dark", null));
+		assertThat(userAccountService.findSettings("no-such-user")).isEqualTo(UserSettings.NONE);
+		assertThat(violationOf(() -> userAccountService.changeSettings(account.getUsername(),
+				settings -> settings.withColorScheme("sepia")))).contains("colorScheme");
+	}
+
+	@Test
 	void createsRoleInUpperCase() {
 		var name = uniqueRoleName();
 

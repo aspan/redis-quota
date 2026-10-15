@@ -27,14 +27,25 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 
-// Reads and stores the user's color scheme in a cookie, like the language in LanguagePreference
+// Reads and stores the user's color scheme: the logged-in user's setting, or else a cookie, like the language in
+// LanguagePreference
 @Component
 public class ColorSchemePreference {
 
     static final String COOKIE = "color-scheme";
 
-    // The stored choice, or SYSTEM
+    private final LoggedInUserSettings loggedInUserSettings;
+
+    ColorSchemePreference(LoggedInUserSettings loggedInUserSettings) {
+        this.loggedInUserSettings = loggedInUserSettings;
+    }
+
+    // The logged-in user's choice, or else the one stored in the cookie, or SYSTEM
     ColorSchemeChoice resolve(HttpServletRequest request) {
+        var userChoice = loggedInUserSettings.get().colorScheme();
+        if (userChoice != null) {
+            return ColorSchemeChoice.fromKey(userChoice);
+        }
         return Optional.ofNullable(request.getCookies()).stream().flatMap(Arrays::stream)
                 .filter(cookie -> COOKIE.equals(cookie.getName())).findFirst()
                 .map(cookie -> ColorSchemeChoice.fromKey(cookie.getValue()))
@@ -47,8 +58,9 @@ public class ColorSchemePreference {
         return choice != null ? choice : ColorSchemeChoice.SYSTEM;
     }
 
-    // Applies the choice to every UI of the session and remembers it
+    // Applies the choice to every UI of the session and remembers it for the logged-in user and in the cookie
     void select(ColorSchemeChoice choice) {
+        loggedInUserSettings.change(settings -> settings.withColorScheme(choice.key()));
         var session = VaadinSession.getCurrent();
         session.setAttribute(ColorSchemeChoice.class, choice);
         session.getUIs().forEach(ui -> ui.getPage().setColorScheme(choice.value()));

@@ -32,6 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -95,10 +96,16 @@ public class UserAccountService {
                 .map(UserAccount::getUsername).collect(Collectors.toSet());
     }
 
-    // A null quota means none
+    // A null quota means none; the user starts without settings
     @Transactional
     public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota) {
+        return createUser(username, password, enabled, roleNames, quota, UserSettings.NONE);
+    }
+
+    @Transactional
+    public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
+            QuotaConfig quota, UserSettings settings) {
         var name = username == null ? "" : username.trim();
         if (name.isEmpty()) {
             throw new AccountRuleException(Rule.USERNAME_REQUIRED);
@@ -111,15 +118,23 @@ public class UserAccountService {
         account.setEnabled(enabled);
         account.getRoles().addAll(roles(roleNames));
         account.setQuota(quota);
+        account.setSettings(settings);
         var saved = userAccountRepository.save(account);
         copyQuota(saved);
         return saved;
     }
 
-    // A null or empty password keeps the current one; a null quota removes it
+    // A null or empty password keeps the current one; a null quota removes it. The settings are kept
     @Transactional
     public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota, String actingUsername) {
+        return updateUser(id, password, enabled, roleNames, quota, null, actingUsername);
+    }
+
+    // As above; null settings keep the current ones
+    @Transactional
+    public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
+            QuotaConfig quota, UserSettings settings, String actingUsername) {
         var account = userAccountRepository.findById(id).orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
         if (account.getUsername().equals(actingUsername)) {
             if (!enabled) {
@@ -137,8 +152,25 @@ public class UserAccountService {
         account.getRoles().clear();
         account.getRoles().addAll(roles(roleNames));
         account.setQuota(quota);
+        if (settings != null) {
+            account.setSettings(settings);
+        }
         copyQuota(account);
         return account;
+    }
+
+    // The settings of the user with the username, or none for a name no user has
+    @Transactional(readOnly = true)
+    public UserSettings findSettings(String username) {
+        return userAccountRepository.findByUsername(username).map(UserAccount::getSettings).orElse(UserSettings.NONE);
+    }
+
+    // Changes the settings of the user with the username, as the toolbar does for the logged-in user; a name no
+    // user has, such as one from spring.security.user before it is stored, is left alone
+    @Transactional
+    public void changeSettings(String username, UnaryOperator<UserSettings> change) {
+        userAccountRepository.findByUsername(username)
+                .ifPresent(account -> account.setSettings(change.apply(account.getSettings())));
     }
 
     @Transactional

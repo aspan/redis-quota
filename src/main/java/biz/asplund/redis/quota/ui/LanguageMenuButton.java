@@ -41,11 +41,9 @@ class LanguageMenuButton extends PreferenceMenuButton<Locale> {
         return languagePreference.supported(getLocale());
     }
 
-    // Each language is named in itself, so it can be found whatever the current language is
     @Override
     String label(Locale locale) {
-        var name = locale.getDisplayLanguage(locale);
-        return name.isEmpty() ? locale.toLanguageTag() : name.substring(0, 1).toUpperCase(locale) + name.substring(1);
+        return LanguagePreference.displayName(locale);
     }
 
     // Switching the language calls localeChange, which updates this button
