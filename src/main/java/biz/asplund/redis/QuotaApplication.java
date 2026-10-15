@@ -23,10 +23,13 @@ import com.vaadin.flow.theme.aura.Aura;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.time.Clock;
 
 @SpringBootApplication
+// For the daily UserQuotaSync
+@EnableScheduling
 @StyleSheet(Aura.STYLESHEET)
 @ColorScheme(ColorScheme.Value.LIGHT_DARK)
 public class QuotaApplication implements AppShellConfigurator {
