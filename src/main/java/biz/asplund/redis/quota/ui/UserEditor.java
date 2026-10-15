@@ -66,6 +66,7 @@ class UserEditor extends VerticalLayout {
     private final Runnable onDeleted;
 
     private final TextField usernameField = new TextField();
+    private final TextField nameField = new TextField();
     private final PasswordField passwordField = new PasswordField();
     private final Checkbox enabledField = new Checkbox();
     private final MultiSelectComboBox<Role> rolesField = new MultiSelectComboBox<>();
@@ -130,6 +131,13 @@ class UserEditor extends VerticalLayout {
             usernameField.setRequired(true);
             form.add(usernameField);
         }
+
+        nameField.setLabel(getTranslation("userEditor.name"));
+        nameField.setHelperText(getTranslation("userEditor.nameHint"));
+        nameField.setClearButtonVisible(true);
+        // Not set is shown as empty, and an empty field clears the name
+        binder.forField(nameField).withNullRepresentation("").bind("name");
+        form.add(nameField);
 
         passwordField.setLabel(getTranslation("userEditor.password"));
         passwordField.setRequired(account == null);
@@ -270,10 +278,10 @@ class UserEditor extends VerticalLayout {
         var quota = user.getQuota().orElse(null);
         try {
             var saved = account == null
-                    ? userAccountService.createUser(user.getUsername(), passwordField.getValue(), user.isEnabled(),
-                            roleNames, quota, user.getSettings())
-                    : userAccountService.updateUser(account.getId(), passwordField.getValue(), user.isEnabled(),
-                            roleNames, quota, user.getSettings(), actingUsername);
+                    ? userAccountService.createUser(user.getUsername(), user.getName(), passwordField.getValue(),
+                            user.isEnabled(), roleNames, quota, user.getSettings())
+                    : userAccountService.updateUser(account.getId(), user.getName(), passwordField.getValue(),
+                            user.isEnabled(), roleNames, quota, user.getSettings(), actingUsername);
             notify(getTranslation("userEditor.saved", saved.getUsername()), NotificationVariant.SUCCESS);
             onSaved.accept(saved);
         } catch (AccountRuleException e) {

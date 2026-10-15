@@ -29,6 +29,7 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.PasswordField;
+import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.i18n.LocaleChangeEvent;
 import com.vaadin.flow.i18n.LocaleChangeObserver;
 import com.vaadin.flow.router.Menu;
@@ -37,6 +38,8 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.spring.security.AuthenticationContext;
 import jakarta.annotation.security.PermitAll;
 import org.springframework.dao.DataAccessException;
+
+import java.util.Objects;
 
 // The logged-in user's own page, open to every user: their language and appearance, which apply at once when
 // saved, and a new password, for which they confirm their current one
@@ -52,6 +55,7 @@ public class ProfileView extends VerticalLayout implements LocaleChangeObserver 
     private final String username;
 
     // Created in localeChange, so the page is built in the current language
+    private TextField nameField;
     private UserSettingsField settingsField;
     private PasswordField currentPasswordField;
     private PasswordField newPasswordField;
@@ -75,11 +79,17 @@ public class ProfileView extends VerticalLayout implements LocaleChangeObserver 
     }
 
     private Component createSettings() {
+        nameField = new TextField(getTranslation("userEditor.name"));
+        nameField.setHelperText(getTranslation("userEditor.nameHint"));
+        nameField.setClearButtonVisible(true);
+        nameField.setMaxLength(200);
+        nameField.setWidthFull();
+        nameField.setValue(Objects.requireNonNullElse(userAccountService.findName(username), ""));
         settingsField = new UserSettingsField(languagePreference.locales());
         settingsField.setValue(userAccountService.findSettings(username));
         var save = new Button(getTranslation("profile.saveSettings"), _ -> saveSettings());
         save.addThemeVariants(ButtonVariant.PRIMARY);
-        var layout = new VerticalLayout(new H4(getTranslation("profile.settings")), settingsField, save);
+        var layout = new VerticalLayout(new H4(getTranslation("profile.settings")), nameField, settingsField, save);
         layout.setPadding(false);
         return layout;
     }
@@ -111,13 +121,17 @@ public class ProfileView extends VerticalLayout implements LocaleChangeObserver 
     private void saveSettings() {
         UserSettings settings = settingsField.getValue();
         try {
-            userAccountService.changeSettings(username, _ -> settings);
+            userAccountService.changeOwnProfile(username, nameField.getValue(), settings);
+        } catch (AccountRuleException e) {
+            notify(UserView.ruleMessage(this, e), NotificationVariant.ERROR);
+            return;
         } catch (DataAccessException e) {
             notify(getTranslation("profile.saveFailed", e.getMostSpecificCause().getMessage()),
                     NotificationVariant.ERROR);
             return;
         }
         notify(getTranslation("profile.settingsSaved"), NotificationVariant.SUCCESS);
+        DisplayNameChangeEvent.fire();
         languagePreference.applySetting(settings.locale());
         colorSchemePreference.applySetting(settings.colorScheme());
     }

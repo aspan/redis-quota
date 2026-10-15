@@ -21,6 +21,7 @@ import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.UserAccountRepository;
 import biz.asplund.redis.security.UserAccountService;
+import biz.asplund.redis.security.UserSettings;
 import biz.asplund.testcontainers.TestcontainersConfiguration;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.button.Button;
@@ -86,6 +87,19 @@ class HomeViewIT extends SpringBrowserlessTest {
 		// Only admins change usage
 		assertThat(find(Button.class, card).exists()).isFalse();
 		assertThat(find(UsageHistorySection.class).exists()).isTrue();
+	}
+
+	@Test
+	@WithMockUser(username = WITHOUT_QUOTA, roles = "USER")
+	void greetsUserByName() {
+		userAccountService.changeOwnProfile(WITHOUT_QUOTA, "Anna Andersson", UserSettings.NONE);
+		try {
+			navigate("", HomeView.class);
+
+			assertThat(find(Span.class).withText("Welcome, Anna Andersson").exists()).isTrue();
+		} finally {
+			userAccountService.changeOwnProfile(WITHOUT_QUOTA, null, UserSettings.NONE);
+		}
 	}
 
 	@Test

@@ -16,6 +16,10 @@
 
 package biz.asplund.redis.quota.ui;
 
+import biz.asplund.redis.security.UserAccountService;
+import com.vaadin.flow.component.AttachEvent;
+import com.vaadin.flow.component.ComponentUtil;
+import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.avatar.Avatar;
@@ -39,7 +43,9 @@ import com.vaadin.flow.router.Layout;
 import com.vaadin.flow.server.menu.MenuConfiguration;
 import com.vaadin.flow.server.menu.MenuEntry;
 import com.vaadin.flow.spring.security.AuthenticationContext;
+import com.vaadin.flow.shared.Registration;
 import jakarta.annotation.security.PermitAll;
+import org.springframework.dao.DataAccessException;
 
 // Shell around every view except the login view; the menu lists the @Menu views the user may open,
 // whose titles are translation keys. Texts are set in localeChange, so they follow the language picker
@@ -51,9 +57,16 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
     private final Span appName = new Span();
     private final SideNav nav = new SideNav();
     private final Button logout = new Button(VaadinIcon.SIGN_OUT.create());
+    private final Avatar avatar = new Avatar();
+    private final Span userName = new Span();
+    private final UserAccountService userAccountService;
+    private final String username;
+    private Registration nameChangeRegistration;
 
     public MainLayout(AuthenticationContext authenticationContext, LanguagePreference languagePreference,
-            ColorSchemePreference colorSchemePreference) {
+            ColorSchemePreference colorSchemePreference, UserAccountService userAccountService) {
+        this.userAccountService = userAccountService;
+        this.username = authenticationContext.getPrincipalName().orElse("");
         setPrimarySection(Section.DRAWER);
         // Wider than the default, so longer translated menu labels fit
         getStyle().set("--vaadin-app-layout-drawer-width", "20rem");
@@ -113,17 +126,40 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
         return item;
     }
 
+    // The logged-in user, by name if set
     private HorizontalLayout createUserFooter(AuthenticationContext authenticationContext) {
-        var name = authenticationContext.getPrincipalName().orElse("");
-        var avatar = new Avatar(name);
-        var userName = new Span(name);
-
+        showDisplayName();
         var footer = new HorizontalLayout(avatar, userName);
         footer.setWidthFull();
         footer.setPadding(true);
         footer.setAlignItems(FlexComponent.Alignment.CENTER);
         footer.expand(userName);
         return footer;
+    }
+
+    private void showDisplayName() {
+        String name;
+        try {
+            name = userAccountService.findDisplayName(username);
+        } catch (DataAccessException e) {
+            name = username;
+        }
+        avatar.setName(name);
+        userName.setText(name);
+    }
+
+    // Shows a new name at once, when the user changes it on the profile page or in the user editor
+    @Override
+    protected void onAttach(AttachEvent attachEvent) {
+        super.onAttach(attachEvent);
+        nameChangeRegistration = ComponentUtil.addListener(attachEvent.getUI(), DisplayNameChangeEvent.class,
+                _ -> showDisplayName());
+    }
+
+    @Override
+    protected void onDetach(DetachEvent detachEvent) {
+        nameChangeRegistration.remove();
+        super.onDetach(detachEvent);
     }
 
     @Override

@@ -79,9 +79,9 @@ public class HomeView extends VerticalLayout implements BeforeEnterObserver, Loc
         removeAll();
         var dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
                 .withLocale(getLocale()).withZone(zone);
-        add(new Span(getTranslation("home.welcome", username)), new H4(getTranslation("home.quota")));
-
         try {
+            add(new Span(getTranslation("home.welcome", userAccountService.findDisplayName(username))),
+                    new H4(getTranslation("home.quota")));
             var quota = userAccountService.findQuota(username);
             if (quota.isEmpty()) {
                 add(new Span(getTranslation("home.noQuota")));

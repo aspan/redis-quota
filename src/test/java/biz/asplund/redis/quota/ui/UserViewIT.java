@@ -111,10 +111,10 @@ class UserViewIT extends SpringBrowserlessTest {
 
 		var grid = grid();
 		var row = rowOf(grid, account.getUsername());
-		assertThat(grid.getCellText(row, 1)).isEqualTo(String.join(", ", List.of("ADMIN", role.getName()).stream()
+		assertThat(grid.getCellText(row, 2)).isEqualTo(String.join(", ", List.of("ADMIN", role.getName()).stream()
 				.sorted().toList()));
-		assertThat(grid.getCellText(row, 2)).isEqualTo("No quota");
-		assertThat(grid.getCellComponent(row, 3).getElement().getText()).isEqualTo("Disabled");
+		assertThat(grid.getCellText(row, 3)).isEqualTo("No quota");
+		assertThat(grid.getCellComponent(row, 4).getElement().getText()).isEqualTo("Disabled");
 	}
 
 	@Test
@@ -135,6 +135,22 @@ class UserViewIT extends SpringBrowserlessTest {
 		assertThat(notifications()).contains("User " + username + " saved");
 		// The editor stays open on the saved user
 		assertThat(find(UserEditor.class).single().userId()).isEqualTo(account.getId());
+	}
+
+	@Test
+	void setsAndFiltersByName() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null);
+		var editor = openEditor(account.getUsername());
+
+		test(find(TextField.class, editor).withLabel("Name").single()).setValue("Zelda " + account.getUsername());
+		test(find(Button.class, editor).withText("Save").single()).click();
+
+		assertThat(userAccountService.findName(account.getUsername())).isEqualTo("Zelda " + account.getUsername());
+		test(find(TextField.class).withPlaceholder("Filter by username or name").single()).setValue("zelda");
+		var grid = grid();
+		assertThat(IntStream.range(0, grid.size()).mapToObj(grid::getRow)).extracting(UserAccount::getUsername)
+				.contains(account.getUsername()).doesNotContain(SELF);
+		assertThat(grid.getCellText(rowOf(grid, account.getUsername()), 1)).isEqualTo("Zelda " + account.getUsername());
 	}
 
 	@Test
@@ -199,7 +215,7 @@ class UserViewIT extends SpringBrowserlessTest {
 		assertThat(quotaDefinitionRepository.findById(account.getUsername()))
 				.contains(new QuotaDefinition(account.getUsername(), QuotaPeriod.DAILY, 100));
 		var grid = grid();
-		assertThat(grid.getCellText(rowOf(grid, account.getUsername()), 2)).isEqualTo("100 / Daily");
+		assertThat(grid.getCellText(rowOf(grid, account.getUsername()), 3)).isEqualTo("100 / Daily");
 	}
 
 	@Test

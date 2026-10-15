@@ -97,45 +97,47 @@ public class UserAccountService {
                 .map(UserAccount::getUsername).collect(Collectors.toSet());
     }
 
-    // A null quota means none; the user starts without settings
+    // A null quota means none; the user starts without a name or settings
     @Transactional
     public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota) {
-        return createUser(username, password, enabled, roleNames, quota, UserSettings.NONE);
+        return createUser(username, null, password, enabled, roleNames, quota, UserSettings.NONE);
     }
 
     @Transactional
-    public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
-            QuotaConfig quota, UserSettings settings) {
-        var name = username == null ? "" : username.trim();
-        if (name.isEmpty()) {
+    public UserAccount createUser(String username, String name, String password, boolean enabled,
+            Collection<String> roleNames, QuotaConfig quota, UserSettings settings) {
+        var trimmedUsername = username == null ? "" : username.trim();
+        if (trimmedUsername.isEmpty()) {
             throw new AccountRuleException(Rule.USERNAME_REQUIRED);
         }
-        if (userAccountRepository.existsByUsername(name)) {
+        if (userAccountRepository.existsByUsername(trimmedUsername)) {
             throw new AccountRuleException(Rule.USERNAME_TAKEN);
         }
         validate(quota);
-        var account = new UserAccount(name, encode(password));
+        var account = new UserAccount(trimmedUsername, encode(password));
         account.setEnabled(enabled);
         account.getRoles().addAll(roles(roleNames));
         account.setQuota(quota);
+        account.setName(name);
         account.setSettings(settings);
         var saved = userAccountRepository.save(account);
         copyQuota(saved);
         return saved;
     }
 
-    // A null or empty password keeps the current one; a null quota removes it. The settings are kept
+    // A null or empty password keeps the current one; a null quota removes it. The name and settings are kept
     @Transactional
     public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota, String actingUsername) {
-        return updateUser(id, password, enabled, roleNames, quota, null, actingUsername);
+        var name = userAccountRepository.findById(id).map(UserAccount::getName).orElse(null);
+        return updateUser(id, name, password, enabled, roleNames, quota, null, actingUsername);
     }
 
-    // As above; null settings keep the current ones
+    // As above, with the name, where null or blank clears it; null settings keep the current ones
     @Transactional
-    public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
-            QuotaConfig quota, UserSettings settings, String actingUsername) {
+    public UserAccount updateUser(long id, String name, String password, boolean enabled,
+            Collection<String> roleNames, QuotaConfig quota, UserSettings settings, String actingUsername) {
         var account = userAccountRepository.findById(id).orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
         if (account.getUsername().equals(actingUsername)) {
             if (!enabled) {
@@ -153,6 +155,7 @@ public class UserAccountService {
         account.getRoles().clear();
         account.getRoles().addAll(roles(roleNames));
         account.setQuota(quota);
+        account.setName(name);
         if (settings != null) {
             account.setSettings(settings);
         }
@@ -164,6 +167,27 @@ public class UserAccountService {
     @Transactional(readOnly = true)
     public Optional<QuotaConfig> findQuota(String username) {
         return userAccountRepository.findByUsername(username).flatMap(UserAccount::getQuota);
+    }
+
+    // The name people read for the user with the username: their name, or else the username itself
+    @Transactional(readOnly = true)
+    public String findDisplayName(String username) {
+        return userAccountRepository.findByUsername(username).map(UserAccount::getDisplayName).orElse(username);
+    }
+
+    // The name of the user with the username, or null when not set or no user has the username
+    @Transactional(readOnly = true)
+    public String findName(String username) {
+        return userAccountRepository.findByUsername(username).map(UserAccount::getName).orElse(null);
+    }
+
+    // Changes the name and settings of the user with the username, as the user does on their profile page
+    @Transactional
+    public void changeOwnProfile(String username, String name, UserSettings settings) {
+        var account = userAccountRepository.findByUsername(username)
+                .orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
+        account.setName(name);
+        account.setSettings(settings);
     }
 
     // The settings of the user with the username, or none for a name no user has

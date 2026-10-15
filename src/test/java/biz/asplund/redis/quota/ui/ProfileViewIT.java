@@ -22,12 +22,15 @@ import biz.asplund.redis.security.UserSettings;
 import biz.asplund.testcontainers.TestcontainersConfiguration;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.avatar.Avatar;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.page.ColorScheme;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.component.textfield.PasswordField;
+import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.RouteNotFoundError;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,8 +78,8 @@ class ProfileViewIT extends SpringBrowserlessTest {
 	@AfterEach
 	void reset() {
 		var account = userAccountRepository.findByUsername(USERNAME).orElseThrow();
-		userAccountService.updateUser(account.getId(), PASSWORD, true, List.of("USER"), null, UserSettings.NONE,
-				"someone-else");
+		userAccountService.updateUser(account.getId(), null, PASSWORD, true, List.of("USER"), null,
+				UserSettings.NONE, "someone-else");
 	}
 
 	@Test
@@ -95,13 +98,20 @@ class ProfileViewIT extends SpringBrowserlessTest {
 
 		test((Select<Locale>) find(Select.class).withLabel("Language").single()).selectItem("Svenska");
 		test((Select<ColorSchemeChoice>) find(Select.class).withLabel("Appearance").single()).selectItem("Dark");
-		test(find(Button.class).withText("Save settings").single()).click();
+		test(find(TextField.class).withLabel("Name").single()).setValue("Anna Andersson");
+		test(find(Button.class).withText("Save").single()).click();
 
 		assertThat(userAccountService.findSettings(USERNAME)).isEqualTo(new UserSettings("dark", "sv"));
+		assertThat(userAccountService.findName(USERNAME)).isEqualTo("Anna Andersson");
+		// The side menu shows the new name at once
+		var layout = find(MainLayout.class).single();
+		assertThat(find(Avatar.class, layout).single().getName()).isEqualTo("Anna Andersson");
+		assertThat(find(Span.class, layout).withText("Anna Andersson").exists()).isTrue();
 		assertThat(UI.getCurrent().getLocale().getLanguage()).isEqualTo("sv");
 		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.DARK);
 		// The page is rebuilt in Swedish, showing the saved settings
-		assertThat(find(Button.class).withText("Spara inställningar").exists()).isTrue();
+		assertThat(find(Button.class).withText("Spara").exists()).isTrue();
+		assertThat(find(TextField.class).withLabel("Namn").single().getValue()).isEqualTo("Anna Andersson");
 		assertThat(((Select<Locale>) find(Select.class).withLabel("Språk").single()).getValue())
 				.isEqualTo(Locale.of("sv"));
 	}

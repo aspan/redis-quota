@@ -83,6 +83,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     private final MasterDetailLayout masterDetail = new MasterDetailLayout();
 
     private Grid.Column<UserAccount> usernameColumn;
+    private Grid.Column<UserAccount> nameColumn;
     private Grid.Column<UserAccount> rolesColumn;
     private Grid.Column<UserAccount> quotaColumn;
     private Grid.Column<UserAccount> statusColumn;
@@ -128,6 +129,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
         addButton.setText(getTranslation("users.new"));
 
         usernameColumn.setHeader(getTranslation("users.column.username"));
+        nameColumn.setHeader(getTranslation("users.column.name"));
         rolesColumn.setHeader(getTranslation("users.column.roles"));
         quotaColumn.setHeader(getTranslation("users.column.quota"));
         statusColumn.setHeader(getTranslation("users.column.status"));
@@ -177,6 +179,9 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
         // Headers are set in localeChange
         usernameColumn = grid.addColumn(UserAccount::getUsername).setSortable(true)
                 .setComparator(Comparator.comparing(UserAccount::getUsername)).setFlexGrow(2).setFrozen(true);
+        nameColumn = grid.addColumn(UserAccount::getName).setSortable(true)
+                .setComparator(Comparator.comparing(UserAccount::getName, Comparator.nullsLast(Comparator.naturalOrder())))
+                .setFlexGrow(2);
         rolesColumn = grid.addColumn(UserView::roleNames).setFlexGrow(1);
         quotaColumn = grid.addColumn(account -> account.getQuota()
                         .map(quota -> getTranslation("users.quota", quota.limit(), QuotaView.label(quota.period())))
@@ -229,6 +234,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
             var settings = account.getSettings();
             languagePreference.applySetting(settings.locale());
             colorSchemePreference.applySetting(settings.colorScheme());
+            DisplayNameChangeEvent.fire();
         }
     }
 
@@ -282,8 +288,14 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     private void applyFilter() {
         var term = filter.getValue().trim().toLowerCase(Locale.ROOT);
         grid.setItems(term.isEmpty() ? users
-                : users.stream().filter(user -> user.getUsername().toLowerCase(Locale.ROOT).contains(term)).toList())
+                : users.stream().filter(user -> matches(user, term)).toList())
                 .setIdentifierProvider(UserAccount::getId);
+    }
+
+    // The filter matches the username or the name
+    private static boolean matches(UserAccount user, String term) {
+        return user.getUsername().toLowerCase(Locale.ROOT).contains(term)
+                || user.getName() != null && user.getName().toLowerCase(Locale.ROOT).contains(term);
     }
 
     // The translated message for a rule the service refused a change by

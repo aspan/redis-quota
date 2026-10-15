@@ -54,6 +54,11 @@ public class UserAccount {
     @Column(nullable = false, unique = true, length = 100)
     private String username;
 
+    // The name people read, or null when not set
+    @Size(max = 200, message = "{userAccount.name.size}")
+    @Column(length = 200)
+    private String name;
+
     // Encoded, with the encoding id prefix of the DelegatingPasswordEncoder
     @NotBlank(message = "{userAccount.password.notBlank}")
     @Column(nullable = false)
@@ -105,6 +110,20 @@ public class UserAccount {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    // Blank is stored as not set
+    public void setName(String name) {
+        this.name = name == null || name.isBlank() ? null : name.trim();
+    }
+
+    // The name, or the username when no name is set
+    public String getDisplayName() {
+        return name != null ? name : username;
     }
 
     public String getPassword() {

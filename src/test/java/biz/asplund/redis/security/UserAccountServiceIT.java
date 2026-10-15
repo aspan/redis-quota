@@ -228,7 +228,7 @@ class UserAccountServiceIT {
 
 	@Test
 	void storesSettingsAndKeepsThemOnUpdateWithoutSettings() {
-		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null,
+		var account = userAccountService.createUser(uniqueName(), null, "password1", true, List.of(), null,
 				new UserSettings("dark", "sv"));
 
 		userAccountService.updateUser(account.getId(), null, false, List.of(), null, "someone-else");
@@ -239,6 +239,25 @@ class UserAccountServiceIT {
 		assertThat(userAccountService.findSettings("no-such-user")).isEqualTo(UserSettings.NONE);
 		assertThat(violationOf(() -> userAccountService.changeSettings(account.getUsername(),
 				settings -> settings.withColorScheme("sepia")))).contains("colorScheme");
+	}
+
+	@Test
+	void storesNameAndKeepsItOnUpdateWithoutName() {
+		var account = userAccountService.createUser(uniqueName(), " Anna Andersson ", "password1", true, List.of(),
+				null, UserSettings.NONE);
+		var username = account.getUsername();
+
+		assertThat(userAccountService.findName(username)).isEqualTo("Anna Andersson");
+		assertThat(userAccountService.findDisplayName(username)).isEqualTo("Anna Andersson");
+
+		userAccountService.updateUser(account.getId(), null, true, List.of(), null, "someone-else");
+		assertThat(userAccountService.findName(username)).isEqualTo("Anna Andersson");
+
+		// Blank clears it, and the username is shown instead
+		userAccountService.updateUser(account.getId(), " ", null, true, List.of(), null, null, "someone-else");
+		assertThat(userAccountService.findName(username)).isNull();
+		assertThat(userAccountService.findDisplayName(username)).isEqualTo(username);
+		assertThat(userAccountService.findDisplayName("no-such-user")).isEqualTo("no-such-user");
 	}
 
 	@Test
