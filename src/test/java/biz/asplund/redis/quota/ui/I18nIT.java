@@ -95,6 +95,8 @@ class I18nIT extends SpringBrowserlessTest {
 		assertThat(columns.get(1).getHeaderText()).isEqualTo("Period");
 		assertThat(columns.get(2).getHeaderText()).isEqualTo("Förbrukning");
 		assertThat(columns.getLast().getHeaderText()).isEqualTo("Senast använd");
+		assertThat(((LanguageFlag) find(LanguageMenuButton.class).single().getIcon()).getSrc())
+				.isEqualTo(LanguageFlag.PATH + "se.svg");
 
 		pickLanguage("English");
 
@@ -136,7 +138,9 @@ class I18nIT extends SpringBrowserlessTest {
 		assertThat(menu.isItemChecked("English")).isTrue();
 		assertThat(menu.isItemChecked("Svenska")).isFalse();
 		menu.close();
-		assertThat(button.getText()).isEqualTo("EN");
+		// The button shows the current language's flag rather than a code
+		assertThat(button.getText()).isEmpty();
+		assertThat(((LanguageFlag) button.getIcon()).getSrc()).isEqualTo(LanguageFlag.PATH + "gb.svg");
 	}
 
 	@Test

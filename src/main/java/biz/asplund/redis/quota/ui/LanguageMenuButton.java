@@ -17,7 +17,6 @@
 package biz.asplund.redis.quota.ui;
 
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.icon.VaadinIcon;
 
 import java.util.List;
 import java.util.Locale;
@@ -29,7 +28,6 @@ class LanguageMenuButton extends PreferenceMenuButton<Locale> {
 
     LanguageMenuButton(LanguagePreference languagePreference) {
         this.languagePreference = languagePreference;
-        setIcon(VaadinIcon.GLOBE.create());
     }
 
     @Override
@@ -59,8 +57,9 @@ class LanguageMenuButton extends PreferenceMenuButton<Locale> {
     }
 
     @Override
+    // The current language's flag; the button's accessible name and tooltip say it chooses the language
     void showOnButton(Locale current) {
-        setText(current.getLanguage().toUpperCase(Locale.ROOT));
+        setIcon(new LanguageFlag(current));
     }
 
     @Override
