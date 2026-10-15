@@ -42,6 +42,8 @@ import com.vaadin.flow.component.progressbar.ProgressBarVariant;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.binder.BeanValidationBinder;
+import com.vaadin.flow.data.binder.ValidationException;
 import org.springframework.dao.DataAccessException;
 
 import java.time.format.DateTimeFormatter;
@@ -65,6 +67,8 @@ class QuotaEditor extends VerticalLayout {
     private final TextField idField = new TextField();
     private final Select<QuotaPeriod> periodField = new Select<>();
     private final IntegerField limitField = new IntegerField();
+    // Validates with the constraints on QuotaDefinition, and creates the record from the fields
+    private final BeanValidationBinder<QuotaDefinition> binder = new BeanValidationBinder<>(QuotaDefinition.class);
 
     QuotaEditor(QuotaRow row, boolean userQuota, QuotaDefinitionRepository quotaDefinitionRepository,
             QuotaManager quotaManager, DateTimeFormatter dateTimeFormatter, Consumer<QuotaDefinition> onSaved,
@@ -125,18 +129,21 @@ class QuotaEditor extends VerticalLayout {
         periodField.setLabel(getTranslation("editor.period"));
         periodField.setItems(QuotaPeriod.values());
         periodField.setItemLabelGenerator(QuotaView::label);
-        periodField.setRequiredIndicatorVisible(true);
 
         limitField.setLabel(getTranslation("editor.limit"));
         limitField.setMin(0);
         limitField.setStepButtonsVisible(false);
-        limitField.setRequiredIndicatorVisible(true);
+
+        // The id is bound for an existing definition too, though not shown, as writeRecord needs every component
+        binder.forField(idField).withConverter(String::trim, id -> id).bind("id");
+        binder.forField(periodField).bind("period");
+        // The limit is an int, so an empty field is refused before it reaches the record
+        binder.forField(limitField).asRequired(getTranslation("editor.limitRequired")).bind("limit");
 
         if (row != null) {
-            periodField.setValue(row.definition().period());
+            binder.readRecord(row.definition());
             // Usage is counted per period, so a new period starts from zero
             periodField.setHelperText(getTranslation("editor.periodChangeHint"));
-            limitField.setValue(row.definition().limit());
         }
         form.add(periodField, limitField);
 
@@ -283,38 +290,23 @@ class QuotaEditor extends VerticalLayout {
     }
 
     private void save() {
-        var id = row != null ? row.id() : idField.getValue().trim();
-        if (id.isEmpty()) {
-            idField.setInvalid(true);
-            idField.setErrorMessage(getTranslation("editor.idRequired"));
-            return;
-        }
-
-        var valid = true;
-        if (periodField.getValue() == null) {
-            periodField.setInvalid(true);
-            periodField.setErrorMessage(getTranslation("editor.periodRequired"));
-            valid = false;
-        }
-        if (limitField.getValue() == null || limitField.getValue() < 0) {
-            limitField.setInvalid(true);
-            limitField.setErrorMessage(getTranslation("editor.limitRequired"));
-            valid = false;
-        }
-        if (!valid) {
+        QuotaDefinition definition;
+        try {
+            definition = binder.writeRecord();
+        } catch (ValidationException e) {
+            // The binder shows the errors on the fields
             return;
         }
 
         try {
-            if (row == null && quotaDefinitionRepository.existsById(id)) {
+            if (row == null && quotaDefinitionRepository.existsById(definition.id())) {
                 idField.setInvalid(true);
                 idField.setErrorMessage(getTranslation("editor.idExists"));
                 return;
             }
-            var definition = quotaDefinitionRepository.save(
-                    new QuotaDefinition(id, periodField.getValue(), limitField.getValue()));
-            notify(getTranslation("editor.saved", id), NotificationVariant.SUCCESS);
-            onSaved.accept(definition);
+            var saved = quotaDefinitionRepository.save(definition);
+            notify(getTranslation("editor.saved", saved.id()), NotificationVariant.SUCCESS);
+            onSaved.accept(saved);
         } catch (DataAccessException e) {
             notify(getTranslation("editor.saveFailed", e.getMostSpecificCause().getMessage()), NotificationVariant.ERROR);
         }

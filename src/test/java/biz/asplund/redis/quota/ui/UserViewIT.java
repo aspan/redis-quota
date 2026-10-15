@@ -46,10 +46,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -108,7 +110,7 @@ class UserViewIT extends SpringBrowserlessTest {
 
 		test(find(TextField.class, editor).withLabel("Username").single()).setValue(username);
 		test(find(PasswordField.class, editor).withLabel("Password").single()).setValue("password1");
-		rolesField(editor).setValue(Set.of("ADMIN"));
+		rolesField(editor).setValue(roles("ADMIN"));
 		test(find(Button.class, editor).withText("Save").single()).click();
 
 		var account = userAccountRepository.findByUsername(username).orElseThrow();
@@ -127,18 +129,21 @@ class UserViewIT extends SpringBrowserlessTest {
 		var username = find(TextField.class, editor).withLabel("Username").single();
 		var password = find(PasswordField.class, editor).withLabel("Password").single();
 
+		test(find(Button.class, editor).withText("Save").single()).click();
+
+		// The binder checks the constraints on UserAccount and the password before the service is called
+		assertThat(username.isInvalid()).isTrue();
+		assertThat(username.getErrorMessage()).isEqualTo("Username is required");
+		assertThat(password.isInvalid()).isTrue();
+		assertThat(password.getErrorMessage()).isEqualTo("Enter a password of at least 8 characters");
+
+		// A username already taken is only found by the service
 		test(username).setValue(SELF);
-		test(password).setValue("short");
+		test(password).setValue("password1");
 		test(find(Button.class, editor).withText("Save").single()).click();
 
 		assertThat(username.isInvalid()).isTrue();
 		assertThat(username.getErrorMessage()).isEqualTo("A user with this username already exists");
-
-		test(username).setValue(uniqueName());
-		test(find(Button.class, editor).withText("Save").single()).click();
-
-		assertThat(password.isInvalid()).isTrue();
-		assertThat(password.getErrorMessage()).isEqualTo("Enter a password of at least 8 characters");
 	}
 
 	@Test
@@ -150,7 +155,7 @@ class UserViewIT extends SpringBrowserlessTest {
 		var enabled = find(Checkbox.class, editor).withLabel("Can log in").single();
 		assertThat(enabled.getValue()).isTrue();
 		test(enabled).click();
-		rolesField(editor).setValue(Set.of(role.getName()));
+		rolesField(editor).setValue(roles(role.getName()));
 		test(find(Button.class, editor).withText("Save").single()).click();
 
 		var saved = userAccountRepository.findByUsername(account.getUsername()).orElseThrow();
@@ -286,8 +291,17 @@ class UserViewIT extends SpringBrowserlessTest {
 		return test((Select<QuotaPeriod>) find(Select.class, editor).withLabel("Period").single());
 	}
 
+	// Roles are equal by name, so a new Role with the name selects the stored one
+	private static Set<Role> roles(String... names) {
+		return Arrays.stream(names).map(name -> {
+			var role = new Role();
+			role.setName(name);
+			return role;
+		}).collect(Collectors.toSet());
+	}
+
 	@SuppressWarnings("unchecked")
-	private MultiSelectComboBox<String> rolesField(UserEditor editor) {
+	private MultiSelectComboBox<Role> rolesField(UserEditor editor) {
 		return find(MultiSelectComboBox.class, editor).withLabel("Roles").single();
 	}
 

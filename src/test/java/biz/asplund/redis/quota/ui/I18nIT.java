@@ -135,6 +135,27 @@ class I18nIT extends SpringBrowserlessTest {
 				.isEqualTo(translations("translations").stringPropertyNames());
 	}
 
+	@Test
+	void translatesEveryValidationMessage() throws IOException {
+		assertThat(properties("/ValidationMessages_sv.properties").stringPropertyNames())
+				.isEqualTo(properties("/ValidationMessages.properties").stringPropertyNames());
+		assertThat(properties("/ValidationMessages_en.properties")).isEmpty();
+	}
+
+	@Test
+	void showsValidationMessagesInUiLanguage() {
+		navigate(QuotaView.class);
+		pickLanguage("Svenska");
+		test(find(Button.class).withText("Ny kvot").single()).click();
+
+		var editor = find(QuotaEditor.class).single();
+		test(find(Button.class, editor).withText("Spara").single()).click();
+
+		var id = find(TextField.class, editor).withLabel("Id").single();
+		assertThat(id.isInvalid()).isTrue();
+		assertThat(id.getErrorMessage()).isEqualTo("Id krävs");
+	}
+
 	@SuppressWarnings("unchecked")
 	private Grid<QuotaRow> grid() {
 		return find(Grid.class).single();
@@ -170,8 +191,12 @@ class I18nIT extends SpringBrowserlessTest {
 	}
 
 	private static Properties translations(String name) throws IOException {
+		return properties("/vaadin-i18n/" + name + ".properties");
+	}
+
+	private static Properties properties(String path) throws IOException {
 		var properties = new Properties();
-		try (var in = I18nIT.class.getResourceAsStream("/vaadin-i18n/" + name + ".properties")) {
+		try (var in = I18nIT.class.getResourceAsStream(path)) {
 			properties.load(new InputStreamReader(in, StandardCharsets.UTF_8));
 		}
 		return properties;

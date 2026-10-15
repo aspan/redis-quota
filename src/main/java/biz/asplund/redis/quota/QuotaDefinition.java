@@ -16,14 +16,21 @@
 
 package biz.asplund.redis.quota;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
 
 import java.util.Objects;
 
-// The quota of one id: a limit for a single period
+// The quota of one id: a limit for a single period. The constraints are for forms, which validate them with
+// Vaadin's BeanValidationBinder; the constructor still rejects a missing period and a negative limit
 @RedisHash("quota-definitions")
-public record QuotaDefinition(@Id String id, QuotaPeriod period, int limit) {
+public record QuotaDefinition(
+        @Id @NotBlank(message = "{quotaDefinition.id.notBlank}") String id,
+        @NotNull(message = "{quotaDefinition.period.notNull}") QuotaPeriod period,
+        @PositiveOrZero(message = "{quotaDefinition.limit.positiveOrZero}") int limit) {
 
     public QuotaDefinition {
         Objects.requireNonNull(period, "period");

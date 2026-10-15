@@ -16,7 +16,6 @@
 
 package biz.asplund.redis.quota.ui;
 
-import biz.asplund.redis.quota.QuotaConfig;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.AccountRuleException;
 import biz.asplund.redis.security.Role;
@@ -41,6 +40,8 @@ import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.binder.BeanValidationBinder;
+import com.vaadin.flow.data.binder.ValidationException;
 import org.springframework.dao.DataAccessException;
 
 import java.util.List;
@@ -58,9 +59,12 @@ class UserEditor extends VerticalLayout {
     private final TextField usernameField = new TextField();
     private final PasswordField passwordField = new PasswordField();
     private final Checkbox enabledField = new Checkbox();
-    private final MultiSelectComboBox<String> rolesField = new MultiSelectComboBox<>();
+    private final MultiSelectComboBox<Role> rolesField = new MultiSelectComboBox<>();
     private final Select<QuotaPeriod> quotaPeriodField = new Select<>();
     private final IntegerField quotaLimitField = new IntegerField();
+    // Validates with the constraints on UserAccount and the rules below, and writes the fields into a new
+    // UserAccount, so the user shown in the grid is not changed before the service has accepted the change
+    private final BeanValidationBinder<UserAccount> binder = new BeanValidationBinder<>(UserAccount.class);
 
     UserEditor(UserAccount account, List<Role> roles, UserAccountService userAccountService, String actingUsername,
             Consumer<UserAccount> onSaved, Runnable onDeleted, Runnable onClose) {
@@ -81,6 +85,10 @@ class UserEditor extends VerticalLayout {
         header.setAlignItems(FlexComponent.Alignment.CENTER);
         header.expand(title);
         add(header, createForm(roles), new H4(getTranslation("userEditor.quota")), createQuotaForm(), createButtons());
+
+        // A new user starts enabled, without roles or a quota
+        binder.readBean(account != null ? account : new UserAccount());
+        quotaLimitField.setEnabled(quotaPeriodField.getValue() != null);
     }
 
     // Id of the edited user, or null for a new one
@@ -113,21 +121,35 @@ class UserEditor extends VerticalLayout {
                 : "userEditor.passwordKeepHint", UserAccountService.MIN_PASSWORD_LENGTH));
 
         enabledField.setLabel(getTranslation("userEditor.enabled"));
-        enabledField.setValue(account == null || account.isEnabled());
 
         rolesField.setLabel(getTranslation("userEditor.roles"));
-        rolesField.setItems(roles.stream().map(Role::getName).toList());
+        rolesField.setItems(roles);
+        rolesField.setItemLabelGenerator(Role::getName);
         rolesField.setSelectedItemsOnTop(true);
-        if (account != null) {
-            rolesField.setValue(account.getRoles().stream().map(Role::getName).toList());
-        }
 
-        // The service refuses these too; here the editor shows why
+        // The service refuses these too; here the editor shows why before saving
         if (isOwnAccount()) {
             enabledField.setEnabled(false);
             enabledField.setHelperText(getTranslation("userEditor.ownAccountEnabled"));
             rolesField.setHelperText(getTranslation("userEditor.ownAccountAdmin"));
         }
+
+        // The username is bound for an existing user too, though not shown, so every user is written whole
+        binder.forField(usernameField)
+                .withConverter(String::trim, username -> username == null ? "" : username).bind("username");
+        // The entity holds the encoded password, so the field is only validated here and passed to the service
+        binder.forField(passwordField)
+                .withValidator(password -> password.isEmpty() ? account != null
+                                : password.length() >= UserAccountService.MIN_PASSWORD_LENGTH,
+                        getTranslation("users.rule.PASSWORD_TOO_SHORT"))
+                .bind(user -> "", (user, password) -> {
+                });
+        binder.forField(enabledField).bind("enabled");
+        binder.forField(rolesField)
+                .withValidator(selected -> !isOwnAccount() || selected.stream()
+                                .anyMatch(role -> UserAccountService.ADMIN_ROLE.equals(role.getName())),
+                        getTranslation("users.rule.OWN_ADMIN_ROLE"))
+                .bind("roles");
 
         form.add(passwordField, rolesField, enabledField);
         return form;
@@ -154,29 +176,21 @@ class UserEditor extends VerticalLayout {
         quotaLimitField.setMin(0);
         quotaLimitField.setStepButtonsVisible(false);
 
-        if (account != null) {
-            account.getQuota().ifPresent(quota -> {
-                quotaPeriodField.setValue(quota.period());
-                quotaLimitField.setValue(quota.limit());
-            });
-        }
-        quotaLimitField.setEnabled(quotaPeriodField.getValue() != null);
+        binder.forField(quotaPeriodField).bind("quotaPeriod");
+        // A period needs a limit; without a period the limit is cleared, so the user has no quota
+        binder.forField(quotaLimitField)
+                .withValidator(limit -> quotaPeriodField.getValue() == null || limit != null,
+                        getTranslation("users.rule.QUOTA_LIMIT_INVALID"))
+                .bind("quotaLimit");
         quotaPeriodField.addValueChangeListener(event -> {
             quotaLimitField.setEnabled(event.getValue() != null);
-            quotaLimitField.setInvalid(false);
+            if (event.getValue() == null) {
+                quotaLimitField.clear();
+            }
         });
 
         form.add(quotaPeriodField, quotaLimitField);
         return form;
-    }
-
-    // Null when no period is chosen; a missing limit is passed on as -1 for the service to reject
-    private QuotaConfig quota() {
-        if (quotaPeriodField.getValue() == null) {
-            return null;
-        }
-        var limit = quotaLimitField.getValue();
-        return new QuotaConfig(limit == null ? -1 : limit, quotaPeriodField.getValue());
     }
 
     private Component createButtons() {
@@ -192,47 +206,37 @@ class UserEditor extends VerticalLayout {
     }
 
     private void save() {
-        usernameField.setInvalid(false);
-        passwordField.setInvalid(false);
-        rolesField.setInvalid(false);
-        quotaLimitField.setInvalid(false);
+        var user = new UserAccount();
+        try {
+            binder.writeBean(user);
+        } catch (ValidationException e) {
+            // The binder shows the errors on the fields
+            return;
+        }
+
+        var roleNames = user.getRoles().stream().map(Role::getName).toList();
+        var quota = user.getQuota().orElse(null);
         try {
             var saved = account == null
-                    ? userAccountService.createUser(usernameField.getValue(), passwordField.getValue(),
-                            enabledField.getValue(), rolesField.getValue(), quota())
-                    : userAccountService.updateUser(account.getId(), passwordField.getValue(),
-                            enabledField.getValue(), rolesField.getValue(), quota(), actingUsername);
+                    ? userAccountService.createUser(user.getUsername(), passwordField.getValue(), user.isEnabled(),
+                            roleNames, quota)
+                    : userAccountService.updateUser(account.getId(), passwordField.getValue(), user.isEnabled(),
+                            roleNames, quota, actingUsername);
             notify(getTranslation("userEditor.saved", saved.getUsername()), NotificationVariant.SUCCESS);
             onSaved.accept(saved);
         } catch (AccountRuleException e) {
+            // The rules the binder cannot check, such as a username already taken
             var message = UserView.ruleMessage(this, e);
-            switch (e.rule()) {
-                case USERNAME_REQUIRED, USERNAME_TAKEN -> invalid(usernameField, message);
-                case PASSWORD_TOO_SHORT -> invalid(passwordField, message);
-                case QUOTA_LIMIT_INVALID -> {
-                    quotaLimitField.setInvalid(true);
-                    quotaLimitField.setErrorMessage(message);
-                }
-                case OWN_ADMIN_ROLE -> {
-                    rolesField.setInvalid(true);
-                    rolesField.setErrorMessage(message);
-                }
-                default -> notify(message, NotificationVariant.ERROR);
+            if (e.rule() == AccountRuleException.Rule.USERNAME_TAKEN) {
+                usernameField.setInvalid(true);
+                usernameField.setErrorMessage(message);
+            } else {
+                notify(message, NotificationVariant.ERROR);
             }
         } catch (DataAccessException e) {
             notify(getTranslation("userEditor.saveFailed", e.getMostSpecificCause().getMessage()),
                     NotificationVariant.ERROR);
         }
-    }
-
-    private static void invalid(TextField field, String message) {
-        field.setInvalid(true);
-        field.setErrorMessage(message);
-    }
-
-    private static void invalid(PasswordField field, String message) {
-        field.setInvalid(true);
-        field.setErrorMessage(message);
     }
 
     private void confirmDelete() {

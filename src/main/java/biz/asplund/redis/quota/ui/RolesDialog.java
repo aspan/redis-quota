@@ -32,9 +32,12 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.binder.BeanValidationBinder;
+import com.vaadin.flow.data.binder.ValidationException;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import org.springframework.dao.DataAccessException;
 
+import java.util.Locale;
 import java.util.Map;
 
 // Adds and deletes the roles that can be given to users; the ADMIN role, which the views require, stays
@@ -45,6 +48,8 @@ class RolesDialog extends Dialog {
 
     private final Grid<Role> grid = new Grid<>();
     private final TextField nameField = new TextField();
+    // Validates the name with the constraint on Role, after storing it in upper case
+    private final BeanValidationBinder<Role> binder = new BeanValidationBinder<>(Role.class);
     private Map<Long, Long> userCounts = Map.of();
 
     RolesDialog(UserAccountService userAccountService, Runnable onChanged) {
@@ -68,6 +73,10 @@ class RolesDialog extends Dialog {
         nameField.setPlaceholder(getTranslation("roles.namePlaceholder"));
         nameField.setAriaLabel(getTranslation("roles.name"));
         nameField.setHelperText(getTranslation("roles.nameHint"));
+        binder.forField(nameField)
+                .withConverter(name -> name.trim().toUpperCase(Locale.ROOT), name -> name == null ? "" : name)
+                .bind("name");
+        binder.readBean(new Role());
         var add = new Button(getTranslation("roles.add"), VaadinIcon.PLUS.create(), _ -> addRole());
         var addRow = new HorizontalLayout(nameField, add);
         addRow.setWidthFull();
@@ -100,10 +109,16 @@ class RolesDialog extends Dialog {
     }
 
     private void addRole() {
+        var newRole = new Role();
         try {
-            var role = userAccountService.createRole(nameField.getValue());
-            nameField.clear();
-            nameField.setInvalid(false);
+            binder.writeBean(newRole);
+        } catch (ValidationException e) {
+            // The binder shows the error on the field
+            return;
+        }
+        try {
+            var role = userAccountService.createRole(newRole.getName());
+            binder.readBean(new Role());
             notify(getTranslation("roles.added", role.getName()), NotificationVariant.SUCCESS);
             changed();
         } catch (AccountRuleException e) {

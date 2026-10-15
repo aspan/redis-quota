@@ -23,6 +23,7 @@ import biz.asplund.redis.quota.QuotaDefinitionRepository;
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.AccountRuleException.Rule;
+import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,6 +37,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
  * Managing users, roles and quotas in PostgreSQL, the copies of the quotas in Redis, and the rules that keep
@@ -50,6 +52,9 @@ class UserAccountServiceIT {
 
 	@Autowired
 	private UserAccountRepository userAccountRepository;
+
+	@Autowired
+	private RoleRepository roleRepository;
 
 	@Autowired
 	private DatabaseUserDetailsService userDetailsService;
@@ -192,6 +197,17 @@ class UserAccountServiceIT {
 	}
 
 	@Test
+	void validatesEntitiesWhenSaving() {
+		var account = new UserAccount(uniqueName(), passwordEncoder.encode("password1"));
+		account.setQuotaPeriod(QuotaPeriod.DAILY);
+
+		assertThat(violationOf(() -> userAccountRepository.save(account)))
+				.contains("Set both the period and the limit of a quota, or neither");
+		assertThat(violationOf(() -> roleRepository.save(new Role("lower_case"))))
+				.contains("Use letters A-Z, digits and _, starting with a letter, without ROLE_");
+	}
+
+	@Test
 	void createsRoleInUpperCase() {
 		var name = uniqueRoleName();
 
@@ -224,6 +240,17 @@ class UserAccountServiceIT {
 				.filter(role -> role.getName().equals("ADMIN")).findFirst().orElseThrow();
 
 		assertRule(Rule.ADMIN_ROLE_DELETE, () -> userAccountService.deleteRole(admin.getId()));
+	}
+
+	// The message of the ConstraintViolationException that Hibernate throws, wherever it is in the causes
+	private static String violationOf(Runnable save) {
+		var thrown = catchThrowable(save::run);
+		for (var cause = thrown; cause != null; cause = cause.getCause()) {
+			if (cause instanceof ConstraintViolationException violation) {
+				return violation.getMessage();
+			}
+		}
+		throw new AssertionError("No constraint violation", thrown);
 	}
 
 	private static void assertRule(Rule rule, Runnable change) {

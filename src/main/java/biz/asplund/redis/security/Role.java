@@ -22,8 +22,11 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.Pattern;
 
-// A role granted to users, named without the ROLE_ prefix
+import java.util.Objects;
+
+// A role granted to users, named in upper case without the ROLE_ prefix. Roles are equal by name, which is unique
 @Entity
 @Table(name = "roles")
 public class Role {
@@ -32,10 +35,12 @@ public class Role {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Also limits the length to 50, the column's
+    @Pattern(regexp = "(?!ROLE_)[A-Z][A-Z0-9_]{0,49}", message = "{role.name.pattern}")
     @Column(nullable = false, unique = true, length = 50)
     private String name;
 
-    protected Role() {
+    public Role() {
     }
 
     public Role(String name) {
@@ -48,5 +53,19 @@ public class Role {
 
     public String getName() {
         return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof Role role && Objects.equals(name, role.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(name);
     }
 }

@@ -30,6 +30,10 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 
 import java.util.HashSet;
 import java.util.Optional;
@@ -44,10 +48,13 @@ public class UserAccount {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "{userAccount.username.notBlank}")
+    @Size(max = 100, message = "{userAccount.username.size}")
     @Column(nullable = false, unique = true, length = 100)
     private String username;
 
     // Encoded, with the encoding id prefix of the DelegatingPasswordEncoder
+    @NotBlank(message = "{userAccount.password.notBlank}")
     @Column(nullable = false)
     private String password;
 
@@ -65,10 +72,12 @@ public class UserAccount {
     @Column(name = "quota_period", length = 10)
     private QuotaPeriod quotaPeriod;
 
+    @PositiveOrZero(message = "{userAccount.quotaLimit.positiveOrZero}")
     @Column(name = "quota_limit")
     private Integer quotaLimit;
 
-    protected UserAccount() {
+    // An empty user, for forms to write into
+    public UserAccount() {
     }
 
     public UserAccount(String username, String password) {
@@ -82,6 +91,10 @@ public class UserAccount {
 
     public String getUsername() {
         return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
     }
 
     public String getPassword() {
@@ -102,6 +115,32 @@ public class UserAccount {
 
     public Set<Role> getRoles() {
         return roles;
+    }
+
+    public void setRoles(Set<Role> roles) {
+        this.roles = new HashSet<>(roles);
+    }
+
+    public QuotaPeriod getQuotaPeriod() {
+        return quotaPeriod;
+    }
+
+    public void setQuotaPeriod(QuotaPeriod quotaPeriod) {
+        this.quotaPeriod = quotaPeriod;
+    }
+
+    public Integer getQuotaLimit() {
+        return quotaLimit;
+    }
+
+    public void setQuotaLimit(Integer quotaLimit) {
+        this.quotaLimit = quotaLimit;
+    }
+
+    // As the users_quota_complete check in the database: both the period and the limit, or neither
+    @AssertTrue(message = "{userAccount.quota.complete}")
+    public boolean isQuotaComplete() {
+        return (quotaPeriod == null) == (quotaLimit == null);
     }
 
     public Optional<QuotaConfig> getQuota() {

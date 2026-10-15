@@ -26,6 +26,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.Locale;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -80,13 +81,15 @@ class DatabaseUserDetailsServiceIT {
 		var username = uniqueUsername();
 		var account = new UserAccount(username, passwordEncoder.encode("pw"));
 		account.getRoles().add(roleRepository.findByName("ADMIN").orElseThrow());
-		account.getRoles().add(roleRepository.save(new Role("AUDITOR-" + username)));
+		// Role names are upper case letters, digits and _
+		var roleName = "AUDITOR_" + UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
+		account.getRoles().add(roleRepository.save(new Role(roleName)));
 		userAccountRepository.save(account);
 
 		var user = userDetailsService.loadUserByUsername(username);
 
 		assertThat(user.getAuthorities()).extracting(GrantedAuthority::getAuthority)
-				.containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_AUDITOR-" + username);
+				.containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_" + roleName);
 	}
 
 	@Test
