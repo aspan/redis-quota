@@ -17,6 +17,7 @@
 package biz.asplund.redis.security;
 
 import biz.asplund.redis.quota.QuotaConfig;
+import biz.asplund.redis.quota.QuotaCounterProperties;
 import biz.asplund.redis.quota.QuotaDefinition;
 import biz.asplund.redis.quota.QuotaDefinitionRepository;
 import biz.asplund.redis.quota.QuotaManager;
@@ -66,6 +67,9 @@ class UserQuotaSyncIT {
 	private StringRedisTemplate redisTemplate;
 
 	@Autowired
+	private QuotaCounterProperties counterProperties;
+
+	@Autowired
 	private Clock clock;
 
 	@Test
@@ -89,11 +93,12 @@ class UserQuotaSyncIT {
 		assertThat(quotaHistoryService.findHistory(account.getUsername())).singleElement()
 				.satisfies(record -> assertThat(record.getUsed()).isEqualTo(6));
 		// The sync deleted yesterday's counter after recording it
-		assertThat(quotaManager.getPreviousPeriodUsage(account.getUsername(), QuotaPeriod.DAILY)).isEmpty();
+		assertThat(quotaManager.getFinishedPeriodUsage(account.getUsername(), QuotaPeriod.DAILY)).isEmpty();
 	}
 
 	private QuotaManager yesterday() {
-		return new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.offset(clock, Duration.ofDays(-1)));
+		return new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.offset(clock, Duration.ofDays(-1)),
+				counterProperties);
 	}
 
 	@Test

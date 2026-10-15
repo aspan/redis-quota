@@ -21,6 +21,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.bind.BindException;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -39,6 +42,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 
@@ -54,6 +58,9 @@ class QuotaManagerIT {
 
 	@Autowired
 	private QuotaDefinitionRepository quotaDefinitionRepository;
+
+	@Autowired
+	private QuotaCounterProperties counterProperties;
 
 	// Wednesday 2026-10-14 10:15:30 CEST; DST ends 2026-10-25, so later resets are in CET
 	private static final ZonedDateTime NOW = ZonedDateTime.of(2026, 10, 14, 10, 15, 30, 0, ZoneId.of("Europe/Stockholm"));
@@ -203,14 +210,14 @@ class QuotaManagerIT {
 			"MONTHLY, monthly:202610,         2026-11-01T00:00+01:00",
 			"YEARLY,  yearly:2026,            2027-01-01T00:00+01:00"
 	})
-	void usageIsStoredUnderPeriodKeyExpiringOneHourAfterReset(QuotaPeriod period, String keySuffix,
+	void usageIsStoredUnderPeriodKeyExpiringSevenDaysAfterReset(QuotaPeriod period, String keySuffix,
 			OffsetDateTime reset) {
 		var id = uniqueId();
 		var key = "quota:" + id + ":" + keySuffix;
 
 		quotaManager.checkAndIncrement(id, new QuotaConfig(1000, period), 7);
 
-		var expectedTtl = Duration.between(NOW.toInstant(), reset.toInstant()).plusHours(1).toSeconds();
+		var expectedTtl = Duration.between(NOW.toInstant(), reset.toInstant()).plusDays(7).toSeconds();
 		var ttl = redisTemplate.getExpire(key);
 		assertSoftly(softly -> {
 			softly.assertThat(redisTemplate.opsForValue().get(key)).as("stored usage").isEqualTo("7");
@@ -224,8 +231,10 @@ class QuotaManagerIT {
 		var zone = ZoneId.of("Europe/Stockholm");
 		var firstPass = OffsetDateTime.parse("2026-10-25T02:30+02:00").toInstant();
 		var secondPass = OffsetDateTime.parse("2026-10-25T02:30+01:00").toInstant();
-		var beforeChange = new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.fixed(firstPass, zone));
-		var afterChange = new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.fixed(secondPass, zone));
+		var beforeChange = new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.fixed(firstPass, zone),
+				counterProperties);
+		var afterChange = new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.fixed(secondPass, zone),
+				counterProperties);
 		var id = uniqueId();
 		var config = new QuotaConfig(10, QuotaPeriod.HOURLY);
 
@@ -330,7 +339,7 @@ class QuotaManagerIT {
 
 		assertThat(quotaManager.adjustUsage(id, 3)).isEqualTo(3);
 
-		assertExpiresOneHourAfterDailyReset(id);
+		assertExpiresSevenDaysAfterDailyReset(id);
 	}
 
 	@Test
@@ -346,7 +355,7 @@ class QuotaManagerIT {
 				.returns(false, QuotaStatus::allowed)
 				.returns(80, QuotaStatus::used)
 				.returns(20, QuotaStatus::remaining);
-		assertExpiresOneHourAfterDailyReset(id);
+		assertExpiresSevenDaysAfterDailyReset(id);
 	}
 
 	@Test
@@ -485,21 +494,62 @@ class QuotaManagerIT {
 	}
 
 	@Test
-	void readsUsageOfPreviousPeriod() {
+	void readsUsageOfFinishedPeriods() {
 		var id = uniqueId();
-		managerAt(NOW.minusDays(1).toInstant()).checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 4);
+		var daily = new QuotaConfig(100, QuotaPeriod.DAILY);
+		managerAt(NOW.minusDays(1).toInstant()).checkAndIncrement(id, daily, 4);
+		managerAt(NOW.minusDays(3).toInstant()).checkAndIncrement(id, daily, 5);
 		managerAt(NOW.minusHours(1).toInstant()).checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.HOURLY), 2);
 		managerAt(NOW.minusMonths(1).toInstant()).checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.MONTHLY), 7);
 		// The current period does not count
-		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.DAILY), 1);
+		quotaManager.checkAndIncrement(id, daily, 1);
 
-		assertThat(quotaManager.getPreviousPeriodUsage(id, QuotaPeriod.DAILY))
-				.contains(new QuotaManager.PeriodUsage(Instant.parse("2026-10-12T22:00:00Z"), 4));
-		assertThat(quotaManager.getPreviousPeriodUsage(id, QuotaPeriod.HOURLY))
-				.contains(new QuotaManager.PeriodUsage(Instant.parse("2026-10-14T07:00:00Z"), 2));
-		assertThat(quotaManager.getPreviousPeriodUsage(id, QuotaPeriod.MONTHLY))
-				.contains(new QuotaManager.PeriodUsage(Instant.parse("2026-08-31T22:00:00Z"), 7));
-		assertThat(quotaManager.getPreviousPeriodUsage(id, QuotaPeriod.WEEKLY)).isEmpty();
+		assertThat(quotaManager.getFinishedPeriodUsage(id, QuotaPeriod.DAILY)).containsExactly(
+				new QuotaManager.PeriodUsage(Instant.parse("2026-10-10T22:00:00Z"), 5),
+				new QuotaManager.PeriodUsage(Instant.parse("2026-10-12T22:00:00Z"), 4));
+		assertThat(quotaManager.getFinishedPeriodUsage(id, QuotaPeriod.HOURLY))
+				.containsExactly(new QuotaManager.PeriodUsage(Instant.parse("2026-10-14T07:00:00Z"), 2));
+		// September ended more than the seven days of retention ago
+		assertThat(quotaManager.getFinishedPeriodUsage(id, QuotaPeriod.MONTHLY)).isEmpty();
+		assertThat(quotaManager.getFinishedPeriodUsage(id, QuotaPeriod.WEEKLY)).isEmpty();
+	}
+
+	@Test
+	void readsFinishedHourlyPeriodsAcrossRepeatedDstHour() {
+		// Clocks go back at 03:00 CEST on 2026-10-25, so the hour from 02:00 local time happens twice
+		var id = uniqueId();
+		var hourly = new QuotaConfig(100, QuotaPeriod.HOURLY);
+		managerAt(Instant.parse("2026-10-25T00:30:00Z")).checkAndIncrement(id, hourly, 1);
+		managerAt(Instant.parse("2026-10-25T01:30:00Z")).checkAndIncrement(id, hourly, 2);
+
+		assertThat(managerAt(Instant.parse("2026-10-25T03:30:00Z")).getFinishedPeriodUsage(id, QuotaPeriod.HOURLY))
+				.containsExactly(new QuotaManager.PeriodUsage(Instant.parse("2026-10-25T00:00:00Z"), 1),
+						new QuotaManager.PeriodUsage(Instant.parse("2026-10-25T01:00:00Z"), 2));
+	}
+
+	@Test
+	void leavesOutPeriodsThatEndedBeforeCounterRetention() {
+		var id = uniqueId();
+		var daily = new QuotaConfig(100, QuotaPeriod.DAILY);
+		// Both counters are still in Redis, which counts their expiry from its own clock, not the test's
+		managerAt(NOW.minusDays(9).toInstant()).checkAndIncrement(id, daily, 3);
+		managerAt(NOW.minusDays(7).toInstant()).checkAndIncrement(id, daily, 2);
+
+		// The period of 2026-10-07 ended within the seven days; the one of 2026-10-05 did not
+		assertThat(quotaManager.getFinishedPeriodUsage(id, QuotaPeriod.DAILY))
+				.containsExactly(new QuotaManager.PeriodUsage(Instant.parse("2026-10-06T22:00:00Z"), 2));
+	}
+
+	@Test
+	void keepsCountersSevenDaysByDefault() {
+		assertThat(counterProperties.retention()).isEqualTo(Duration.ofDays(7));
+		assertThat(bind(Map.of("quota.counter.retention", "30d")).retention()).isEqualTo(Duration.ofDays(30));
+		assertThatExceptionOfType(BindException.class).isThrownBy(() -> bind(Map.of("quota.counter.retention", "0s")));
+	}
+
+	private static QuotaCounterProperties bind(Map<String, String> values) {
+		return new Binder(new MapConfigurationPropertySource(values))
+				.bindOrCreate("quota.counter", QuotaCounterProperties.class);
 	}
 
 	@Test
@@ -571,12 +621,13 @@ class QuotaManagerIT {
 	}
 
 	private QuotaManager managerAt(Instant instant) {
-		return new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.fixed(instant, NOW.getZone()));
+		return new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.fixed(instant, NOW.getZone()),
+				counterProperties);
 	}
 
-	private void assertExpiresOneHourAfterDailyReset(String id) {
+	private void assertExpiresSevenDaysAfterDailyReset(String id) {
 		var reset = OffsetDateTime.parse("2026-10-15T00:00+02:00").toInstant();
-		var expectedTtl = Duration.between(NOW.toInstant(), reset).plusHours(1).toSeconds();
+		var expectedTtl = Duration.between(NOW.toInstant(), reset).plusDays(7).toSeconds();
 		assertThat(redisTemplate.getExpire("quota:" + id + ":daily:20261014"))
 				.as("TTL in seconds")
 				.isBetween(expectedTtl - 4, expectedTtl);

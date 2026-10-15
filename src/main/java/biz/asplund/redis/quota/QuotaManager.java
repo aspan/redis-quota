@@ -18,6 +18,7 @@ package biz.asplund.redis.quota;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
@@ -35,6 +36,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -46,6 +48,7 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 
 @Component
+@EnableConfigurationProperties(QuotaCounterProperties.class)
 public class QuotaManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuotaManager.class);
     // Lua script for atomic operations
@@ -86,12 +89,15 @@ public class QuotaManager {
     private final RedisTemplate<String, String> redisTemplate;
     private final QuotaDefinitionRepository quotaDefinitionRepository;
     private final Clock clock;
+    // How long a counter is kept after its period ends
+    private final Duration counterRetention;
 
     public QuotaManager(RedisTemplate<String, String> redisTemplate,
-            QuotaDefinitionRepository quotaDefinitionRepository, Clock clock) {
+            QuotaDefinitionRepository quotaDefinitionRepository, Clock clock, QuotaCounterProperties properties) {
         this.redisTemplate = redisTemplate;
         this.quotaDefinitionRepository = quotaDefinitionRepository;
         this.clock = clock;
+        this.counterRetention = properties.retention();
     }
 
     // Uses the period and limit stored for the id in its QuotaDefinition
@@ -281,13 +287,43 @@ public class QuotaManager {
     public record PeriodUsage(Instant start, int used) {
     }
 
-    // The final usage of the period before the current one, while its counter has not yet expired, which happens
-    // an hour after the period ends. Empty if nothing was counted then. Does not fail open
-    public Optional<PeriodUsage> getPreviousPeriodUsage(String id, QuotaPeriod period) {
-        var previous = getPeriodStart(period, ZonedDateTime.now(clock)).minusSeconds(1);
-        var value = redisTemplate.opsForValue().get(getPeriodKey(id, period, previous));
-        return Optional.ofNullable(value)
-                .map(used -> new PeriodUsage(getPeriodStart(period, previous).toInstant(), Integer.parseInt(used)));
+    // The final usage of the finished periods whose counters have not yet expired, which happens
+    // quota.counter.retention after the period ends, oldest first. Periods in which nothing was counted, or whose
+    // counter was deleted, are left out. Does not fail open
+    public List<PeriodUsage> getFinishedPeriodUsage(String id, QuotaPeriod period) {
+        var now = ZonedDateTime.now(clock);
+        var current = getPeriodStart(period, now);
+        var starts = new ArrayList<ZonedDateTime>();
+        // From the period that ended within the retention, so the oldest counter that can still be there
+        for (var start = getPeriodStart(period, now.minus(counterRetention)); start.isBefore(current);
+                start = getNextPeriodStart(period, start)) {
+            starts.add(start);
+        }
+        if (starts.isEmpty()) {
+            return List.of();
+        }
+        var values = redisTemplate.opsForValue().multiGet(starts.stream()
+                .map(start -> getPeriodKey(id, period, start))
+                .toList());
+        var usage = new ArrayList<PeriodUsage>();
+        for (var i = 0; i < starts.size(); i++) {
+            var value = values == null ? null : values.get(i);
+            if (value != null) {
+                usage.add(new PeriodUsage(starts.get(i).toInstant(), Integer.parseInt(value)));
+            }
+        }
+        return usage;
+    }
+
+    private ZonedDateTime getNextPeriodStart(QuotaPeriod period, ZonedDateTime start) {
+        return switch (period) {
+            // On the timeline, so the hour that repeats when clocks go back counts as its own
+            case HOURLY -> start.plusHours(1);
+            case DAILY -> getPeriodStart(period, start.plusDays(1));
+            case WEEKLY -> getPeriodStart(period, start.plusWeeks(1));
+            case MONTHLY -> getPeriodStart(period, start.plusMonths(1));
+            case YEARLY -> getPeriodStart(period, start.plusYears(1));
+        };
     }
 
     private ZonedDateTime getPeriodStart(QuotaPeriod period, ZonedDateTime now) {
@@ -328,7 +364,8 @@ public class QuotaManager {
 
     private int getTTL(QuotaPeriod period) {
         var untilReset = Duration.between(clock.instant(), getResetTime(period));
-        var ttlSeconds = untilReset.plusHours(1).toSeconds(); // Add 1 hour buffer
+        // Kept after the reset, so the usage history can record the finished period
+        var ttlSeconds = untilReset.plus(counterRetention).toSeconds();
         return (int) Math.max(0, ttlSeconds);
     }
 

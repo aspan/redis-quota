@@ -30,13 +30,14 @@ import org.springframework.stereotype.Component;
 // removes definitions that belong to no user, and deletes stale usage counters and last-used times. Before that it
 // records the users' finished periods in the usage history, and after it deletes history past its retention. It
 // runs at startup and then once a day, at quota.sync.cron (QuotaSyncProperties); the history is also recorded every
-// hour, before the counters of finished periods expire. A Redis outage is logged rather than stopping the
-// application, which fails open on quotas meanwhile, and the next run tries again
+// hour, so a finished period shows up soon after it ends. Counters outlive their period by quota.counter.retention,
+// so periods that ended while the application was down are recorded at startup. A Redis outage is logged rather
+// than stopping the application, which fails open on quotas meanwhile, and the next run tries again
 @Component
 @EnableConfigurationProperties(QuotaSyncProperties.class)
 public class UserQuotaSync implements ApplicationRunner, SchedulingConfigurer {
 
-    // Five minutes past every hour; an hourly period's counter lives until an hour after the period ends
+    // Five minutes past every hour, so an hourly period is recorded soon after it ends
     static final String HISTORY_CRON = "0 5 * * * *";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(UserQuotaSync.class);
@@ -69,7 +70,7 @@ public class UserQuotaSync implements ApplicationRunner, SchedulingConfigurer {
     public void sync() {
         try {
             // First, as deleting stale counters also deletes those of finished periods
-            var recorded = quotaHistoryService.recordPreviousPeriods();
+            var recorded = quotaHistoryService.recordFinishedPeriods();
             var result = userAccountService.syncQuotasToRedis();
             var expired = quotaHistoryService.deleteExpired();
             LOGGER.info("Recorded {} finished period(s), copied {} user quota(s) to Redis, removed {} definition(s) of "
@@ -83,7 +84,7 @@ public class UserQuotaSync implements ApplicationRunner, SchedulingConfigurer {
 
     public void recordHistory() {
         try {
-            LOGGER.debug("Recorded {} finished period(s)", quotaHistoryService.recordPreviousPeriods());
+            LOGGER.debug("Recorded {} finished period(s)", quotaHistoryService.recordFinishedPeriods());
         } catch (DataAccessException e) {
             LOGGER.error("Could not record the usage history", e);
         }

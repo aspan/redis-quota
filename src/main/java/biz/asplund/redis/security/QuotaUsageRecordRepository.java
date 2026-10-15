@@ -23,11 +23,10 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 
 public interface QuotaUsageRecordRepository extends JpaRepository<QuotaUsageRecord, Long> {
 
-    Optional<QuotaUsageRecord> findByUserAndPeriodAndPeriodStart(UserAccount user, QuotaPeriod period,
+    List<QuotaUsageRecord> findByUserAndPeriodAndPeriodStartGreaterThanEqual(UserAccount user, QuotaPeriod period,
             Instant periodStart);
 
     // Newest first

@@ -23,9 +23,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-// Records the final usage of each user's finished periods in PostgreSQL, from the counters in Redis, which expire
-// an hour after their period ends. UserQuotaSync runs it hourly and before it deletes stale counters
+// Records the final usage of each user's finished periods in PostgreSQL, from the counters in Redis, which are kept
+// for quota.counter.retention after their period ends. UserQuotaSync runs it at startup, hourly and before it
+// deletes stale counters, so periods that ended while the application was down are recorded when it is back
 @Service
 @EnableConfigurationProperties(QuotaHistoryProperties.class)
 public class QuotaHistoryService {
@@ -46,22 +49,30 @@ public class QuotaHistoryService {
         this.clock = clock;
     }
 
-    // Records each user's previous period, with the current limit; recording a period again updates its row.
-    // Periods without a counter, because nothing was counted, get no row. Returns how many periods it recorded
+    // Records each user's finished periods that still have a counter, with the current limit; recording a period
+    // again updates its row. Periods without a counter, because nothing was counted, get no row. Returns how many
+    // periods it recorded
     @Transactional
-    public int recordPreviousPeriods() {
+    public int recordFinishedPeriods() {
         var recorded = 0;
         for (var user : userAccountRepository.findAll()) {
             var quota = user.getQuota();
             if (quota.isEmpty()) {
                 continue;
             }
-            var usage = quotaManager.getPreviousPeriodUsage(user.getUsername(), quota.get().period());
-            if (usage.isPresent()) {
-                var record = quotaUsageRecordRepository
-                        .findByUserAndPeriodAndPeriodStart(user, quota.get().period(), usage.get().start())
-                        .orElseGet(() -> new QuotaUsageRecord(user, quota.get().period(), usage.get().start()));
-                record.update(usage.get().used(), quota.get().limit());
+            var period = quota.get().period();
+            var usages = quotaManager.getFinishedPeriodUsage(user.getUsername(), period);
+            if (usages.isEmpty()) {
+                continue;
+            }
+            var existing = quotaUsageRecordRepository
+                    .findByUserAndPeriodAndPeriodStartGreaterThanEqual(user, period, usages.getFirst().start())
+                    .stream()
+                    .collect(Collectors.toMap(QuotaUsageRecord::getPeriodStart, Function.identity()));
+            for (var usage : usages) {
+                var record = existing.computeIfAbsent(usage.start(),
+                        start -> new QuotaUsageRecord(user, period, start));
+                record.update(usage.used(), quota.get().limit());
                 quotaUsageRecordRepository.save(record);
                 recorded++;
             }

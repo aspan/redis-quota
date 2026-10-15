@@ -17,6 +17,7 @@
 package biz.asplund.redis.security;
 
 import biz.asplund.redis.quota.QuotaConfig;
+import biz.asplund.redis.quota.QuotaCounterProperties;
 import biz.asplund.redis.quota.QuotaDefinitionRepository;
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
@@ -63,14 +64,17 @@ class QuotaHistoryServiceIT {
 	private StringRedisTemplate redisTemplate;
 
 	@Autowired
+	private QuotaCounterProperties counterProperties;
+
+	@Autowired
 	private Clock clock;
 
 	@Test
-	void recordsPreviousPeriodOfUserQuota() {
+	void recordsFinishedPeriodOfUserQuota() {
 		var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
 		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 4);
 
-		quotaHistoryService.recordPreviousPeriods();
+		quotaHistoryService.recordFinishedPeriods();
 
 		assertThat(quotaHistoryService.findHistory(account.getUsername())).singleElement().satisfies(record -> {
 			assertThat(record.getPeriod()).isEqualTo(QuotaPeriod.DAILY);
@@ -83,13 +87,27 @@ class QuotaHistoryServiceIT {
 	void updatesPeriodWhenRecordedAgain() {
 		var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
 		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 4);
-		quotaHistoryService.recordPreviousPeriods();
+		quotaHistoryService.recordFinishedPeriods();
 
 		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 3);
-		quotaHistoryService.recordPreviousPeriods();
+		quotaHistoryService.recordFinishedPeriods();
 
 		assertThat(quotaHistoryService.findHistory(account.getUsername())).singleElement()
 				.satisfies(record -> assertThat(record.getUsed()).isEqualTo(7));
+	}
+
+	@Test
+	void recordsPeriodsThatEndedWhileNotRecording() {
+		var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
+		daysAgo(4).checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 2);
+		daysAgo(3).checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 5);
+		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 1);
+
+		assertThat(quotaHistoryService.recordFinishedPeriods()).isGreaterThanOrEqualTo(3);
+
+		assertThat(quotaHistoryService.findHistory(account.getUsername()))
+				.extracting(QuotaUsageRecord::getUsed)
+				.containsExactly(1, 5, 2);
 	}
 
 	@Test
@@ -97,7 +115,7 @@ class QuotaHistoryServiceIT {
 		var unused = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
 		var withoutQuota = createUser(null);
 
-		quotaHistoryService.recordPreviousPeriods();
+		quotaHistoryService.recordFinishedPeriods();
 
 		assertThat(quotaHistoryService.findHistory(unused.getUsername())).isEmpty();
 		assertThat(quotaHistoryService.findHistory(withoutQuota.getUsername())).isEmpty();
@@ -121,7 +139,7 @@ class QuotaHistoryServiceIT {
 	void deletesHistoryWithUser() {
 		var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
 		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 1);
-		quotaHistoryService.recordPreviousPeriods();
+		quotaHistoryService.recordFinishedPeriods();
 
 		userAccountService.deleteUser(account.getId(), "someone-else");
 
@@ -142,7 +160,12 @@ class QuotaHistoryServiceIT {
 
 	// Counts in the period before the current one, as the counters of finished periods were written
 	private QuotaManager yesterday() {
-		return new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.offset(clock, Duration.ofDays(-1)));
+		return daysAgo(1);
+	}
+
+	private QuotaManager daysAgo(int days) {
+		return new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.offset(clock, Duration.ofDays(-days)),
+				counterProperties);
 	}
 
 	private static QuotaHistoryProperties bind(Map<String, String> values) {
