@@ -16,6 +16,8 @@
 
 package biz.asplund.redis.quota.ui;
 
+import biz.asplund.redis.quota.QuotaConfig;
+import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.AccountRuleException;
 import biz.asplund.redis.security.Role;
 import biz.asplund.redis.security.UserAccount;
@@ -28,12 +30,15 @@ import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.html.H3;
+import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.textfield.TextField;
 import org.springframework.dao.DataAccessException;
@@ -41,7 +46,7 @@ import org.springframework.dao.DataAccessException;
 import java.util.List;
 import java.util.function.Consumer;
 
-// Detail panel for creating or editing one user: password, whether it may log in, and its roles
+// Detail panel for creating or editing one user: password, whether it may log in, its roles and its quota
 class UserEditor extends VerticalLayout {
 
     private final UserAccount account;
@@ -54,6 +59,8 @@ class UserEditor extends VerticalLayout {
     private final PasswordField passwordField = new PasswordField();
     private final Checkbox enabledField = new Checkbox();
     private final MultiSelectComboBox<String> rolesField = new MultiSelectComboBox<>();
+    private final Select<QuotaPeriod> quotaPeriodField = new Select<>();
+    private final IntegerField quotaLimitField = new IntegerField();
 
     UserEditor(UserAccount account, List<Role> roles, UserAccountService userAccountService, String actingUsername,
             Consumer<UserAccount> onSaved, Runnable onDeleted, Runnable onClose) {
@@ -73,7 +80,7 @@ class UserEditor extends VerticalLayout {
         header.setWidthFull();
         header.setAlignItems(FlexComponent.Alignment.CENTER);
         header.expand(title);
-        add(header, createForm(roles), createButtons());
+        add(header, createForm(roles), new H4(getTranslation("userEditor.quota")), createQuotaForm(), createButtons());
     }
 
     // Id of the edited user, or null for a new one
@@ -126,6 +133,52 @@ class UserEditor extends VerticalLayout {
         return form;
     }
 
+    // The quota counted under the username, as the QuotaDefinition the quotas view lists; no period means none
+    private Component createQuotaForm() {
+        var form = new FormLayout();
+        form.setAutoResponsive(true);
+        form.setMaxColumns(1);
+        form.setExpandColumns(true);
+        form.setExpandFields(true);
+        form.setWidthFull();
+
+        quotaPeriodField.setLabel(getTranslation("editor.period"));
+        quotaPeriodField.setItems(QuotaPeriod.values());
+        quotaPeriodField.setItemLabelGenerator(period -> period == null ? getTranslation("userEditor.noQuota")
+                : QuotaView.label(period));
+        quotaPeriodField.setEmptySelectionAllowed(true);
+        quotaPeriodField.setEmptySelectionCaption(getTranslation("userEditor.noQuota"));
+        quotaPeriodField.setHelperText(getTranslation("userEditor.quotaHint"));
+
+        quotaLimitField.setLabel(getTranslation("editor.limit"));
+        quotaLimitField.setMin(0);
+        quotaLimitField.setStepButtonsVisible(false);
+
+        if (account != null) {
+            account.getQuota().ifPresent(quota -> {
+                quotaPeriodField.setValue(quota.period());
+                quotaLimitField.setValue(quota.limit());
+            });
+        }
+        quotaLimitField.setEnabled(quotaPeriodField.getValue() != null);
+        quotaPeriodField.addValueChangeListener(event -> {
+            quotaLimitField.setEnabled(event.getValue() != null);
+            quotaLimitField.setInvalid(false);
+        });
+
+        form.add(quotaPeriodField, quotaLimitField);
+        return form;
+    }
+
+    // Null when no period is chosen; a missing limit is passed on as -1 for the service to reject
+    private QuotaConfig quota() {
+        if (quotaPeriodField.getValue() == null) {
+            return null;
+        }
+        var limit = quotaLimitField.getValue();
+        return new QuotaConfig(limit == null ? -1 : limit, quotaPeriodField.getValue());
+    }
+
     private Component createButtons() {
         var save = new Button(getTranslation("editor.save"), _ -> save());
         save.addThemeVariants(ButtonVariant.PRIMARY);
@@ -142,12 +195,13 @@ class UserEditor extends VerticalLayout {
         usernameField.setInvalid(false);
         passwordField.setInvalid(false);
         rolesField.setInvalid(false);
+        quotaLimitField.setInvalid(false);
         try {
             var saved = account == null
                     ? userAccountService.createUser(usernameField.getValue(), passwordField.getValue(),
-                            enabledField.getValue(), rolesField.getValue())
+                            enabledField.getValue(), rolesField.getValue(), quota())
                     : userAccountService.updateUser(account.getId(), passwordField.getValue(),
-                            enabledField.getValue(), rolesField.getValue(), actingUsername);
+                            enabledField.getValue(), rolesField.getValue(), quota(), actingUsername);
             notify(getTranslation("userEditor.saved", saved.getUsername()), NotificationVariant.SUCCESS);
             onSaved.accept(saved);
         } catch (AccountRuleException e) {
@@ -155,6 +209,10 @@ class UserEditor extends VerticalLayout {
             switch (e.rule()) {
                 case USERNAME_REQUIRED, USERNAME_TAKEN -> invalid(usernameField, message);
                 case PASSWORD_TOO_SHORT -> invalid(passwordField, message);
+                case QUOTA_LIMIT_INVALID -> {
+                    quotaLimitField.setInvalid(true);
+                    quotaLimitField.setErrorMessage(message);
+                }
                 case OWN_ADMIN_ROLE -> {
                     rolesField.setInvalid(true);
                     rolesField.setErrorMessage(message);

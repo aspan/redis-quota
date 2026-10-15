@@ -54,6 +54,8 @@ class QuotaEditor extends VerticalLayout {
     private static final String PROGRESS_COLOR = "--vaadin-progress-bar-value-background";
 
     private final QuotaRow row;
+    // The definition is a user's quota, copied from PostgreSQL, so its period and limit are changed there
+    private final boolean userQuota;
     private final QuotaDefinitionRepository quotaDefinitionRepository;
     private final QuotaManager quotaManager;
     private final DateTimeFormatter dateTimeFormatter;
@@ -64,10 +66,11 @@ class QuotaEditor extends VerticalLayout {
     private final Select<QuotaPeriod> periodField = new Select<>();
     private final IntegerField limitField = new IntegerField();
 
-    QuotaEditor(QuotaRow row, QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager,
-            DateTimeFormatter dateTimeFormatter, Consumer<QuotaDefinition> onSaved,
+    QuotaEditor(QuotaRow row, boolean userQuota, QuotaDefinitionRepository quotaDefinitionRepository,
+            QuotaManager quotaManager, DateTimeFormatter dateTimeFormatter, Consumer<QuotaDefinition> onSaved,
             Consumer<QuotaDefinition> onDeleted, Runnable onClose) {
         this.row = row;
+        this.userQuota = userQuota;
         this.quotaDefinitionRepository = quotaDefinitionRepository;
         this.quotaManager = quotaManager;
         this.dateTimeFormatter = dateTimeFormatter;
@@ -137,9 +140,18 @@ class QuotaEditor extends VerticalLayout {
         }
         form.add(periodField, limitField);
 
+        if (userQuota) {
+            periodField.setReadOnly(true);
+            periodField.setHelperText(null);
+            limitField.setReadOnly(true);
+            limitField.setHelperText(getTranslation("editor.userQuotaHint"));
+        }
+
         var save = new Button(getTranslation("editor.save"), _ -> save());
         save.addThemeVariants(ButtonVariant.PRIMARY);
         var buttons = new HorizontalLayout(save);
+        // A user's quota is saved and deleted with the user
+        buttons.setVisible(!userQuota);
         if (row != null) {
             var delete = new Button(getTranslation("editor.delete"), VaadinIcon.TRASH.create(), _ -> confirmDelete());
             delete.addThemeVariants(ButtonVariant.ERROR, ButtonVariant.TERTIARY);

@@ -52,7 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-// Lists the admin UI's users, and creates, edits and deletes them and their roles
+// Lists the admin UI's users, and creates, edits and deletes them, their roles and quotas
 @Route("users")
 @PageTitle("users.title")
 @Menu(title = "users.title", icon = "vaadin:users", order = 1)
@@ -71,6 +71,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
 
     private Grid.Column<UserAccount> usernameColumn;
     private Grid.Column<UserAccount> rolesColumn;
+    private Grid.Column<UserAccount> quotaColumn;
     private Grid.Column<UserAccount> statusColumn;
 
     private List<UserAccount> users = List.of();
@@ -85,7 +86,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
         setSpacing(false);
 
         masterDetail.setMaster(createMaster());
-        masterDetail.setMasterSize("36rem", true);
+        masterDetail.setMasterSize("40rem", true);
         masterDetail.setDetailSize("28rem");
         masterDetail.addDetailEscapePressListener(_ -> closeEditor());
         masterDetail.addBackdropClickListener(_ -> closeEditor());
@@ -104,6 +105,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
 
         usernameColumn.setHeader(getTranslation("users.column.username"));
         rolesColumn.setHeader(getTranslation("users.column.roles"));
+        quotaColumn.setHeader(getTranslation("users.column.quota"));
         statusColumn.setHeader(getTranslation("users.column.status"));
         grid.setEmptyStateText(getTranslation("users.empty"));
         grid.getDataProvider().refreshAll();
@@ -147,6 +149,10 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
         usernameColumn = grid.addColumn(UserAccount::getUsername).setSortable(true)
                 .setComparator(Comparator.comparing(UserAccount::getUsername)).setFlexGrow(2).setFrozen(true);
         rolesColumn = grid.addColumn(UserView::roleNames).setFlexGrow(1);
+        quotaColumn = grid.addColumn(account -> account.getQuota()
+                        .map(quota -> getTranslation("users.quota", quota.limit(), QuotaView.label(quota.period())))
+                        .orElse(getTranslation("userEditor.noQuota")))
+                .setAutoWidth(true).setFlexGrow(0);
         statusColumn = grid.addColumn(new ComponentRenderer<>(this::statusBadge)).setAutoWidth(true).setFlexGrow(0);
         grid.asSingleSelect().addValueChangeListener(event -> {
             if (event.getValue() != null) {

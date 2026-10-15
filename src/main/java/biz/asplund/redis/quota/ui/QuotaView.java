@@ -21,6 +21,7 @@ import biz.asplund.redis.quota.QuotaDefinitionRepository;
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.quota.QuotaStatus;
+import biz.asplund.redis.security.UserAccountService;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.badge.Badge;
 import com.vaadin.flow.component.badge.BadgeVariant;
@@ -57,6 +58,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 
 @Route("")
@@ -67,6 +69,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
 
     private final QuotaDefinitionRepository quotaDefinitionRepository;
     private final QuotaManager quotaManager;
+    private final UserAccountService userAccountService;
     private final ZoneId zone;
     private DateTimeFormatter dateTimeFormatter;
 
@@ -83,10 +86,14 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     private Grid.Column<QuotaRow> lastUsedColumn;
 
     private List<QuotaRow> rows = List.of();
+    // Ids of the definitions that are users' quotas, whose period and limit are set in the users view
+    private Set<String> userQuotaIds = Set.of();
 
-    public QuotaView(QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager, Clock clock) {
+    public QuotaView(QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager,
+            UserAccountService userAccountService, Clock clock) {
         this.quotaDefinitionRepository = quotaDefinitionRepository;
         this.quotaManager = quotaManager;
+        this.userAccountService = userAccountService;
         this.zone = clock.getZone();
         this.dateTimeFormatter = createDateTimeFormatter(getLocale());
 
@@ -197,8 +204,9 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     }
 
     private void showEditor(QuotaRow row) {
-        masterDetail.setDetail(new QuotaEditor(row, quotaDefinitionRepository, quotaManager, dateTimeFormatter,
-                this::onSaved, this::onDeleted, this::closeEditor));
+        masterDetail.setDetail(new QuotaEditor(row, row != null && userQuotaIds.contains(row.id()),
+                quotaDefinitionRepository, quotaManager, dateTimeFormatter, this::onSaved, this::onDeleted,
+                this::closeEditor));
     }
 
     private void onSaved(QuotaDefinition definition) {
@@ -227,6 +235,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
                     .map(definition -> QuotaRow.load(definition, quotaManager))
                     .sorted(Comparator.comparing(QuotaRow::id))
                     .toList();
+            userQuotaIds = userAccountService.findQuotaUsernames();
         } catch (DataAccessException e) {
             rows = List.of();
             var notification = Notification.show(

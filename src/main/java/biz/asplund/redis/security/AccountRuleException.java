@@ -23,6 +23,7 @@ public class AccountRuleException extends RuntimeException {
         USERNAME_REQUIRED,
         USERNAME_TAKEN,
         PASSWORD_TOO_SHORT,
+        QUOTA_LIMIT_INVALID,
         OWN_ACCOUNT_DELETE,
         OWN_ACCOUNT_DISABLE,
         OWN_ADMIN_ROLE,

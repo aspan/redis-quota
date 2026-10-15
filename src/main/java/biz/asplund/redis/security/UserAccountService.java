@@ -16,6 +16,9 @@
 
 package biz.asplund.redis.security;
 
+import biz.asplund.redis.quota.QuotaConfig;
+import biz.asplund.redis.quota.QuotaDefinition;
+import biz.asplund.redis.quota.QuotaDefinitionRepository;
 import biz.asplund.redis.security.AccountRuleException.Rule;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,11 +30,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-// Manages the admin UI's users and roles. The acting user cannot delete or disable their own account or take
-// the ADMIN role from it, and the ADMIN role cannot be deleted, so at least one admin always remains
+// Manages the admin UI's users, their roles and quotas. The acting user cannot delete or disable their own
+// account or take the ADMIN role from it, and the ADMIN role cannot be deleted, so at least one admin always
+// remains. A user's quota is kept in PostgreSQL and copied to Redis as the QuotaDefinition under the username,
+// which QuotaManager reads. The copy is written inside the transaction, so a Redis error rolls back the change
 @Service
 public class UserAccountService {
 
@@ -44,12 +50,14 @@ public class UserAccountService {
     private final UserAccountRepository userAccountRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final QuotaDefinitionRepository quotaDefinitionRepository;
 
     public UserAccountService(UserAccountRepository userAccountRepository, RoleRepository roleRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder, QuotaDefinitionRepository quotaDefinitionRepository) {
         this.userAccountRepository = userAccountRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.quotaDefinitionRepository = quotaDefinitionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -69,8 +77,17 @@ public class UserAccountService {
                 .collect(Collectors.toMap(count -> (Long) count[0], count -> (Long) count[1]));
     }
 
+    // Usernames of the users with a quota, whose QuotaDefinitions this service owns
+    @Transactional(readOnly = true)
+    public Set<String> findQuotaUsernames() {
+        return userAccountRepository.findAll().stream().filter(account -> account.getQuota().isPresent())
+                .map(UserAccount::getUsername).collect(Collectors.toSet());
+    }
+
+    // A null quota means none
     @Transactional
-    public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames) {
+    public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
+            QuotaConfig quota) {
         var name = username == null ? "" : username.trim();
         if (name.isEmpty()) {
             throw new AccountRuleException(Rule.USERNAME_REQUIRED);
@@ -78,16 +95,20 @@ public class UserAccountService {
         if (userAccountRepository.existsByUsername(name)) {
             throw new AccountRuleException(Rule.USERNAME_TAKEN);
         }
+        validate(quota);
         var account = new UserAccount(name, encode(password));
         account.setEnabled(enabled);
         account.getRoles().addAll(roles(roleNames));
-        return userAccountRepository.save(account);
+        account.setQuota(quota);
+        var saved = userAccountRepository.save(account);
+        copyQuota(saved, false);
+        return saved;
     }
 
-    // A null or empty password keeps the current one
+    // A null or empty password keeps the current one; a null quota removes it
     @Transactional
     public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
-            String actingUsername) {
+            QuotaConfig quota, String actingUsername) {
         var account = userAccountRepository.findById(id).orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
         if (account.getUsername().equals(actingUsername)) {
             if (!enabled) {
@@ -97,12 +118,16 @@ public class UserAccountService {
                 throw new AccountRuleException(Rule.OWN_ADMIN_ROLE);
             }
         }
+        validate(quota);
         if (password != null && !password.isEmpty()) {
             account.setPassword(encode(password));
         }
+        var hadQuota = account.getQuota().isPresent();
         account.setEnabled(enabled);
         account.getRoles().clear();
         account.getRoles().addAll(roles(roleNames));
+        account.setQuota(quota);
+        copyQuota(account, hadQuota);
         return account;
     }
 
@@ -112,7 +137,22 @@ public class UserAccountService {
         if (account.getUsername().equals(actingUsername)) {
             throw new AccountRuleException(Rule.OWN_ACCOUNT_DELETE);
         }
+        var hadQuota = account.getQuota().isPresent();
         userAccountRepository.delete(account);
+        if (hadQuota) {
+            quotaDefinitionRepository.deleteById(account.getUsername());
+        }
+    }
+
+    // Writes every user's quota to Redis again, for when Redis has lost them; returns how many were written
+    @Transactional(readOnly = true)
+    public int copyQuotasToRedis() {
+        var definitions = userAccountRepository.findAll().stream()
+                .flatMap(account -> account.getQuota().stream()
+                        .map(quota -> new QuotaDefinition(account.getUsername(), quota.period(), quota.limit())))
+                .toList();
+        quotaDefinitionRepository.saveAll(definitions);
+        return definitions.size();
     }
 
     // Names are stored in upper case, without the ROLE_ prefix
@@ -136,6 +176,25 @@ public class UserAccountService {
             throw new AccountRuleException(Rule.ADMIN_ROLE_DELETE);
         }
         roleRepository.delete(role);
+    }
+
+    private static void validate(QuotaConfig quota) {
+        if (quota != null && (quota.period() == null || quota.limit() < 0)) {
+            throw new AccountRuleException(Rule.QUOTA_LIMIT_INVALID);
+        }
+    }
+
+    // Saves the user's quota as their QuotaDefinition, or deletes the definition when a quota was removed. A
+    // definition with the same id that the user never had a quota for, created in the quotas view, is left alone
+    private void copyQuota(UserAccount account, boolean hadQuota) {
+        account.getQuota().ifPresentOrElse(
+                quota -> quotaDefinitionRepository.save(
+                        new QuotaDefinition(account.getUsername(), quota.period(), quota.limit())),
+                () -> {
+                    if (hadQuota) {
+                        quotaDefinitionRepository.deleteById(account.getUsername());
+                    }
+                });
     }
 
     private String encode(String password) {

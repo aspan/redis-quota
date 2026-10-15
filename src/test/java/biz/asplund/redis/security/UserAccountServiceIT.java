@@ -17,6 +17,11 @@
 package biz.asplund.redis.security;
 
 import biz.asplund.redis.TestcontainersConfiguration;
+import biz.asplund.redis.quota.QuotaConfig;
+import biz.asplund.redis.quota.QuotaDefinition;
+import biz.asplund.redis.quota.QuotaDefinitionRepository;
+import biz.asplund.redis.quota.QuotaManager;
+import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.AccountRuleException.Rule;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +38,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 /**
- * Managing users and roles in PostgreSQL, and the rules that keep an admin able to log in.
+ * Managing users, roles and quotas in PostgreSQL, the copies of the quotas in Redis, and the rules that keep
+ * an admin able to log in.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -51,11 +57,17 @@ class UserAccountServiceIT {
 	@Autowired
 	private PasswordEncoder passwordEncoder;
 
+	@Autowired
+	private QuotaDefinitionRepository quotaDefinitionRepository;
+
+	@Autowired
+	private QuotaManager quotaManager;
+
 	@Test
 	void createsUserWithEncodedPasswordAndRoles() {
 		var username = uniqueName();
 
-		var account = userAccountService.createUser(" " + username + " ", "password1", true, List.of("ADMIN"));
+		var account = userAccountService.createUser(" " + username + " ", "password1", true, List.of("ADMIN"), null);
 
 		var user = userDetailsService.loadUserByUsername(username);
 		assertThat(account.getUsername()).isEqualTo(username);
@@ -66,22 +78,26 @@ class UserAccountServiceIT {
 	@Test
 	void rejectsInvalidNewUser() {
 		var username = uniqueName();
-		userAccountService.createUser(username, "password1", true, List.of());
+		userAccountService.createUser(username, "password1", true, List.of(), null);
 
-		assertRule(Rule.USERNAME_REQUIRED, () -> userAccountService.createUser(" ", "password1", true, List.of()));
-		assertRule(Rule.USERNAME_TAKEN, () -> userAccountService.createUser(username, "password1", true, List.of()));
+		assertRule(Rule.USERNAME_REQUIRED,
+				() -> userAccountService.createUser(" ", "password1", true, List.of(), null));
+		assertRule(Rule.USERNAME_TAKEN,
+				() -> userAccountService.createUser(username, "password1", true, List.of(), null));
 		assertRule(Rule.PASSWORD_TOO_SHORT,
-				() -> userAccountService.createUser(uniqueName(), "short", true, List.of()));
+				() -> userAccountService.createUser(uniqueName(), "short", true, List.of(), null));
 		assertRule(Rule.NOT_FOUND,
-				() -> userAccountService.createUser(uniqueName(), "password1", true, List.of("NO_SUCH_ROLE")));
+				() -> userAccountService.createUser(uniqueName(), "password1", true, List.of("NO_SUCH_ROLE"), null));
+		assertRule(Rule.QUOTA_LIMIT_INVALID, () -> userAccountService.createUser(uniqueName(), "password1", true,
+				List.of(), new QuotaConfig(-1, QuotaPeriod.DAILY)));
 	}
 
 	@Test
 	void updatesRolesAndEnabledAndKeepsPasswordWhenEmpty() {
 		var role = userAccountService.createRole(uniqueRoleName());
-		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of("ADMIN"));
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of("ADMIN"), null);
 
-		userAccountService.updateUser(account.getId(), "", false, Set.of(role.getName()), "someone-else");
+		userAccountService.updateUser(account.getId(), "", false, Set.of(role.getName()), null, "someone-else");
 
 		var user = userDetailsService.loadUserByUsername(account.getUsername());
 		assertThat(user.isEnabled()).isFalse();
@@ -91,9 +107,9 @@ class UserAccountServiceIT {
 
 	@Test
 	void changesPassword() {
-		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of());
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null);
 
-		userAccountService.updateUser(account.getId(), "password2", true, List.of(), "someone-else");
+		userAccountService.updateUser(account.getId(), "password2", true, List.of(), null, "someone-else");
 
 		var user = userDetailsService.loadUserByUsername(account.getUsername());
 		assertThat(passwordEncoder.matches("password2", user.getPassword())).isTrue();
@@ -101,18 +117,78 @@ class UserAccountServiceIT {
 
 	@Test
 	void keepsOwnAccountAnEnabledAdmin() {
-		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of("ADMIN"));
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of("ADMIN"), null);
 		var self = account.getUsername();
 
 		assertRule(Rule.OWN_ACCOUNT_DISABLE,
-				() -> userAccountService.updateUser(account.getId(), null, false, List.of("ADMIN"), self));
+				() -> userAccountService.updateUser(account.getId(), null, false, List.of("ADMIN"), null, self));
 		assertRule(Rule.OWN_ADMIN_ROLE,
-				() -> userAccountService.updateUser(account.getId(), null, true, List.of(), self));
+				() -> userAccountService.updateUser(account.getId(), null, true, List.of(), null, self));
 		assertRule(Rule.OWN_ACCOUNT_DELETE, () -> userAccountService.deleteUser(account.getId(), self));
 
 		userAccountService.deleteUser(account.getId(), "someone-else");
 
 		assertThat(userAccountRepository.existsByUsername(self)).isFalse();
+	}
+
+	@Test
+	void copiesQuotaToRedisUnderUsername() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(),
+				new QuotaConfig(500, QuotaPeriod.DAILY));
+		var username = account.getUsername();
+
+		assertThat(quotaDefinitionRepository.findById(username))
+				.contains(new QuotaDefinition(username, QuotaPeriod.DAILY, 500));
+		assertThat(userAccountService.findQuotaUsernames()).contains(username);
+		assertThat(quotaManager.checkAndIncrement(username, 2).used()).isEqualTo(2);
+
+		userAccountService.updateUser(account.getId(), null, true, List.of(), new QuotaConfig(10, QuotaPeriod.WEEKLY),
+				"someone-else");
+
+		assertThat(quotaDefinitionRepository.findById(username))
+				.contains(new QuotaDefinition(username, QuotaPeriod.WEEKLY, 10));
+		assertThat(userAccountRepository.findByUsername(username).orElseThrow().getQuota())
+				.contains(new QuotaConfig(10, QuotaPeriod.WEEKLY));
+
+		userAccountService.updateUser(account.getId(), null, true, List.of(), null, "someone-else");
+
+		assertThat(quotaDefinitionRepository.existsById(username)).isFalse();
+		assertThat(userAccountService.findQuotaUsernames()).doesNotContain(username);
+	}
+
+	@Test
+	void deletesQuotaWithUser() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(),
+				new QuotaConfig(500, QuotaPeriod.DAILY));
+
+		userAccountService.deleteUser(account.getId(), "someone-else");
+
+		assertThat(quotaDefinitionRepository.existsById(account.getUsername())).isFalse();
+	}
+
+	@Test
+	void leavesDefinitionOfUserWithoutQuota() {
+		var username = uniqueName();
+		quotaDefinitionRepository.save(new QuotaDefinition(username, QuotaPeriod.HOURLY, 7));
+		var account = userAccountService.createUser(username, "password1", true, List.of(), null);
+
+		userAccountService.updateUser(account.getId(), null, true, List.of(), null, "someone-else");
+		userAccountService.deleteUser(account.getId(), "someone-else");
+
+		assertThat(quotaDefinitionRepository.findById(username))
+				.contains(new QuotaDefinition(username, QuotaPeriod.HOURLY, 7));
+	}
+
+	@Test
+	void copiesQuotasToRedisAgain() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(),
+				new QuotaConfig(500, QuotaPeriod.MONTHLY));
+		quotaDefinitionRepository.deleteById(account.getUsername());
+
+		assertThat(userAccountService.copyQuotasToRedis()).isPositive();
+
+		assertThat(quotaDefinitionRepository.findById(account.getUsername()))
+				.contains(new QuotaDefinition(account.getUsername(), QuotaPeriod.MONTHLY, 500));
 	}
 
 	@Test
@@ -131,7 +207,8 @@ class UserAccountServiceIT {
 	@Test
 	void deletingRoleRemovesItFromUsers() {
 		var role = userAccountService.createRole(uniqueRoleName());
-		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of("ADMIN", role.getName()));
+		var account = userAccountService.createUser(uniqueName(), "password1", true,
+				List.of("ADMIN", role.getName()), null);
 		assertThat(userAccountService.countUsersByRole()).containsEntry(role.getId(), 1L);
 
 		userAccountService.deleteRole(role.getId());

@@ -17,6 +17,10 @@
 package biz.asplund.redis.quota.ui;
 
 import biz.asplund.redis.TestcontainersConfiguration;
+import biz.asplund.redis.quota.QuotaConfig;
+import biz.asplund.redis.quota.QuotaDefinition;
+import biz.asplund.redis.quota.QuotaDefinitionRepository;
+import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.Role;
 import biz.asplund.redis.security.UserAccount;
 import biz.asplund.redis.security.UserAccountRepository;
@@ -29,6 +33,9 @@ import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridTester;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.select.SelectTester;
+import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.RouteNotFoundError;
@@ -61,10 +68,13 @@ class UserViewIT extends SpringBrowserlessTest {
 	@Autowired
 	private UserAccountRepository userAccountRepository;
 
+	@Autowired
+	private QuotaDefinitionRepository quotaDefinitionRepository;
+
 	@BeforeEach
 	void storeLoggedInUser() {
 		if (!userAccountRepository.existsByUsername(SELF)) {
-			userAccountService.createUser(SELF, "password1", true, List.of("ADMIN"));
+			userAccountService.createUser(SELF, "password1", true, List.of("ADMIN"), null);
 		}
 	}
 
@@ -77,14 +87,16 @@ class UserViewIT extends SpringBrowserlessTest {
 	@Test
 	void listsUsersWithRolesAndStatus() {
 		var role = userAccountService.createRole(uniqueRoleName());
-		var account = userAccountService.createUser(uniqueName(), "password1", false, List.of("ADMIN", role.getName()));
+		var account = userAccountService.createUser(uniqueName(), "password1", false,
+				List.of("ADMIN", role.getName()), null);
 		navigate(UserView.class);
 
 		var grid = grid();
 		var row = rowOf(grid, account.getUsername());
 		assertThat(grid.getCellText(row, 1)).isEqualTo(String.join(", ", List.of("ADMIN", role.getName()).stream()
 				.sorted().toList()));
-		assertThat(grid.getCellComponent(row, 2).getElement().getText()).isEqualTo("Disabled");
+		assertThat(grid.getCellText(row, 2)).isEqualTo("No quota");
+		assertThat(grid.getCellComponent(row, 3).getElement().getText()).isEqualTo("Disabled");
 	}
 
 	@Test
@@ -132,7 +144,7 @@ class UserViewIT extends SpringBrowserlessTest {
 	@Test
 	void editsRolesAndDisablesUser() {
 		var role = userAccountService.createRole(uniqueRoleName());
-		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of("ADMIN"));
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of("ADMIN"), null);
 		var editor = openEditor(account.getUsername());
 
 		var enabled = find(Checkbox.class, editor).withLabel("Can log in").single();
@@ -145,6 +157,49 @@ class UserViewIT extends SpringBrowserlessTest {
 		assertThat(saved.isEnabled()).isFalse();
 		assertThat(saved.getRoles()).extracting(Role::getName).containsExactly(role.getName());
 		assertThat(saved.getPassword()).isEqualTo(account.getPassword());
+	}
+
+	@Test
+	void setsQuotaOfUser() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null);
+		var editor = openEditor(account.getUsername());
+
+		var limit = find(IntegerField.class, editor).withLabel("Limit").single();
+		assertThat(limit.isEnabled()).isFalse();
+		quotaPeriodField(editor).selectItem("Daily");
+		test(find(Button.class, editor).withText("Save").single()).click();
+
+		assertThat(limit.isInvalid()).isTrue();
+		assertThat(limit.getErrorMessage()).isEqualTo("Enter a limit of 0 or more");
+
+		test(limit).setValue(100);
+		test(find(Button.class, editor).withText("Save").single()).click();
+
+		assertThat(quotaDefinitionRepository.findById(account.getUsername()))
+				.contains(new QuotaDefinition(account.getUsername(), QuotaPeriod.DAILY, 100));
+		var grid = grid();
+		assertThat(grid.getCellText(rowOf(grid, account.getUsername()), 2)).isEqualTo("100 / Daily");
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void showsUserQuotaReadOnlyInQuotasView() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(),
+				new QuotaConfig(100, QuotaPeriod.DAILY));
+		navigate(QuotaView.class);
+		var grid = test((Grid<QuotaRow>) find(Grid.class).single());
+		grid.select(IntStream.range(0, grid.size())
+				.filter(row -> grid.getRow(row).id().equals(account.getUsername())).findFirst().orElseThrow());
+		var editor = find(QuotaEditor.class).single();
+
+		assertThat(find(Select.class, editor).withLabel("Period").single().isReadOnly()).isTrue();
+		var limit = find(IntegerField.class, editor).withLabel("Limit").single();
+		assertThat(limit.isReadOnly()).isTrue();
+		assertThat(limit.getHelperText()).isEqualTo("This is a user's quota; change it in the Users view");
+		assertThat(find(Button.class, editor).withText("Save").exists()).isFalse();
+		assertThat(find(Button.class, editor).withText("Delete").exists()).isFalse();
+		// Usage can still be changed there
+		assertThat(find(Button.class, editor).withText("Reset").exists()).isTrue();
 	}
 
 	@Test
@@ -166,7 +221,7 @@ class UserViewIT extends SpringBrowserlessTest {
 
 	@Test
 	void deletesUserAfterConfirmation() {
-		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of());
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null);
 		var editor = openEditor(account.getUsername());
 
 		test(find(Button.class, editor).withText("Delete").single()).click();
@@ -224,6 +279,11 @@ class UserViewIT extends SpringBrowserlessTest {
 		var grid = grid();
 		grid.select(rowOf(grid, username));
 		return find(UserEditor.class).single();
+	}
+
+	@SuppressWarnings("unchecked")
+	private SelectTester<Select<QuotaPeriod>, QuotaPeriod> quotaPeriodField(UserEditor editor) {
+		return test((Select<QuotaPeriod>) find(Select.class, editor).withLabel("Period").single());
 	}
 
 	@SuppressWarnings("unchecked")

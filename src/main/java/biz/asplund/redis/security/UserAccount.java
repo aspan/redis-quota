@@ -16,8 +16,12 @@
 
 package biz.asplund.redis.security;
 
+import biz.asplund.redis.quota.QuotaConfig;
+import biz.asplund.redis.quota.QuotaPeriod;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -28,6 +32,7 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 // A login of the admin UI; named UserAccount so it does not clash with Spring Security's User
@@ -54,6 +59,14 @@ public class UserAccount {
     @JoinTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();
+
+    // The user's quota, or both null for none; Redis holds a copy as the QuotaDefinition under the username
+    @Enumerated(EnumType.STRING)
+    @Column(name = "quota_period", length = 10)
+    private QuotaPeriod quotaPeriod;
+
+    @Column(name = "quota_limit")
+    private Integer quotaLimit;
 
     protected UserAccount() {
     }
@@ -89,5 +102,15 @@ public class UserAccount {
 
     public Set<Role> getRoles() {
         return roles;
+    }
+
+    public Optional<QuotaConfig> getQuota() {
+        return quotaPeriod == null ? Optional.empty() : Optional.of(new QuotaConfig(quotaLimit, quotaPeriod));
+    }
+
+    // Null removes the quota
+    public void setQuota(QuotaConfig quota) {
+        this.quotaPeriod = quota == null ? null : quota.period();
+        this.quotaLimit = quota == null ? null : quota.limit();
     }
 }
