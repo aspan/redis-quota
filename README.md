@@ -96,7 +96,7 @@ When the quota is exhausted it responds with `429 Too Many Requests` and a JSON 
 ./mvnw spring-boot:test-run  # starts Valkey in a Testcontainers container instead
 ```
 
-Local development and the tests use [Valkey](https://valkey.io), an open source fork of Redis that speaks the same protocol, from the `valkey/valkey` image. The application itself works with either; `compose.yaml` labels the service so that Spring Boot connects to it as Redis.
+Local development and the tests use [Valkey](https://valkey.io), an open source fork of Redis that speaks the same protocol, from the `valkey/valkey` image. The application itself works with either; `compose.yaml` labels the service so that Spring Boot connects to it as Redis. Its data is kept in the `valkey-data` volume with append-only persistence turned on, so quotas and usage survive removing the container; `docker compose down -v` deletes them.
 
 ### Admin UI
 
