@@ -37,7 +37,7 @@ A user of the admin UI can also have a quota, kept with the user in PostgreSQL (
 
 ### Explicit quotas
 
-Callers that do not store definitions, such as the HTTP interceptor, can pass the limit and period with each call instead:
+Callers that do not store definitions can pass the limit and period with each call instead:
 
 ```java
 var config = new QuotaConfig(1000, QuotaPeriod.MONTHLY);
@@ -82,16 +82,24 @@ If Redis cannot be reached, `checkAndIncrement` logs an error and allows the req
 
 ### HTTP interceptor
 
-`QuotaInterceptor` applies a quota to requests under `/api/**` and adds these response headers:
+Requests under `/api/**` log in as a user with HTTP Basic on every request, checked against the users in PostgreSQL; the API keeps no session. `QuotaInterceptor` then counts each request as one unit against the quota stored in Redis under the username: the user's quota (see [User quotas](#user-quotas)), or a definition created for the username in the quotas view. It adds these response headers:
 
 - `X-Quota-Limit`
 - `X-Quota-Used`
 - `X-Quota-Remaining`
 - `X-Quota-Reset` (ISO-8601 instant)
 
-When the quota is exhausted it responds with `429 Too Many Requests` and a JSON body describing the limit, usage and reset time.
+```bash
+curl -u alice:<password> http://localhost:8080/api/...
+```
 
-> **Note:** The interceptor bean is currently created without a `QuotaConfig` or `KeyExtractor`, so it needs both before `/api/**` requests can work.
+| Response | When |
+|---|---|
+| `401 Unauthorized` | No login, a wrong password or a disabled user. The request is not counted. |
+| `403 Forbidden` | No quota is stored for the username. The JSON body has `"error": "No Quota"`. |
+| `429 Too Many Requests` | The quota is used up. The JSON body has the limit, usage, remaining quota and reset time. |
+
+Allowed requests carry their `QuotaStatus` in the `quotaStatus` request attribute (`QuotaInterceptor.STATUS_ATTRIBUTE`) for the handler. If Redis cannot be reached, requests are allowed, as described in [Failing open](#failing-open). The application has no API endpoints of its own yet. HTTP Basic checks the bcrypt password on every request, which costs some CPU time per request.
 
 ## Running
 
@@ -110,7 +118,7 @@ The application includes a Vaadin admin UI at <http://localhost:8080/>. It lists
 
 The **Users** view lists the users who can log in, with their roles, quota and whether they are active. Select a user to set a new password, change their roles or quota, disable them so they can no longer log in, or delete them. A quota is a period and limit counted under the username; choose **No quota** to remove it. In the **Quotas** view, a user's quota shows its period and limit read-only and cannot be deleted there, but its usage can be set, adjusted and reset as usual. **New user** creates one with a password of at least 8 characters. **Roles** opens a dialog that lists the roles with the number of users holding each, adds roles (stored in upper case, without the `ROLE_` prefix) and deletes them, which also removes them from their users. To keep an admin able to log in, you cannot delete or disable your own account or remove the `ADMIN` role from it, and the `ADMIN` role cannot be deleted; `UserAccountService` enforces these rules. Changes apply at the next login: sessions already logged in keep the roles they had.
 
-The UI requires a login with the `ADMIN` role. Views are listed in the side menu, and the user menu at the bottom logs out. Requests under `/api/**` are not behind the login, since API clients are identified by the quota interceptor.
+The UI requires a login with the `ADMIN` role. Views are listed in the side menu, and the user menu at the bottom logs out. Requests under `/api/**` use HTTP Basic instead of the login form, and any active user with a quota can make them.
 
 The UI is available in English and Swedish. It starts in the browser's language, or English for other languages, and the language button (a globe with the language code) at the top right of every page, including the login page, switches it for all open tabs of the session without reloading. Spring's `LocaleResolver` (a `CookieLocaleResolver` in `I18nConfiguration`) remembers the choice in a `locale` cookie for a year, so it also applies after logging out and in later sessions; Spring MVC uses the same resolver. The languages are set by the `quota.ui.i18n.locales` property (default `en,sv`); the first one is used for browsers that accept none of them. Texts are in `src/main/resources/vaadin-i18n/`: `translations.properties` holds English and is the fallback for missing keys, `translations_sv.properties` holds Swedish, and the empty `translations_en.properties` makes sure English is served even on a JVM whose default locale is Swedish. To add a language, add a `translations_<language>.properties` file and the language to `quota.ui.i18n.locales`.
 
@@ -141,7 +149,8 @@ All tests are integration tests (`*IT`) and run with the Maven Failsafe plugin d
 - `ColorSchemeIT` checks the appearance toggle: the system default, cycling through light and dark and back to system, keeping the choice across views, the translated label, reading the cookie, and setting the scheme in the first page.
 - `I18nPropertiesIT` checks how `quota.ui.i18n.locales` binds: the defaults, a custom order and fallback, limiting the languages, and rejecting an empty list.
 - `I18nIT` checks that the UI uses English by default, that the language menu switches the open views and the login form to Swedish and back, that both translation files have the same keys, that every configured locale has a translation file, and that English is served when the JVM's default locale is Swedish.
-- `SecurityConfigurationIT` checks the HTTP security rules with MockMvc: the login redirect, form login with the user stored in the database, rejecting a disabled user, and that `/api/**` needs no login.
+- `QuotaInterceptorIT` sends API requests with HTTP Basic to a test endpoint: counting them against the user's quota with the quota headers until a `429`, refusing a user without a quota with a `403`, using a definition stored for the username, and not counting requests that fail to log in.
+- `SecurityConfigurationIT` checks the HTTP security rules with MockMvc: the login redirect, form login with the user stored in the database, rejecting a disabled user, and that `/api/**` requires HTTP Basic and keeps no session.
 - `UserAccountServiceIT` checks managing users and roles: creating users with encoded passwords and roles, rejecting a missing or taken username, a short password and unknown roles, changing roles, the enabled flag and the password, copying quotas to Redis under the username and removing them, leaving a definition of a user without a quota alone, copying all quotas again, keeping your own account an enabled admin, the role name rules, deleting a role from its users, and keeping the `ADMIN` role.
 - `UserViewIT` tests the users view with Vaadin browserless tests: access control, listing users with their roles and status, creating a user and showing why one is invalid, editing roles and disabling a user, setting a user's quota, showing a user's quota read-only in the quotas view, the limits on your own account, deleting a user, and adding and deleting roles in the roles dialog.
 - `DatabaseUserDetailsServiceIT` checks the users and roles in a PostgreSQL server in Testcontainers: storing the configured admin with a bcrypt password at startup and leaving it alone on later starts, loading a user's roles, loading a disabled user, and rejecting an unknown user.

@@ -30,13 +30,17 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.unauthenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Import(TestcontainersConfiguration.class)
@@ -47,7 +51,7 @@ class SecurityConfigurationIT {
 	@Autowired
 	private MockMvc mockMvc;
 
-	// The real interceptor has no config or key extractor yet; this test is about the security rules only
+	// This test is about the security rules only; QuotaInterceptorIT covers the quotas
 	@MockitoBean
 	private QuotaInterceptor quotaInterceptor;
 
@@ -95,8 +99,16 @@ class SecurityConfigurationIT {
 	}
 
 	@Test
-	void leavesApiOpenWithoutLogin() throws Exception {
-		mockMvc.perform(get("/api/usage").header("X-API-Key", "client-1"))
-				.andExpect(status().isOk());
+	void requiresBasicLoginForApi() throws Exception {
+		mockMvc.perform(get("/api/usage"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate", startsWith("Basic")));
+	}
+
+	@Test
+	void acceptsBasicLoginForApiWithoutSession() throws Exception {
+		mockMvc.perform(get("/api/usage").with(httpBasic("admin", "secret")))
+				.andExpect(authenticated().withUsername("admin"))
+				.andExpect(request().sessionAttributeDoesNotExist("SPRING_SECURITY_CONTEXT"));
 	}
 }

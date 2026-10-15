@@ -16,72 +16,88 @@
 
 package biz.asplund.redis.quota;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.HandlerInterceptor;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.HandlerInterceptor;
+import tools.jackson.databind.json.JsonMapper;
 
+import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+// Counts each API request against the quota stored for the logged-in user, under their username: the user's
+// quota from the users view, or a definition created for the username in the quotas view. Users without one
+// are refused. Like QuotaManager, it fails open when Redis cannot be reached
 @Component
 public class QuotaInterceptor implements HandlerInterceptor {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(QuotaInterceptor.class);
 
-    @Autowired
-    private QuotaManager quotaManager;
+    // The request attribute holding the QuotaStatus of an allowed request, for handlers that want it
+    public static final String STATUS_ATTRIBUTE = "quotaStatus";
 
-    private QuotaConfig config;
-    private KeyExtractor keyExtractor;
+    private final QuotaManager quotaManager;
+    private final JsonMapper jsonMapper;
 
-    public QuotaInterceptor() {}
-
-    public QuotaInterceptor(QuotaConfig config, KeyExtractor keyExtractor) {
-        this.config = config;
-        this.keyExtractor = keyExtractor;
+    public QuotaInterceptor(QuotaManager quotaManager, JsonMapper jsonMapper) {
+        this.quotaManager = quotaManager;
+        this.jsonMapper = jsonMapper;
     }
 
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        var id = keyExtractor.extractKey(request);
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
+            throws IOException {
+        // Spring Security has authenticated the request with HTTP Basic, so this is only a safeguard
+        var principal = request.getUserPrincipal();
+        if (principal == null) {
+            writeError(response, HttpStatus.UNAUTHORIZED, Map.of("error", "Unauthorized",
+                    "message", "Log in with HTTP Basic to use the API"));
+            return false;
+        }
+        var id = principal.getName();
 
+        QuotaStatus status;
         try {
-            var status = quotaManager.checkAndIncrement(id, config, 1);
-
-            // Set response headers
-            response.setHeader("X-Quota-Limit", String.valueOf(status.limit()));
-            response.setHeader("X-Quota-Used", String.valueOf(status.used()));
-            response.setHeader("X-Quota-Remaining", String.valueOf(status.remaining()));
-            response.setHeader("X-Quota-Reset", status.resetAt().toString());
-
-            if (!status.allowed()) {
-                response.setStatus(429);
-                response.setContentType("application/json");
-                response.getWriter().write(
-                    "{\n" +
-                    "  \"error\": \"Quota Exceeded\",\n" +
-                    "  \"message\": \"You have exceeded your " + config.period() + " quota\",\n" +
-                    "  \"limit\": " + status.limit() + ",\n" +
-                    "  \"used\": " + status.used() + ",\n" +
-                    "  \"resetAt\": \"" + status.resetAt().toString() + "\"\n" +
-                    "}"
-                );
-                return false;
-            }
-
-            // Store quota status in request for later use
-            request.setAttribute("quotaStatus", status);
-            return true;
-        } catch (Exception e) {
-            // Fail open on error
+            status = quotaManager.checkAndIncrement(id, 1);
+        } catch (IllegalArgumentException e) {
+            writeError(response, HttpStatus.FORBIDDEN, Map.of("error", "No Quota",
+                    "message", "No quota is set for user " + id));
+            return false;
+        } catch (RuntimeException e) {
+            // QuotaManager fails open on Redis errors itself; this covers anything unexpected
             LOGGER.error("Quota check error for id {}, failing open", id, e);
             return true;
         }
+
+        response.setHeader("X-Quota-Limit", String.valueOf(status.limit()));
+        response.setHeader("X-Quota-Used", String.valueOf(status.used()));
+        response.setHeader("X-Quota-Remaining", String.valueOf(status.remaining()));
+        response.setHeader("X-Quota-Reset", status.resetAt().toString());
+
+        if (!status.allowed()) {
+            var body = new LinkedHashMap<String, Object>();
+            body.put("error", "Quota Exceeded");
+            body.put("message", "You have used your quota of " + status.limit() + " requests");
+            body.put("limit", status.limit());
+            body.put("used", status.used());
+            body.put("remaining", status.remaining());
+            body.put("resetAt", status.resetAt().toString());
+            writeError(response, HttpStatus.TOO_MANY_REQUESTS, body);
+            return false;
+        }
+
+        request.setAttribute(STATUS_ATTRIBUTE, status);
+        return true;
     }
 
-    public interface KeyExtractor {
-        String extractKey(HttpServletRequest request);
+    private void writeError(HttpServletResponse response, HttpStatus status, Map<String, ?> body) throws IOException {
+        response.setStatus(status.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        jsonMapper.writeValue(response.getWriter(), body);
     }
 }
