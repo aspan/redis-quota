@@ -16,13 +16,14 @@
 
 package biz.asplund.redis;
 
-import biz.asplund.testcontainers.TestcontainersConfiguration;
 import org.springframework.boot.SpringApplication;
 
 public class TestQuotaApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.from(QuotaApplication::main).with(TestcontainersConfiguration.class).run(args);
+		// Valkey and PostgreSQL come from compose.yaml, as with spring-boot:run; the test classpath adds the admin
+		// account and other settings in src/test/resources/config/application.properties
+		SpringApplication.from(QuotaApplication::main).run(args);
 	}
 
 }

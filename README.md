@@ -124,8 +124,10 @@ curl -u alice:<password> http://localhost:8080/api/quota
 
 ```bash
 ./mvnw spring-boot:run       # starts Valkey and PostgreSQL from compose.yaml via Docker Compose
-./mvnw spring-boot:test-run  # starts them in Testcontainers containers instead
+./mvnw spring-boot:test-run  # the same, with the test settings: the local admin account and opening the browser
 ```
+
+Both use the same containers and volumes, so data stays between runs. Only the tests start Valkey and PostgreSQL in Testcontainers containers, from `biz.asplund.testcontainers`, a package the application does not scan.
 
 Local development and the tests use [Valkey](https://valkey.io), an open source fork of Redis that speaks the same protocol, from the `valkey/valkey` image. The application itself works with either; `compose.yaml` labels the service so that Spring Boot connects to it as Redis. Its data is kept in the `valkey-data` volume with append-only persistence turned on, so quotas and usage survive removing the container; `docker compose down -v` deletes them.
 
@@ -152,6 +154,8 @@ The application itself defines no accounts. At startup, `AdminAccountInitializer
 ```properties
 spring.security.user.password=<your password>
 ```
+
+The admin is stored in the PostgreSQL volume of `compose.yaml`, so once a test-run has created it, `./mvnw spring-boot:run` accepts the same login. Changing the password in `config/local.properties` later does not change the stored user; change it in the **Users** view, or delete the volume with `docker compose down -v` to start over.
 
 A deployment can create its first admin the same way, with these properties set outside the repository, and then remove the password once the user is stored.
 
