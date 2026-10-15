@@ -62,9 +62,9 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
-@Route("")
+@Route("quotas")
 @PageTitle("quotas.title")
-@Menu(title = "quotas.title", icon = "vaadin:dashboard", order = 0)
+@Menu(title = "quotas.title", icon = "vaadin:dashboard", order = 1)
 @RolesAllowed("ADMIN")
 public class QuotaView extends VerticalLayout implements BeforeEnterObserver, LocaleChangeObserver {
 

@@ -62,7 +62,7 @@ import java.util.stream.Collectors;
 // Lists the admin UI's users, and creates, edits and deletes them, their roles and quotas
 @Route("users")
 @PageTitle("users.title")
-@Menu(title = "users.title", icon = "vaadin:users", order = 1)
+@Menu(title = "users.title", icon = "vaadin:users", order = 2)
 @RolesAllowed("ADMIN")
 public class UserView extends VerticalLayout implements BeforeEnterObserver, LocaleChangeObserver {
 

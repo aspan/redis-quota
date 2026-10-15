@@ -90,7 +90,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@Test
 	@WithMockUser(roles = "USER")
 	void deniesUserWithoutAdminRole() {
-		navigate("", RouteNotFoundError.class);
+		navigate("quotas", RouteNotFoundError.class);
 	}
 
 	@Test
@@ -101,7 +101,8 @@ class QuotaViewIT extends SpringBrowserlessTest {
 		assertThat(find(H1.class).single().getText()).isEqualTo("Quotas");
 		assertThat(find(SideNav.class).single().getItems())
 				.extracting(SideNavItem::getLabel, SideNavItem::getPath)
-				.containsExactly(tuple("Quotas", ""), tuple("Users", "users"), tuple("My profile", "profile"));
+				.containsExactly(tuple("Home", ""), tuple("Quotas", "quotas"), tuple("Users", "users"),
+						tuple("My profile", "profile"));
 	}
 
 	@Test

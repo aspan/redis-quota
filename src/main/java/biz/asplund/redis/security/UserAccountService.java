@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -157,6 +158,12 @@ public class UserAccountService {
         }
         copyQuota(account);
         return account;
+    }
+
+    // The quota of the user with the username, or empty when the user has none or does not exist
+    @Transactional(readOnly = true)
+    public Optional<QuotaConfig> findQuota(String username) {
+        return userAccountRepository.findByUsername(username).flatMap(UserAccount::getQuota);
     }
 
     // The settings of the user with the username, or none for a name no user has

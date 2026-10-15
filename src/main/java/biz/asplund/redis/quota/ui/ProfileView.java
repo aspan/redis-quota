@@ -42,7 +42,7 @@ import org.springframework.dao.DataAccessException;
 // saved, and a new password, for which they confirm their current one
 @Route("profile")
 @PageTitle("profile.title")
-@Menu(title = "profile.title", icon = "vaadin:user", order = 2)
+@Menu(title = "profile.title", icon = "vaadin:user", order = 3)
 @PermitAll
 public class ProfileView extends VerticalLayout implements LocaleChangeObserver {
 

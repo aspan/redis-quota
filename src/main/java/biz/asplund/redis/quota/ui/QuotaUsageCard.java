@@ -38,7 +38,8 @@ import java.util.Optional;
 
 // The usage of one quota id in its current period, with actions to set, adjust or reset it and to run a request
 // as a client would. Shown in the quota editor and, for a user with a quota, in the user editor. After a change
-// the card calls onChanged, which rebuilds it with the new status
+// the card calls onChanged, which rebuilds it with the new status. Without onChanged, as on the home view, the card
+// only shows the usage
 class QuotaUsageCard extends Card {
 
     private static final String PROGRESS_COLOR = "--vaadin-progress-bar-value-background";
@@ -64,6 +65,9 @@ class QuotaUsageCard extends Card {
         add(progress, new Div(getTranslation("usage.resets", dateTimeFormatter.format(status.resetAt()))),
                 new Div(getTranslation("usage.lastUsed",
                         lastUsed.map(dateTimeFormatter::format).orElse(getTranslation("quotas.never")))));
+        if (onChanged == null) {
+            return;
+        }
 
         var usageField = new IntegerField();
         usageField.setPlaceholder(getTranslation("usage.placeholder"));

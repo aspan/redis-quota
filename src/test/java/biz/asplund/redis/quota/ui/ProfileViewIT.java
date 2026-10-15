@@ -84,8 +84,8 @@ class ProfileViewIT extends SpringBrowserlessTest {
 		navigate(ProfileView.class);
 
 		assertThat(find(SideNav.class).single().getItems()).extracting(SideNavItem::getLabel)
-				.containsExactly("My profile");
-		navigate("", RouteNotFoundError.class);
+				.containsExactly("Home", "My profile");
+		navigate("quotas", RouteNotFoundError.class);
 	}
 
 	@Test
