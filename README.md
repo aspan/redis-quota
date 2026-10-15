@@ -129,7 +129,7 @@ curl -u alice:<password> http://localhost:8080/api/quota
 
 Local development and the tests use [Valkey](https://valkey.io), an open source fork of Redis that speaks the same protocol, from the `valkey/valkey` image. The application itself works with either; `compose.yaml` labels the service so that Spring Boot connects to it as Redis. Its data is kept in the `valkey-data` volume with append-only persistence turned on, so quotas and usage survive removing the container; `docker compose down -v` deletes them.
 
-The admin UI's users and roles are stored in PostgreSQL with Spring Data JPA. Flyway creates the schema from `src/main/resources/db/migration`, and Hibernate only validates that the entities match it. `compose.yaml` runs PostgreSQL 18 with the `quota` database, user and password, which are for local development only, and keeps its data in the `postgres-data` volume. A deployment sets `spring.datasource.url`, `spring.datasource.username` and `spring.datasource.password`.
+The admin UI's users and roles are stored in PostgreSQL with Spring Data JPA. Flyway creates the schema from `src/main/resources/db/migration`, and Hibernate only validates that the entities match it. `compose.yaml` runs PostgreSQL 18 with the `quota` database, user and password, which are for local development only, and keeps its data in the `postgres-data` volume. Valkey listens on port 6379 and PostgreSQL on 5432 on `127.0.0.1`, so tools such as `valkey-cli` or `psql` can connect to them directly; they are not reachable from other machines. A deployment sets `spring.datasource.url`, `spring.datasource.username` and `spring.datasource.password`.
 
 ### Admin UI
 

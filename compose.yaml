@@ -3,8 +3,9 @@ services:
     image: 'valkey/valkey:latest'
     # Appends every write to a log in /data as well as taking snapshots, so little is lost on a restart
     command: ['valkey-server', '--appendonly', 'yes']
+    # Fixed, so other tools can connect; only on this machine, as Valkey has no password here
     ports:
-      - '6379'
+      - '127.0.0.1:6379:6379'
     volumes:
       # Keeps quota definitions and usage when the container is removed
       - 'valkey-data:/data'
@@ -20,8 +21,9 @@ services:
       POSTGRES_DB: quota
       POSTGRES_USER: quota
       POSTGRES_PASSWORD: quota
+    # Fixed, so other tools can connect; only on this machine, as the password above is for development
     ports:
-      - '5432'
+      - '127.0.0.1:5432:5432'
     volumes:
       # Keeps users and roles when the container is removed; PostgreSQL 18 images keep their data under this path
       - 'postgres-data:/var/lib/postgresql'
