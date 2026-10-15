@@ -238,6 +238,8 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
             notification.addThemeVariants(NotificationVariant.ERROR);
         }
         applyFilter();
+        // Auto-width columns are sized once, when first shown; a save can change their widest content
+        grid.recalculateColumnWidths();
 
         // Keep the open editor showing current usage
         if (openEditor() instanceof QuotaEditor editor && editor.quotaId() != null) {

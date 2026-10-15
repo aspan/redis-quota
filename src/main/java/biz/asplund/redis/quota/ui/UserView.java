@@ -251,6 +251,8 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
                     .addThemeVariants(NotificationVariant.ERROR);
         }
         applyFilter();
+        // Auto-width columns are sized once, when first shown; a save can change their widest content
+        grid.recalculateColumnWidths();
 
         // Keep the open editor showing current roles, which the roles dialog may have changed
         if (openEditor() instanceof UserEditor editor) {
