@@ -140,7 +140,9 @@ class I18nIT extends SpringBrowserlessTest {
 		menu.close();
 		// The button shows the current language's flag rather than a code
 		assertThat(button.getText()).isEmpty();
-		assertThat(((LanguageFlag) button.getIcon()).getSrc()).isEqualTo(LanguageFlag.PATH + "gb.svg");
+		var flag = (LanguageFlag) button.getIcon();
+		assertThat(flag.getSrc()).isEqualTo(LanguageFlag.PATH + "gb.svg");
+		assertThat(flag.getHeight()).isEqualTo(MainLayout.TOOLBAR_ICON_SIZE);
 	}
 
 	@Test

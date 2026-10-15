@@ -69,7 +69,7 @@ class ColorSchemeToggleButton extends Button implements LocaleChangeObserver {
     // Shows the current scheme, and names the one a click switches to
     private void update() {
         var current = colorSchemePreference.current();
-        setIcon(current.icon().create());
+        setIcon(MainLayout.toolbarIcon(current.icon()));
         var label = getTranslation("colorScheme.switchTo", getTranslation("colorScheme." + next(current).key()));
         setAriaLabel(label);
         setTooltipText(label);

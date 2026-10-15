@@ -56,7 +56,10 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
     private final H1 viewTitle = new H1();
     private final Span appName = new Span();
     private final SideNav nav = new SideNav();
-    private final Button logout = new Button(VaadinIcon.SIGN_OUT.create());
+    // The size of the icons at the top right: the appearance toggle's, log out's and the height of the language flag
+    static final String TOOLBAR_ICON_SIZE = "1.5em";
+
+    private final Button logout = new Button(toolbarIcon(VaadinIcon.SIGN_OUT));
     private final Avatar avatar = new Avatar();
     private final Span userName = new Span();
     private final UserAccountService userAccountService;
@@ -99,6 +102,12 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
         drawer.setSpacing(false);
         drawer.setFlexGrow(1, scroller);
         addToDrawer(drawer);
+    }
+
+    static Icon toolbarIcon(VaadinIcon vaadinIcon) {
+        var icon = vaadinIcon.create();
+        icon.setSize(TOOLBAR_ICON_SIZE);
+        return icon;
     }
 
     @Override

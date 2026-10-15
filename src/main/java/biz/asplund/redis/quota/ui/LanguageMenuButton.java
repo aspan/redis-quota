@@ -59,7 +59,11 @@ class LanguageMenuButton extends PreferenceMenuButton<Locale> {
     @Override
     // The current language's flag; the button's accessible name and tooltip say it chooses the language
     void showOnButton(Locale current) {
-        setIcon(new LanguageFlag(current));
+        var flag = new LanguageFlag(current);
+        // As high as the other icons at the top right, and 4:3 like the SVGs
+        flag.setWidth("calc(" + MainLayout.TOOLBAR_ICON_SIZE + " * 4 / 3)");
+        flag.setHeight(MainLayout.TOOLBAR_ICON_SIZE);
+        setIcon(flag);
     }
 
     @Override
