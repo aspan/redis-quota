@@ -34,6 +34,10 @@ build/
 
 ### Vaadin ###
 src/main/frontend/generated/
+# The development bundle, rebuilt locally when needed, and the README Vaadin writes beside it; the production
+# bundle, src/main/bundles/prod.bundle, is committed
+src/main/bundles/dev.bundle
+src/main/bundles/README.md
 
 ### Local configuration ###
 config/local.properties
