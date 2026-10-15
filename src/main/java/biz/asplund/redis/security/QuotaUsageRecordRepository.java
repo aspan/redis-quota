@@ -31,7 +31,7 @@ public interface QuotaUsageRecordRepository extends JpaRepository<QuotaUsageReco
             Instant periodStart);
 
     // Newest first
-    List<QuotaUsageRecord> findByUserIdOrderByPeriodStartDesc(Long userId);
+    List<QuotaUsageRecord> findByUserUsernameOrderByPeriodStartDesc(String username);
 
     @Modifying
     @Query("delete from QuotaUsageRecord r where r.periodStart < :before")

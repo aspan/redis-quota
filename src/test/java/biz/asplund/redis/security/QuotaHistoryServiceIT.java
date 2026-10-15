@@ -72,7 +72,7 @@ class QuotaHistoryServiceIT {
 
 		quotaHistoryService.recordPreviousPeriods();
 
-		assertThat(quotaHistoryService.findHistory(account)).singleElement().satisfies(record -> {
+		assertThat(quotaHistoryService.findHistory(account.getUsername())).singleElement().satisfies(record -> {
 			assertThat(record.getPeriod()).isEqualTo(QuotaPeriod.DAILY);
 			assertThat(record.getUsed()).isEqualTo(4);
 			assertThat(record.getQuotaLimit()).isEqualTo(10);
@@ -88,7 +88,7 @@ class QuotaHistoryServiceIT {
 		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 3);
 		quotaHistoryService.recordPreviousPeriods();
 
-		assertThat(quotaHistoryService.findHistory(account)).singleElement()
+		assertThat(quotaHistoryService.findHistory(account.getUsername())).singleElement()
 				.satisfies(record -> assertThat(record.getUsed()).isEqualTo(7));
 	}
 
@@ -99,8 +99,8 @@ class QuotaHistoryServiceIT {
 
 		quotaHistoryService.recordPreviousPeriods();
 
-		assertThat(quotaHistoryService.findHistory(unused)).isEmpty();
-		assertThat(quotaHistoryService.findHistory(withoutQuota)).isEmpty();
+		assertThat(quotaHistoryService.findHistory(unused.getUsername())).isEmpty();
+		assertThat(quotaHistoryService.findHistory(withoutQuota.getUsername())).isEmpty();
 	}
 
 	@Test
@@ -114,7 +114,7 @@ class QuotaHistoryServiceIT {
 
 		assertThat(quotaHistoryService.deleteExpired()).isPositive();
 
-		assertThat(quotaHistoryService.findHistory(account)).extracting(QuotaUsageRecord::getUsed).containsExactly(3);
+		assertThat(quotaHistoryService.findHistory(account.getUsername())).extracting(QuotaUsageRecord::getUsed).containsExactly(3);
 	}
 
 	@Test
@@ -125,7 +125,7 @@ class QuotaHistoryServiceIT {
 
 		userAccountService.deleteUser(account.getId(), "someone-else");
 
-		assertThat(quotaHistoryService.findHistory(account)).isEmpty();
+		assertThat(quotaHistoryService.findHistory(account.getUsername())).isEmpty();
 	}
 
 	@Test

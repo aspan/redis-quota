@@ -86,7 +86,7 @@ class UserQuotaSyncIT {
 
 		userQuotaSync.sync();
 
-		assertThat(quotaHistoryService.findHistory(account)).singleElement()
+		assertThat(quotaHistoryService.findHistory(account.getUsername())).singleElement()
 				.satisfies(record -> assertThat(record.getUsed()).isEqualTo(6));
 		// The sync deleted yesterday's counter after recording it
 		assertThat(quotaManager.getPreviousPeriodUsage(account.getUsername(), QuotaPeriod.DAILY)).isEmpty();

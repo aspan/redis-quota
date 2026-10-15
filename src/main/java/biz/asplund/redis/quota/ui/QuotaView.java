@@ -21,6 +21,7 @@ import biz.asplund.redis.quota.QuotaDefinitionRepository;
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.quota.QuotaStatus;
+import biz.asplund.redis.security.QuotaHistoryService;
 import biz.asplund.redis.security.UserAccountService;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.badge.Badge;
@@ -70,6 +71,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     private final QuotaDefinitionRepository quotaDefinitionRepository;
     private final QuotaManager quotaManager;
     private final UserAccountService userAccountService;
+    private final QuotaHistoryService quotaHistoryService;
     private final ZoneId zone;
     private DateTimeFormatter dateTimeFormatter;
 
@@ -87,10 +89,11 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     private List<QuotaRow> rows = List.of();
 
     public QuotaView(QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager,
-            UserAccountService userAccountService, Clock clock) {
+            UserAccountService userAccountService, QuotaHistoryService quotaHistoryService, Clock clock) {
         this.quotaDefinitionRepository = quotaDefinitionRepository;
         this.quotaManager = quotaManager;
         this.userAccountService = userAccountService;
+        this.quotaHistoryService = quotaHistoryService;
         this.zone = clock.getZone();
         this.dateTimeFormatter = createDateTimeFormatter(getLocale());
 
@@ -196,7 +199,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
 
     private void showEditor(QuotaRow row) {
         // The detail area does not scroll by itself, so the editor, which can be taller, scrolls in a Scroller
-        var scroller = new Scroller(new QuotaEditor(row, quotaManager, dateTimeFormatter,
+        var scroller = new Scroller(new QuotaEditor(row, quotaManager, quotaHistoryService, dateTimeFormatter,
                 () -> onUsageChanged(row.definition()), this::closeEditor));
         scroller.setSizeFull();
         masterDetail.setDetail(scroller);

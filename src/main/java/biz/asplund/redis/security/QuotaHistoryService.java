@@ -75,9 +75,9 @@ public class QuotaHistoryService {
         return quotaUsageRecordRepository.deleteByPeriodStartBefore(clock.instant().minus(properties.retention()));
     }
 
-    // The user's recorded periods, newest first
+    // The recorded periods of the user with the username, which is also the id of their quota, newest first
     @Transactional(readOnly = true)
-    public List<QuotaUsageRecord> findHistory(UserAccount user) {
-        return quotaUsageRecordRepository.findByUserIdOrderByPeriodStartDesc(user.getId());
+    public List<QuotaUsageRecord> findHistory(String username) {
+        return quotaUsageRecordRepository.findByUserUsernameOrderByPeriodStartDesc(username);
     }
 }

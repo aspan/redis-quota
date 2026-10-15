@@ -18,6 +18,7 @@ package biz.asplund.redis.quota.ui;
 
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
+import biz.asplund.redis.security.QuotaHistoryService;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -35,13 +36,13 @@ import com.vaadin.flow.component.textfield.IntegerField;
 import java.time.format.DateTimeFormatter;
 
 // Detail panel for one user's quota: its period and limit, read-only as they are set on the user in the users view,
-// and its usage in the current period, which can be changed here
+// its usage in the current period, which can be changed here, and its usage history
 class QuotaEditor extends VerticalLayout {
 
     private final QuotaRow row;
 
-    QuotaEditor(QuotaRow row, QuotaManager quotaManager, DateTimeFormatter dateTimeFormatter,
-            Runnable onUsageChanged, Runnable onClose) {
+    QuotaEditor(QuotaRow row, QuotaManager quotaManager, QuotaHistoryService quotaHistoryService,
+            DateTimeFormatter dateTimeFormatter, Runnable onUsageChanged, Runnable onClose) {
         this.row = row;
 
         setWidthFull();
@@ -61,6 +62,8 @@ class QuotaEditor extends VerticalLayout {
         add(new H4(getTranslation("editor.currentUsage")));
         add(new QuotaUsageCard(row.id(), row.definition().period(), row.status(), quotaManager, dateTimeFormatter,
                 onUsageChanged));
+        // Every quota is a user's, under the username
+        add(new UsageHistorySection(quotaHistoryService, row.id(), dateTimeFormatter));
     }
 
     // Id of the shown definition

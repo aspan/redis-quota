@@ -19,6 +19,9 @@ package biz.asplund.redis.quota.ui;
 import biz.asplund.redis.quota.QuotaConfig;
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
+import biz.asplund.redis.security.QuotaUsageRecord;
+import biz.asplund.redis.security.QuotaUsageRecordRepository;
+import biz.asplund.redis.security.UserAccountRepository;
 import biz.asplund.redis.security.UserAccountService;
 import biz.asplund.testcontainers.TestcontainersConfiguration;
 import com.vaadin.browserless.SpringBrowserlessTest;
@@ -30,6 +33,7 @@ import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridTester;
 import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.progressbar.ProgressBar;
@@ -46,7 +50,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.vaadin.addons.chartjs.config.BarChartConfig;
+import org.vaadin.addons.chartjs.data.BarDataset;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -63,6 +70,12 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 	@Autowired
 	private UserAccountService userAccountService;
+
+	@Autowired
+	private UserAccountRepository userAccountRepository;
+
+	@Autowired
+	private QuotaUsageRecordRepository quotaUsageRecordRepository;
 
 	@Autowired
 	private QuotaManager quotaManager;
@@ -159,6 +172,35 @@ class QuotaViewIT extends SpringBrowserlessTest {
 		// Quotas are set and removed on users, so only usage changes here
 		assertThat(find(Button.class, editor).withText("Save").exists()).isFalse();
 		assertThat(find(Button.class, editor).withText("Delete").exists()).isFalse();
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
+	void showsUsageHistoryChart() {
+		var id = uniqueId();
+		createQuota(id, QuotaPeriod.DAILY, 10);
+		var record = new QuotaUsageRecord(userAccountRepository.findByUsername(id).orElseThrow(), QuotaPeriod.DAILY,
+				Instant.parse("2026-10-12T22:00:00Z"));
+		record.update(7, 10);
+		quotaUsageRecordRepository.save(record);
+
+		var chart = find(UsageHistoryChart.class, openEditor(id)).single();
+
+		assertThat(((BarChartConfig) chart.getConfig()).data().getLabels()).hasSize(1);
+		assertThat(((BarDataset) ((BarChartConfig) chart.getConfig()).data().getDatasetAtIndex(0)).getData())
+				.containsExactly(7.0);
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
+	void tellsWhenNoHistoryIsRecorded() {
+		var id = uniqueId();
+		createQuota(id, QuotaPeriod.HOURLY, 5);
+
+		var editor = openEditor(id);
+
+		assertThat(find(UsageHistoryChart.class, editor).exists()).isFalse();
+		assertThat(find(Span.class, editor).withText("No finished periods recorded yet").exists()).isTrue();
 	}
 
 	@Test

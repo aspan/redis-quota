@@ -20,7 +20,6 @@ import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.AccountRuleException;
 import biz.asplund.redis.security.QuotaHistoryService;
-import biz.asplund.redis.security.QuotaUsageRecord;
 import biz.asplund.redis.security.Role;
 import biz.asplund.redis.security.UserAccount;
 import biz.asplund.redis.security.UserAccountService;
@@ -233,20 +232,10 @@ class UserEditor extends VerticalLayout {
         if (account == null) {
             return;
         }
-        List<QuotaUsageRecord> records;
-        try {
-            records = quotaHistoryService.findHistory(account);
-        } catch (DataAccessException e) {
-            add(new H4(getTranslation("history.title")),
-                    new Span(getTranslation("history.loadFailed", e.getMostSpecificCause().getMessage())));
-            return;
+        var history = new UsageHistorySection(quotaHistoryService, account.getUsername(), dateTimeFormatter);
+        if (account.getQuota().isPresent() || history.hasHistory()) {
+            add(history);
         }
-        if (account.getQuota().isEmpty() && records.isEmpty()) {
-            return;
-        }
-        add(new H4(getTranslation("history.title")), records.isEmpty()
-                ? new Span(getTranslation("history.empty"))
-                : new UsageHistoryChart(records, dateTimeFormatter.getZone(), dateTimeFormatter.getLocale()));
     }
 
     private Component createButtons() {
