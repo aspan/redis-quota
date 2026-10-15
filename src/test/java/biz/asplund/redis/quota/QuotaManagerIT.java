@@ -485,6 +485,27 @@ class QuotaManagerIT {
 	}
 
 	@Test
+	void deletesAllUsageOfId() {
+		var id = uniqueId();
+		var daily = new QuotaConfig(100, QuotaPeriod.DAILY);
+		quotaManager.checkAndIncrement(id, daily, 3);
+		managerAt(NOW.minusDays(1).toInstant()).checkAndIncrement(id, daily, 1);
+		quotaManager.checkAndIncrement(id, new QuotaConfig(100, QuotaPeriod.HOURLY), 1);
+		// An id that starts with the first one and a colon, and one with SCAN wildcards in it
+		var longer = id + ":daily";
+		quotaManager.checkAndIncrement(longer, daily, 1);
+		var wildcard = id.substring(0, 10) + "*";
+		quotaManager.checkAndIncrement(wildcard, daily, 1);
+
+		assertThat(quotaManager.deleteUsage(id)).isEqualTo(4);
+
+		assertThat(redisTemplate.keys("quota:" + id + ":*"))
+				.containsExactlyInAnyOrder("quota:" + longer + ":daily:20261014", "quota:" + longer + ":last-used");
+		assertThat(quotaManager.deleteUsage(wildcard)).isEqualTo(2);
+		assertThat(quotaManager.getLastUsed(longer)).isPresent();
+	}
+
+	@Test
 	void keepsDefinitionsWhenDeletingStaleUsage() {
 		var id = defined(QuotaPeriod.DAILY, 100);
 

@@ -144,7 +144,7 @@ public class UserAccountService {
             throw new AccountRuleException(Rule.OWN_ACCOUNT_DELETE);
         }
         userAccountRepository.delete(account);
-        quotaDefinitionRepository.deleteById(account.getUsername());
+        removeQuota(account.getUsername());
     }
 
     // How many definitions syncQuotasToRedis wrote and removed, and how many stale usage keys it deleted
@@ -199,12 +199,18 @@ public class UserAccountService {
         }
     }
 
-    // Saves the user's quota as their QuotaDefinition, or deletes the definition when the user has no quota
+    // Saves the user's quota as their QuotaDefinition, or removes the quota when the user has none
     private void copyQuota(UserAccount account) {
         account.getQuota().ifPresentOrElse(
                 quota -> quotaDefinitionRepository.save(
                         new QuotaDefinition(account.getUsername(), quota.period(), quota.limit())),
-                () -> quotaDefinitionRepository.deleteById(account.getUsername()));
+                () -> removeQuota(account.getUsername()));
+    }
+
+    // Deletes the definition and the usage counted under the username, so a quota given later starts from zero
+    private void removeQuota(String username) {
+        quotaDefinitionRepository.deleteById(username);
+        quotaManager.deleteUsage(username);
     }
 
     private String encode(String password) {

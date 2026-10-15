@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 @Component
 public class QuotaManager {
@@ -51,6 +52,10 @@ public class QuotaManager {
 
     private static final String QUOTA_PREFIX = "quota";
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHxx");
+    // What follows quota:<id>: in a usage key: last-used, or a period and its instance, digits with the UTC offset
+    // for an hour. Matching the digits keeps the last-used key of an id like "alice:daily" from passing as a counter
+    private static final Pattern USAGE_SUFFIX =
+            Pattern.compile("last-used|(hourly|daily|weekly|monthly|yearly):[0-9]+([+-][0-9]{4})?");
 
     // Adds a (possibly negative) delta to the usage, never going below zero
     private static final RedisScript<Long> ADJUST_USAGE_SCRIPT = RedisScript.of("""
@@ -217,6 +222,32 @@ public class QuotaManager {
             LOGGER.error("Redis error reading usage for id {}", id, e);
             return 0;
         }
+    }
+
+    // Deletes all usage of the id: its counters in every period, current or earlier, and its last-used time. Like
+    // resetQuota, it does not fail open. Returns how many keys it deleted
+    public int deleteUsage(String id) {
+        var prefix = QUOTA_PREFIX + ":" + id + ":";
+        var keys = new HashSet<String>();
+        try (var cursor = redisTemplate.scan(ScanOptions.scanOptions().match(escapeGlob(prefix) + "*").count(1000)
+                .build())) {
+            cursor.forEachRemaining(key -> {
+                // Only this id's keys, not those of an id that starts with it followed by a colon
+                if (USAGE_SUFFIX.matcher(key.substring(prefix.length())).matches()) {
+                    keys.add(key);
+                }
+            });
+        }
+        if (keys.isEmpty()) {
+            return 0;
+        }
+        var deleted = redisTemplate.delete(keys);
+        return deleted == null ? 0 : deleted.intValue();
+    }
+
+    // Escapes the characters that SCAN's MATCH pattern treats as wildcards
+    private static String escapeGlob(String text) {
+        return text.replaceAll("([*?\\[\\]\\\\])", "\\\\$1");
     }
 
     // Deletes the usage keys of everything but the given quotas: counters and last-used times of other ids, and

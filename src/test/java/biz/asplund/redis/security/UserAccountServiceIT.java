@@ -155,10 +155,17 @@ class UserAccountServiceIT {
 		assertThat(userAccountRepository.findByUsername(username).orElseThrow().getQuota())
 				.contains(new QuotaConfig(10, QuotaPeriod.WEEKLY));
 
+		quotaManager.checkAndIncrement(username, 3);
+
 		userAccountService.updateUser(account.getId(), null, true, List.of(), null, "someone-else");
 
 		assertThat(quotaDefinitionRepository.existsById(username)).isFalse();
 		assertThat(userAccountService.findQuotaUsernames()).doesNotContain(username);
+		// The usage goes with the quota, so a quota given again starts from zero
+		assertThat(quotaManager.getLastUsed(username)).isEmpty();
+		userAccountService.updateUser(account.getId(), null, true, List.of(), new QuotaConfig(10, QuotaPeriod.WEEKLY),
+				"someone-else");
+		assertThat(quotaManager.getUsage(username)).isZero();
 	}
 
 	@Test
@@ -166,9 +173,12 @@ class UserAccountServiceIT {
 		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(),
 				new QuotaConfig(500, QuotaPeriod.DAILY));
 
+		quotaManager.checkAndIncrement(account.getUsername(), 1);
+
 		userAccountService.deleteUser(account.getId(), "someone-else");
 
 		assertThat(quotaDefinitionRepository.existsById(account.getUsername())).isFalse();
+		assertThat(quotaManager.getLastUsed(account.getUsername())).isEmpty();
 	}
 
 	@Test
