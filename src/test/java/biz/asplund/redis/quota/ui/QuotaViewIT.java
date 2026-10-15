@@ -16,11 +16,11 @@
 
 package biz.asplund.redis.quota.ui;
 
-import biz.asplund.redis.TestcontainersConfiguration;
 import biz.asplund.redis.quota.QuotaConfig;
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.UserAccountService;
+import biz.asplund.testcontainers.TestcontainersConfiguration;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.badge.Badge;
 import com.vaadin.flow.component.badge.BadgeVariant;

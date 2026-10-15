@@ -16,7 +16,7 @@
 
 package biz.asplund.redis.quota.ui;
 
-import biz.asplund.redis.TestcontainersConfiguration;
+import biz.asplund.testcontainers.TestcontainersConfiguration;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.icon.Icon;

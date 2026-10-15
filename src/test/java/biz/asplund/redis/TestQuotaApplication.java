@@ -16,6 +16,7 @@
 
 package biz.asplund.redis;
 
+import biz.asplund.testcontainers.TestcontainersConfiguration;
 import org.springframework.boot.SpringApplication;
 
 public class TestQuotaApplication {

@@ -16,23 +16,18 @@
 
 package biz.asplund.redis.security;
 
-import biz.asplund.redis.TestcontainersConfiguration;
-import biz.asplund.redis.quota.QuotaInterceptor;
-import org.junit.jupiter.api.BeforeEach;
+import biz.asplund.testcontainers.TestcontainersConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
@@ -51,20 +46,11 @@ class SecurityConfigurationIT {
 	@Autowired
 	private MockMvc mockMvc;
 
-	// This test is about the security rules only; QuotaInterceptorIT covers the quotas
-	@MockitoBean
-	private QuotaInterceptor quotaInterceptor;
-
 	@Autowired
 	private UserAccountRepository userAccountRepository;
 
 	@Autowired
 	private PasswordEncoder passwordEncoder;
-
-	@BeforeEach
-	void allowApiRequests() throws Exception {
-		when(quotaInterceptor.preHandle(any(), any(), any())).thenReturn(true);
-	}
 
 	@Test
 	void redirectsAnonymousUiRequestsToLogin() throws Exception {
@@ -100,14 +86,15 @@ class SecurityConfigurationIT {
 
 	@Test
 	void requiresBasicLoginForApi() throws Exception {
-		mockMvc.perform(get("/api/usage"))
+		mockMvc.perform(get("/api/quota"))
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate", startsWith("Basic")));
 	}
 
 	@Test
 	void acceptsBasicLoginForApiWithoutSession() throws Exception {
-		mockMvc.perform(get("/api/usage").with(httpBasic("admin", "secret")))
+		// The status endpoint is not counted against a quota, so it shows the login on its own
+		mockMvc.perform(get("/api/quota").with(httpBasic("admin", "secret")))
 				.andExpect(authenticated().withUsername("admin"))
 				.andExpect(request().sessionAttributeDoesNotExist("SPRING_SECURITY_CONTEXT"));
 	}

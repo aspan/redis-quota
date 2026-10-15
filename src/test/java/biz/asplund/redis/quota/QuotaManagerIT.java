@@ -16,7 +16,7 @@
 
 package biz.asplund.redis.quota;
 
-import biz.asplund.redis.TestcontainersConfiguration;
+import biz.asplund.testcontainers.TestcontainersConfiguration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;

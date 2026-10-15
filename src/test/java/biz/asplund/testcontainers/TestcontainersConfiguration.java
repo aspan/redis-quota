@@ -14,22 +14,27 @@
  * limitations under the License.
  */
 
-package biz.asplund.redis;
+package biz.asplund.testcontainers;
 
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.springframework.context.annotation.Import;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
 
-// The database of users and roles, on its own so tests that replace Redis can still use it
+// Valkey and PostgreSQL for the tests and ./mvnw spring-boot:test-run. The container configurations are in this
+// package, outside biz.asplund.redis, so the application's component scan never picks them up; tests and
+// TestQuotaApplication import them explicitly
 @TestConfiguration(proxyBeanMethods = false)
-public class PostgresContainerConfiguration {
+@Import(PostgresContainerConfiguration.class)
+public class TestcontainersConfiguration {
 
 	@Bean
-	@ServiceConnection
-	PostgreSQLContainer postgresContainer() {
-		return new PostgreSQLContainer(DockerImageName.parse("postgres:18"));
+	// Valkey speaks the Redis protocol, so it connects as a Redis service
+	@ServiceConnection(name = "redis")
+	GenericContainer<?> valkeyContainer() {
+		return new GenericContainer<>(DockerImageName.parse("valkey/valkey:latest")).withExposedPorts(6379);
 	}
 
 }

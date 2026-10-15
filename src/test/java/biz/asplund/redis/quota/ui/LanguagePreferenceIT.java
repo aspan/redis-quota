@@ -16,7 +16,7 @@
 
 package biz.asplund.redis.quota.ui;
 
-import biz.asplund.redis.TestcontainersConfiguration;
+import biz.asplund.testcontainers.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

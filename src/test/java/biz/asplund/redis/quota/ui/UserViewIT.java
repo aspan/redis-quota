@@ -16,7 +16,6 @@
 
 package biz.asplund.redis.quota.ui;
 
-import biz.asplund.redis.TestcontainersConfiguration;
 import biz.asplund.redis.quota.QuotaConfig;
 import biz.asplund.redis.quota.QuotaDefinition;
 import biz.asplund.redis.quota.QuotaDefinitionRepository;
@@ -26,6 +25,7 @@ import biz.asplund.redis.security.Role;
 import biz.asplund.redis.security.UserAccount;
 import biz.asplund.redis.security.UserAccountRepository;
 import biz.asplund.redis.security.UserAccountService;
+import biz.asplund.testcontainers.TestcontainersConfiguration;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;

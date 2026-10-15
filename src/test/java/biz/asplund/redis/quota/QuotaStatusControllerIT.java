@@ -16,8 +16,8 @@
 
 package biz.asplund.redis.quota;
 
-import biz.asplund.redis.TestcontainersConfiguration;
 import biz.asplund.redis.security.UserAccountService;
+import biz.asplund.testcontainers.TestcontainersConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

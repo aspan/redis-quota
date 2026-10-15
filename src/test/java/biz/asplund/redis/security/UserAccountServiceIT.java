@@ -16,13 +16,13 @@
 
 package biz.asplund.redis.security;
 
-import biz.asplund.redis.TestcontainersConfiguration;
 import biz.asplund.redis.quota.QuotaConfig;
 import biz.asplund.redis.quota.QuotaDefinition;
 import biz.asplund.redis.quota.QuotaDefinitionRepository;
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.AccountRuleException.Rule;
+import biz.asplund.testcontainers.TestcontainersConfiguration;
 import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
