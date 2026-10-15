@@ -19,6 +19,7 @@ package biz.asplund.redis.security;
 import biz.asplund.redis.quota.QuotaConfig;
 import biz.asplund.redis.quota.QuotaDefinition;
 import biz.asplund.redis.quota.QuotaDefinitionRepository;
+import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.security.AccountRuleException.Rule;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -54,13 +55,16 @@ public class UserAccountService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final QuotaDefinitionRepository quotaDefinitionRepository;
+    private final QuotaManager quotaManager;
 
     public UserAccountService(UserAccountRepository userAccountRepository, RoleRepository roleRepository,
-            PasswordEncoder passwordEncoder, QuotaDefinitionRepository quotaDefinitionRepository) {
+            PasswordEncoder passwordEncoder, QuotaDefinitionRepository quotaDefinitionRepository,
+            QuotaManager quotaManager) {
         this.userAccountRepository = userAccountRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.quotaDefinitionRepository = quotaDefinitionRepository;
+        this.quotaManager = quotaManager;
     }
 
     @Transactional(readOnly = true)
@@ -143,12 +147,13 @@ public class UserAccountService {
         quotaDefinitionRepository.deleteById(account.getUsername());
     }
 
-    // How many definitions syncQuotasToRedis wrote and removed
-    public record SyncResult(int copied, int removed) {
+    // How many definitions syncQuotasToRedis wrote and removed, and how many stale usage keys it deleted
+    public record SyncResult(int copied, int removed, int staleUsage) {
     }
 
-    // Makes the definitions in Redis match the users' quotas: writes every user's quota again, for when Redis has
-    // lost them, and removes every definition that is not a user's quota
+    // Makes Redis match the users' quotas: writes every user's quota again, for when Redis has lost them, removes
+    // every definition that is not a user's quota, and deletes stale usage: the counters and last-used times of
+    // ids that are not users with a quota, and counters of periods the users' quotas no longer have
     @Transactional(readOnly = true)
     public SyncResult syncQuotasToRedis() {
         var definitions = userAccountRepository.findAll().stream()
@@ -160,7 +165,9 @@ public class UserAccountService {
         var others = StreamSupport.stream(quotaDefinitionRepository.findAll().spliterator(), false)
                 .filter(Objects::nonNull).map(QuotaDefinition::id).filter(id -> !userQuotaIds.contains(id)).toList();
         quotaDefinitionRepository.deleteAllById(others);
-        return new SyncResult(definitions.size(), others.size());
+        var staleUsage = quotaManager.deleteStaleUsage(definitions.stream()
+                .collect(Collectors.toMap(QuotaDefinition::id, QuotaDefinition::period)));
+        return new SyncResult(definitions.size(), others.size(), staleUsage);
     }
 
     // Names are stored in upper case, without the ROLE_ prefix

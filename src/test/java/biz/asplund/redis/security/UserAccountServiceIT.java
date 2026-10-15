@@ -185,14 +185,21 @@ class UserAccountServiceIT {
 	void syncsRedisToUsersQuotas() {
 		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(),
 				new QuotaConfig(500, QuotaPeriod.MONTHLY));
+		quotaManager.checkAndIncrement(account.getUsername(), 2);
 		quotaDefinitionRepository.deleteById(account.getUsername());
 		var other = "no-user-" + UUID.randomUUID();
 		quotaDefinitionRepository.save(new QuotaDefinition(other, QuotaPeriod.DAILY, 5));
+		quotaManager.checkAndIncrement(other, 1);
 
 		var result = userAccountService.syncQuotasToRedis();
 
 		assertThat(result.copied()).isPositive();
 		assertThat(result.removed()).isPositive();
+		assertThat(result.staleUsage()).isPositive();
+		// The user's usage stays; the usage of the id without a user goes
+		assertThat(quotaManager.getUsage(account.getUsername())).isEqualTo(2);
+		assertThat(quotaManager.getLastUsed(account.getUsername())).isPresent();
+		assertThat(quotaManager.getLastUsed(other)).isEmpty();
 		assertThat(quotaDefinitionRepository.findById(account.getUsername()))
 				.contains(new QuotaDefinition(account.getUsername(), QuotaPeriod.MONTHLY, 500));
 		assertThat(quotaDefinitionRepository.existsById(other)).isFalse();

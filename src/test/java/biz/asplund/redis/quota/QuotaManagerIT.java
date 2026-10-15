@@ -33,6 +33,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
@@ -457,6 +458,39 @@ class QuotaManagerIT {
 		quotaManager.resetQuota(id);
 
 		assertThat(quotaManager.getLastUsed(id)).contains(NOW.toInstant());
+	}
+
+	@Test
+	void deletesStaleUsage() {
+		var kept = uniqueId();
+		var daily = new QuotaConfig(100, QuotaPeriod.DAILY);
+		quotaManager.checkAndIncrement(kept, daily, 3);
+		managerAt(NOW.minusDays(1).toInstant()).checkAndIncrement(kept, daily, 1);
+		quotaManager.checkAndIncrement(kept, new QuotaConfig(100, QuotaPeriod.HOURLY), 1);
+		var other = uniqueId();
+		quotaManager.checkAndIncrement(other, daily, 1);
+
+		var deleted = quotaManager.deleteStaleUsage(Map.of(kept, QuotaPeriod.DAILY));
+
+		// The current counter and last use of the kept quota stay
+		assertThat(redisTemplate.opsForValue().get("quota:" + kept + ":daily:20261014")).isEqualTo("3");
+		assertThat(redisTemplate.hasKey("quota:" + kept + ":last-used")).isTrue();
+		// Yesterday's counter, the counter of another period, and everything of another id go
+		assertThat(redisTemplate.hasKey("quota:" + kept + ":daily:20261013")).isFalse();
+		assertThat(redisTemplate.hasKey("quota:" + kept + ":hourly:2026101410+0200")).isFalse();
+		assertThat(redisTemplate.hasKey("quota:" + other + ":daily:20261014")).isFalse();
+		assertThat(redisTemplate.hasKey("quota:" + other + ":last-used")).isFalse();
+		// Keys left by other tests in the same Redis are stale too
+		assertThat(deleted).isGreaterThanOrEqualTo(4);
+	}
+
+	@Test
+	void keepsDefinitionsWhenDeletingStaleUsage() {
+		var id = defined(QuotaPeriod.DAILY, 100);
+
+		quotaManager.deleteStaleUsage(Map.of());
+
+		assertThat(quotaDefinitionRepository.existsById(id)).isTrue();
 	}
 
 	@Test

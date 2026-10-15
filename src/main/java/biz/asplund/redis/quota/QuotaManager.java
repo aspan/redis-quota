@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
@@ -35,9 +36,12 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 @Component
@@ -213,6 +217,34 @@ public class QuotaManager {
             LOGGER.error("Redis error reading usage for id {}", id, e);
             return 0;
         }
+    }
+
+    // Deletes the usage keys of everything but the given quotas: counters and last-used times of other ids, and
+    // counters of other periods or earlier period instances. Expired counters would go by themselves, but the
+    // last-used times have no expiry. Like resetQuota, it does not fail open. Returns how many keys it deleted
+    public int deleteStaleUsage(Map<String, QuotaPeriod> quotas) {
+        var keep = keysToKeep(quotas);
+        var candidates = new HashSet<String>();
+        try (var keys = redisTemplate.scan(ScanOptions.scanOptions().match(QUOTA_PREFIX + ":*").count(1000).build())) {
+            keys.forEachRemaining(candidates::add);
+        }
+        // Counted again after the scan, so a counter for a period that started meanwhile is kept too
+        keep.addAll(keysToKeep(quotas));
+        candidates.removeAll(keep);
+        if (candidates.isEmpty()) {
+            return 0;
+        }
+        var deleted = redisTemplate.delete(candidates);
+        return deleted == null ? 0 : deleted.intValue();
+    }
+
+    private Set<String> keysToKeep(Map<String, QuotaPeriod> quotas) {
+        var keep = new HashSet<String>();
+        quotas.forEach((id, period) -> {
+            keep.add(getPeriodKey(id, period));
+            keep.add(getLastUsedKey(id));
+        });
+        return keep;
     }
 
     private String getPeriodKey(String id, QuotaPeriod period) {
