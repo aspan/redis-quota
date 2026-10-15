@@ -23,6 +23,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -42,6 +44,15 @@ public class SecurityConfiguration {
     @Bean
     PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+    }
+
+    // Admins have the USER role too, so they can use the API without being given it; role checks such as the
+    // API's hasRole pick this bean up
+    @Bean
+    static RoleHierarchy roleHierarchy() {
+        return RoleHierarchyImpl.withDefaultRolePrefix()
+                .role(UserAccountService.ADMIN_ROLE).implies(UserAccountService.USER_ROLE)
+                .build();
     }
 
     // The API is for programmatic clients, which log in with HTTP Basic on every request as a user with the USER

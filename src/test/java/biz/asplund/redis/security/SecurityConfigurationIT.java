@@ -34,6 +34,7 @@ import static org.springframework.security.test.web.servlet.response.SecurityMoc
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.unauthenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -92,11 +93,12 @@ class SecurityConfigurationIT {
 	}
 
 	@Test
-	void logsInWithBasicForApiWithoutSessionAndRequiresUserRole() throws Exception {
-		// The admin logs in, but lacks the USER role the API requires
+	void acceptsBasicLoginForApiWithoutSession() throws Exception {
+		// ADMIN implies the USER role the API requires, so the request gets past security; the admin has no quota
 		mockMvc.perform(get("/api/quota").with(httpBasic("admin", "secret")))
 				.andExpect(authenticated().withUsername("admin"))
 				.andExpect(request().sessionAttributeDoesNotExist("SPRING_SECURITY_CONTEXT"))
-				.andExpect(status().isForbidden());
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.error").value("No Quota"));
 	}
 }
