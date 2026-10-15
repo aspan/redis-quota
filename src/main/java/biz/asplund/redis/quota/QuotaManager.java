@@ -47,8 +47,24 @@ import java.util.regex.Pattern;
 
 @Component
 public class QuotaManager {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(QuotaManager.class);
+    // Lua script for atomic operations
+    public static final String QUOTA_SCRIPT = """
+        local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+        local amount = tonumber(ARGV[1])
+        local ttl = tonumber(ARGV[2])
+        local limit = tonumber(ARGV[3])
+        local new_usage = current + amount
+
+        if new_usage <= limit then
+            redis.call('INCRBY', KEYS[1], amount)
+            redis.call('EXPIRE', KEYS[1], ttl)
+            redis.call('SET', KEYS[2], ARGV[4])
+            return {1, new_usage}
+        end
+
+        return {0, current}
+        """;
 
     private static final String QUOTA_PREFIX = "quota";
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHxx");
@@ -89,26 +105,9 @@ public class QuotaManager {
         var ttl = getTTL(config.period());
         var resetAt = getResetTime(config.period());
 
-        // Lua script for atomic operations
-        var script = """
-            local current = tonumber(redis.call('GET', KEYS[1]) or '0')
-            local amount = tonumber(ARGV[1])
-            local ttl = tonumber(ARGV[2])
-            local limit = tonumber(ARGV[3])
-            local new_usage = current + amount
-
-            if new_usage <= limit then
-                redis.call('INCRBY', KEYS[1], amount)
-                redis.call('EXPIRE', KEYS[1], ttl)
-                redis.call('SET', KEYS[2], ARGV[4])
-                return {1, new_usage}
-            end
-
-            return {0, current}
-            """;
-
+        @SuppressWarnings("rawtypes")
         var redisScript = new DefaultRedisScript<List>();
-        redisScript.setScriptText(script);
+        redisScript.setScriptText(QUOTA_SCRIPT);
         redisScript.setResultType(List.class);
 
         try {
