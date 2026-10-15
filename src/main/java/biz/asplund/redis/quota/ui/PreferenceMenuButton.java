@@ -16,10 +16,14 @@
 
 package biz.asplund.redis.quota.ui;
 
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.contextmenu.ContextMenu;
 import com.vaadin.flow.component.contextmenu.ContextMenuPosition;
+import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.i18n.LocaleChangeEvent;
 import com.vaadin.flow.i18n.LocaleChangeObserver;
 
@@ -44,6 +48,11 @@ abstract class PreferenceMenuButton<T> extends Button implements LocaleChangeObs
 
     abstract void select(T choice);
 
+    // An icon shown before a choice's label in the menu, or null for none
+    Component prefix(T choice) {
+        return null;
+    }
+
     // Shows the current choice on the button itself
     abstract void showOnButton(T current);
 
@@ -60,6 +69,14 @@ abstract class PreferenceMenuButton<T> extends Button implements LocaleChangeObs
         update();
     }
 
+    // The icon and the label side by side
+    static Component withPrefix(Component prefix, String label) {
+        var layout = new HorizontalLayout(prefix, new Span(label));
+        layout.setSpacing("var(--vaadin-gap-s)");
+        layout.setAlignItems(FlexComponent.Alignment.CENTER);
+        return layout;
+    }
+
     void update() {
         var current = current();
         menu.removeAll();
@@ -68,6 +85,12 @@ abstract class PreferenceMenuButton<T> extends Button implements LocaleChangeObs
                 select(choice);
                 update();
             });
+            // Before the label, which stays the item's text
+            var prefix = prefix(choice);
+            if (prefix != null) {
+                prefix.getElement().getStyle().set("margin-inline-end", "var(--vaadin-gap-s)");
+                item.addComponentAsFirst(prefix);
+            }
             item.setCheckable(true);
             item.setChecked(choice.equals(current));
         }

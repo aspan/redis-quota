@@ -19,7 +19,9 @@ package biz.asplund.redis.quota.ui;
 import biz.asplund.redis.security.UserSettings;
 import com.vaadin.flow.component.customfield.CustomField;
 import com.vaadin.flow.component.formlayout.FormLayout;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.data.renderer.ComponentRenderer;
 
 import java.util.List;
 import java.util.Locale;
@@ -44,6 +46,10 @@ class UserSettingsField extends CustomField<UserSettings> {
         localeField.setEmptySelectionAllowed(true);
         localeField.setEmptySelectionCaption(getTranslation("userEditor.notSet"));
         localeField.setHelperText(getTranslation("userEditor.languageHint"));
+        // Each language with its flag; the label generator still gives the text of the selected value
+        localeField.setRenderer(new ComponentRenderer<>(locale -> locale == null
+                ? new Span(getTranslation("userEditor.notSet"))
+                : PreferenceMenuButton.withPrefix(new LanguageFlag(locale), LanguagePreference.displayName(locale))));
 
         colorSchemeField.setLabel(getTranslation("userEditor.colorScheme"));
         colorSchemeField.setItems(ColorSchemeChoice.values());
