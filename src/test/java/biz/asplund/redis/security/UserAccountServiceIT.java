@@ -172,28 +172,30 @@ class UserAccountServiceIT {
 	}
 
 	@Test
-	void leavesDefinitionOfUserWithoutQuota() {
+	void removesDefinitionUnderUsernameOfUserWithoutQuota() {
 		var username = uniqueName();
 		quotaDefinitionRepository.save(new QuotaDefinition(username, QuotaPeriod.HOURLY, 7));
-		var account = userAccountService.createUser(username, "password1", true, List.of(), null);
 
-		userAccountService.updateUser(account.getId(), null, true, List.of(), null, "someone-else");
-		userAccountService.deleteUser(account.getId(), "someone-else");
+		userAccountService.createUser(username, "password1", true, List.of(), null);
 
-		assertThat(quotaDefinitionRepository.findById(username))
-				.contains(new QuotaDefinition(username, QuotaPeriod.HOURLY, 7));
+		assertThat(quotaDefinitionRepository.existsById(username)).isFalse();
 	}
 
 	@Test
-	void copiesQuotasToRedisAgain() {
+	void syncsRedisToUsersQuotas() {
 		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(),
 				new QuotaConfig(500, QuotaPeriod.MONTHLY));
 		quotaDefinitionRepository.deleteById(account.getUsername());
+		var other = "no-user-" + UUID.randomUUID();
+		quotaDefinitionRepository.save(new QuotaDefinition(other, QuotaPeriod.DAILY, 5));
 
-		assertThat(userAccountService.copyQuotasToRedis()).isPositive();
+		var result = userAccountService.syncQuotasToRedis();
 
+		assertThat(result.copied()).isPositive();
+		assertThat(result.removed()).isPositive();
 		assertThat(quotaDefinitionRepository.findById(account.getUsername()))
 				.contains(new QuotaDefinition(account.getUsername(), QuotaPeriod.MONTHLY, 500));
+		assertThat(quotaDefinitionRepository.existsById(other)).isFalse();
 	}
 
 	@Test

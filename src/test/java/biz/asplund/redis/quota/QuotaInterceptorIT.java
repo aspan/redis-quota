@@ -56,9 +56,6 @@ class QuotaInterceptorIT {
 	private UserAccountService userAccountService;
 
 	@Autowired
-	private QuotaDefinitionRepository quotaDefinitionRepository;
-
-	@Autowired
 	private QuotaManager quotaManager;
 
 	// An API endpoint for the tests, which echoes the usage the interceptor stored in the request
@@ -106,16 +103,6 @@ class QuotaInterceptorIT {
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.error").value("No Quota"))
 				.andExpect(jsonPath("$.message").value("No quota is set for user " + username));
-	}
-
-	@Test
-	void usesDefinitionStoredForUsername() throws Exception {
-		var username = createUser(null);
-		quotaDefinitionRepository.save(new QuotaDefinition(username, QuotaPeriod.HOURLY, 5));
-
-		mockMvc.perform(get("/api/ping").with(httpBasic(username, PASSWORD)))
-				.andExpect(status().isOk())
-				.andExpect(header().string("X-Quota-Limit", "5"));
 	}
 
 	@Test

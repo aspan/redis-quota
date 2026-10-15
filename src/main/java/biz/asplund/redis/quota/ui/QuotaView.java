@@ -58,7 +58,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.StreamSupport;
 
 @Route("")
@@ -85,8 +84,6 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     private Grid.Column<QuotaRow> lastUsedColumn;
 
     private List<QuotaRow> rows = List.of();
-    // Ids of the definitions that are users' quotas, whose period and limit are set in the users view
-    private Set<String> userQuotaIds = Set.of();
 
     public QuotaView(QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager,
             UserAccountService userAccountService, Clock clock) {
@@ -196,7 +193,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     }
 
     private void showEditor(QuotaRow row) {
-        masterDetail.setDetail(new QuotaEditor(row, userQuotaIds.contains(row.id()), quotaManager, dateTimeFormatter,
+        masterDetail.setDetail(new QuotaEditor(row, quotaManager, dateTimeFormatter,
                 () -> onUsageChanged(row.definition()), this::closeEditor));
     }
 
@@ -216,12 +213,14 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
 
     void refresh() {
         try {
+            // Only users' quotas; a definition of no user is removed at the next start
+            var userQuotaIds = userAccountService.findQuotaUsernames();
             rows = StreamSupport.stream(quotaDefinitionRepository.findAll().spliterator(), false)
                     .filter(Objects::nonNull)
+                    .filter(definition -> userQuotaIds.contains(definition.id()))
                     .map(definition -> QuotaRow.load(definition, quotaManager))
                     .sorted(Comparator.comparing(QuotaRow::id))
                     .toList();
-            userQuotaIds = userAccountService.findQuotaUsernames();
         } catch (DataAccessException e) {
             rows = List.of();
             var notification = Notification.show(

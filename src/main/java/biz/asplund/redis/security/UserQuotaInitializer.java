@@ -23,8 +23,9 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 
-// Copies the users' quotas from PostgreSQL to Redis at startup, so they come back after Redis has lost its data.
-// A Redis outage is logged rather than stopping the application, which fails open on quotas meanwhile
+// Makes the quota definitions in Redis match the users' quotas in PostgreSQL at startup: copies them, so they come
+// back after Redis has lost its data, and removes definitions that belong to no user. A Redis outage is logged
+// rather than stopping the application, which fails open on quotas meanwhile
 @Component
 public class UserQuotaInitializer implements ApplicationRunner {
 
@@ -39,10 +40,11 @@ public class UserQuotaInitializer implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         try {
-            var count = userAccountService.copyQuotasToRedis();
-            LOGGER.info("Copied {} user quota(s) to Redis", count);
+            var result = userAccountService.syncQuotasToRedis();
+            LOGGER.info("Copied {} user quota(s) to Redis and removed {} definition(s) of no user", result.copied(),
+                    result.removed());
         } catch (DataAccessException e) {
-            LOGGER.error("Could not copy user quotas to Redis", e);
+            LOGGER.error("Could not sync user quotas to Redis", e);
         }
     }
 }

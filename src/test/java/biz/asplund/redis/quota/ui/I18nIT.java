@@ -17,9 +17,9 @@
 package biz.asplund.redis.quota.ui;
 
 import biz.asplund.redis.TestcontainersConfiguration;
-import biz.asplund.redis.quota.QuotaDefinition;
-import biz.asplund.redis.quota.QuotaDefinitionRepository;
+import biz.asplund.redis.quota.QuotaConfig;
 import biz.asplund.redis.quota.QuotaPeriod;
+import biz.asplund.redis.security.UserAccountService;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -42,6 +42,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.ResourceBundle;
@@ -62,7 +63,7 @@ class I18nIT extends SpringBrowserlessTest {
 	private I18NProvider i18nProvider;
 
 	@Autowired
-	private QuotaDefinitionRepository quotaDefinitionRepository;
+	private UserAccountService userAccountService;
 
 	private static final Locale SWEDISH = Locale.of("sv");
 
@@ -167,10 +168,10 @@ class I18nIT extends SpringBrowserlessTest {
 		assertThat(limit.getErrorMessage()).isEqualTo("Ange en gräns på 0 eller mer");
 	}
 
-	// Opens the editor of a new definition, as quotas are no longer created in the quotas view
+	// Opens the editor of a new user's quota, as quotas belong to users
 	private void openEditor() {
 		var id = "i18n-" + UUID.randomUUID();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 10));
+		userAccountService.createUser(id, "password1", true, List.of(), new QuotaConfig(10, QuotaPeriod.DAILY));
 		navigate(QuotaView.class);
 		var grid = test(grid());
 		grid.select(IntStream.range(0, grid.size()).filter(row -> grid.getRow(row).id().equals(id))

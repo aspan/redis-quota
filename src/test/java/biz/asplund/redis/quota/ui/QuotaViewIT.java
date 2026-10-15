@@ -17,10 +17,10 @@
 package biz.asplund.redis.quota.ui;
 
 import biz.asplund.redis.TestcontainersConfiguration;
-import biz.asplund.redis.quota.QuotaDefinition;
-import biz.asplund.redis.quota.QuotaDefinitionRepository;
+import biz.asplund.redis.quota.QuotaConfig;
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
+import biz.asplund.redis.security.UserAccountService;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.badge.Badge;
 import com.vaadin.flow.component.badge.BadgeVariant;
@@ -62,7 +62,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	private static final String PROGRESS_COLOR = "--vaadin-progress-bar-value-background";
 
 	@Autowired
-	private QuotaDefinitionRepository quotaDefinitionRepository;
+	private UserAccountService userAccountService;
 
 	@Autowired
 	private QuotaManager quotaManager;
@@ -95,8 +95,8 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	void listsDefinitionsWithUsage() {
 		var full = uniqueId();
 		var nearlyFull = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(full, QuotaPeriod.HOURLY, 10));
-		quotaDefinitionRepository.save(new QuotaDefinition(nearlyFull, QuotaPeriod.DAILY, 100));
+		createQuota(full, QuotaPeriod.HOURLY, 10);
+		createQuota(nearlyFull, QuotaPeriod.DAILY, 100);
 		quotaManager.setUsage(full, 10);
 		quotaManager.setUsage(nearlyFull, 85);
 
@@ -122,8 +122,8 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void filtersById() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
-		quotaDefinitionRepository.save(new QuotaDefinition(uniqueId(), QuotaPeriod.HOURLY, 10));
+		createQuota(id, QuotaPeriod.HOURLY, 10);
+		createQuota(uniqueId(), QuotaPeriod.HOURLY, 10);
 
 		navigate(QuotaView.class);
 		test(find(TextField.class).withPlaceholder("Filter by id").single()).setValue(id.toUpperCase());
@@ -146,7 +146,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void showsPeriodAndLimitReadOnly() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
+		createQuota(id, QuotaPeriod.HOURLY, 10);
 		var editor = openEditor(id);
 
 		var period = find(Select.class, editor).withLabel("Period").single();
@@ -155,8 +155,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 		var limit = limitField(editor);
 		assertThat(limit.getValue()).isEqualTo(10);
 		assertThat(limit.isReadOnly()).isTrue();
-		assertThat(limit.getHelperText())
-				.isEqualTo("No user has this quota; give users their quotas in the Users view");
+		assertThat(limit.getHelperText()).isEqualTo("This is a user's quota; change it in the Users view");
 		// Quotas are set and removed on users, so only usage changes here
 		assertThat(find(Button.class, editor).withText("Save").exists()).isFalse();
 		assertThat(find(Button.class, editor).withText("Delete").exists()).isFalse();
@@ -166,7 +165,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void setsAndResetsUsage() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
+		createQuota(id, QuotaPeriod.HOURLY, 10);
 		var editor = openEditor(id);
 
 		var card = usageCard(editor, "Hourly");
@@ -187,7 +186,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void adjustsUsageByASignedAmount() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
+		createQuota(id, QuotaPeriod.HOURLY, 10);
 		quotaManager.setUsage(id, 4);
 		var editor = openEditor(id);
 
@@ -207,7 +206,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void requiresNonZeroAmountToAdjust() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
+		createQuota(id, QuotaPeriod.HOURLY, 10);
 		var card = usageCard(openEditor(id), "Hourly");
 		var delta = find(IntegerField.class, card).withAriaLabel("Change in usage, Hourly").single();
 
@@ -222,7 +221,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void checksAndIncrementsLikeAClient() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 5));
+		createQuota(id, QuotaPeriod.HOURLY, 5);
 		var editor = openEditor(id);
 
 		requestFromCard(usageCard(editor, "Hourly"), 4);
@@ -244,7 +243,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void requiresPositiveAmountToCheckAndIncrement() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 5));
+		createQuota(id, QuotaPeriod.HOURLY, 5);
 		var card = usageCard(openEditor(id), "Hourly");
 		var amount = find(IntegerField.class, card).withAriaLabel("Amount to request").single();
 
@@ -274,7 +273,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void badgeWarnsOnlyWhenLessThanTwentyPercentIsLeft() {
 		var exactlyTwenty = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(exactlyTwenty, QuotaPeriod.DAILY, 100));
+		createQuota(exactlyTwenty, QuotaPeriod.DAILY, 100);
 		quotaManager.setUsage(exactlyTwenty, 80);
 
 		navigate(QuotaView.class);
@@ -288,7 +287,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void stretchesUsageActionsAcrossCard() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
+		createQuota(id, QuotaPeriod.HOURLY, 10);
 		var card = usageCard(openEditor(id), "Hourly");
 
 		assertThat(find(IntegerField.class, card).all()).hasSize(3)
@@ -313,7 +312,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void stretchesFormFieldsAcrossEditor() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 5));
+		createQuota(id, QuotaPeriod.HOURLY, 5);
 
 		var form = find(FormLayout.class, openEditor(id)).single();
 
@@ -327,13 +326,18 @@ class QuotaViewIT extends SpringBrowserlessTest {
 	@WithMockUser(username = "admin", roles = "ADMIN")
 	void closesEditorOfExistingQuota() {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 5));
+		createQuota(id, QuotaPeriod.HOURLY, 5);
 		var editor = openEditor(id);
 
 		test(find(Button.class, editor).withAriaLabel("Close").single()).click();
 
 		assertThat(find(QuotaEditor.class).exists()).isFalse();
 		assertThat(grid().getSelected()).isEmpty();
+	}
+
+	// Quotas belong to users, so each is created as the quota of a new user with the id as username
+	private void createQuota(String id, QuotaPeriod period, int limit) {
+		userAccountService.createUser(id, "password1", true, List.of(), new QuotaConfig(limit, period));
 	}
 
 	private QuotaEditor openEditor(String id) {
@@ -349,7 +353,7 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 	private ProgressBar progressBarWithUsage(int used) {
 		var id = uniqueId();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 20));
+		createQuota(id, QuotaPeriod.DAILY, 20);
 		quotaManager.setUsage(id, used);
 		return find(ProgressBar.class, usageCard(openEditor(id), "Daily")).single();
 	}

@@ -29,15 +29,18 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 // Manages the admin UI's users, their roles and quotas. The acting user cannot delete or disable their own
 // account or take the ADMIN role from it, and the ADMIN role cannot be deleted, so at least one admin always
 // remains. A user's quota is kept in PostgreSQL and copied to Redis as the QuotaDefinition under the username,
-// which QuotaManager reads. The copy is written inside the transaction, so a Redis error rolls back the change
+// which QuotaManager reads. The copy is written inside the transaction, so a Redis error rolls back the change.
+// Quotas belong to users: Redis holds no other definitions, and syncQuotasToRedis removes any that appear
 @Service
 public class UserAccountService {
 
@@ -101,7 +104,7 @@ public class UserAccountService {
         account.getRoles().addAll(roles(roleNames));
         account.setQuota(quota);
         var saved = userAccountRepository.save(account);
-        copyQuota(saved, false);
+        copyQuota(saved);
         return saved;
     }
 
@@ -122,12 +125,11 @@ public class UserAccountService {
         if (password != null && !password.isEmpty()) {
             account.setPassword(encode(password));
         }
-        var hadQuota = account.getQuota().isPresent();
         account.setEnabled(enabled);
         account.getRoles().clear();
         account.getRoles().addAll(roles(roleNames));
         account.setQuota(quota);
-        copyQuota(account, hadQuota);
+        copyQuota(account);
         return account;
     }
 
@@ -137,22 +139,28 @@ public class UserAccountService {
         if (account.getUsername().equals(actingUsername)) {
             throw new AccountRuleException(Rule.OWN_ACCOUNT_DELETE);
         }
-        var hadQuota = account.getQuota().isPresent();
         userAccountRepository.delete(account);
-        if (hadQuota) {
-            quotaDefinitionRepository.deleteById(account.getUsername());
-        }
+        quotaDefinitionRepository.deleteById(account.getUsername());
     }
 
-    // Writes every user's quota to Redis again, for when Redis has lost them; returns how many were written
+    // How many definitions syncQuotasToRedis wrote and removed
+    public record SyncResult(int copied, int removed) {
+    }
+
+    // Makes the definitions in Redis match the users' quotas: writes every user's quota again, for when Redis has
+    // lost them, and removes every definition that is not a user's quota
     @Transactional(readOnly = true)
-    public int copyQuotasToRedis() {
+    public SyncResult syncQuotasToRedis() {
         var definitions = userAccountRepository.findAll().stream()
                 .flatMap(account -> account.getQuota().stream()
                         .map(quota -> new QuotaDefinition(account.getUsername(), quota.period(), quota.limit())))
                 .toList();
         quotaDefinitionRepository.saveAll(definitions);
-        return definitions.size();
+        var userQuotaIds = definitions.stream().map(QuotaDefinition::id).collect(Collectors.toSet());
+        var others = StreamSupport.stream(quotaDefinitionRepository.findAll().spliterator(), false)
+                .filter(Objects::nonNull).map(QuotaDefinition::id).filter(id -> !userQuotaIds.contains(id)).toList();
+        quotaDefinitionRepository.deleteAllById(others);
+        return new SyncResult(definitions.size(), others.size());
     }
 
     // Names are stored in upper case, without the ROLE_ prefix
@@ -184,17 +192,12 @@ public class UserAccountService {
         }
     }
 
-    // Saves the user's quota as their QuotaDefinition, or deletes the definition when a quota was removed. A
-    // definition with the same id that the user never had a quota for, created in the quotas view, is left alone
-    private void copyQuota(UserAccount account, boolean hadQuota) {
+    // Saves the user's quota as their QuotaDefinition, or deletes the definition when the user has no quota
+    private void copyQuota(UserAccount account) {
         account.getQuota().ifPresentOrElse(
                 quota -> quotaDefinitionRepository.save(
                         new QuotaDefinition(account.getUsername(), quota.period(), quota.limit())),
-                () -> {
-                    if (hadQuota) {
-                        quotaDefinitionRepository.deleteById(account.getUsername());
-                    }
-                });
+                () -> quotaDefinitionRepository.deleteById(account.getUsername()));
     }
 
     private String encode(String password) {

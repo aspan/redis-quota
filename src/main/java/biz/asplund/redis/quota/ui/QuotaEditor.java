@@ -34,13 +34,13 @@ import com.vaadin.flow.component.textfield.IntegerField;
 
 import java.time.format.DateTimeFormatter;
 
-// Detail panel for one quota definition: its period and limit, read-only as quotas are set on users in the users
-// view, and its usage in the current period, which can be changed here
+// Detail panel for one user's quota: its period and limit, read-only as they are set on the user in the users view,
+// and its usage in the current period, which can be changed here
 class QuotaEditor extends VerticalLayout {
 
     private final QuotaRow row;
 
-    QuotaEditor(QuotaRow row, boolean userQuota, QuotaManager quotaManager, DateTimeFormatter dateTimeFormatter,
+    QuotaEditor(QuotaRow row, QuotaManager quotaManager, DateTimeFormatter dateTimeFormatter,
             Runnable onUsageChanged, Runnable onClose) {
         this.row = row;
 
@@ -57,7 +57,7 @@ class QuotaEditor extends VerticalLayout {
         add(header);
         add(new Span(getTranslation("editor.lastUsed",
                 row.lastUsed().map(dateTimeFormatter::format).orElse(getTranslation("quotas.never")))));
-        add(new H4(getTranslation("editor.quota")), createQuotaForm(userQuota));
+        add(new H4(getTranslation("editor.quota")), createQuotaForm());
         add(new H4(getTranslation("editor.currentUsage")));
         add(new QuotaUsageCard(row.id(), row.definition().period(), row.status(), quotaManager, dateTimeFormatter,
                 onUsageChanged));
@@ -68,7 +68,7 @@ class QuotaEditor extends VerticalLayout {
         return row.id();
     }
 
-    private Component createQuotaForm(boolean userQuota) {
+    private Component createQuotaForm() {
         // One column across the editor, with each field filling it
         var form = new FormLayout();
         form.setAutoResponsive(true);
@@ -88,8 +88,7 @@ class QuotaEditor extends VerticalLayout {
         limitField.setLabel(getTranslation("editor.limit"));
         limitField.setValue(row.definition().limit());
         limitField.setReadOnly(true);
-        // Where the period and limit are changed: on the user, or, for a definition no user has, nowhere in the UI
-        limitField.setHelperText(getTranslation(userQuota ? "editor.userQuotaHint" : "editor.otherQuotaHint"));
+        limitField.setHelperText(getTranslation("editor.userQuotaHint"));
 
         form.add(periodField, limitField);
         return form;
