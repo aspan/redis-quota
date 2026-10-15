@@ -36,6 +36,7 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.component.progressbar.ProgressBarVariant;
@@ -103,6 +104,13 @@ class QuotaViewIT extends SpringBrowserlessTest {
 				.extracting(SideNavItem::getLabel, SideNavItem::getPath)
 				.containsExactly(tuple("Home", ""), tuple("Quotas", "quotas"), tuple("Users", "users"),
 						tuple("My profile", "profile"));
+		// Log out is at the right end of the navbar, after the language and appearance buttons
+		var logout = find(Button.class).withAriaLabel("Log out").single();
+		var navbarEnd = logout.getParent().orElseThrow();
+		assertThat(navbarEnd.getElement().getAttribute("slot")).isEqualTo("navbar");
+		assertThat(navbarEnd.getChildren()).last().isSameAs(logout);
+		// With Vaadin's extra-small gap between the buttons
+		assertThat(((HorizontalLayout) navbarEnd).getSpacing()).isEqualTo("var(--vaadin-gap-xs)");
 	}
 
 	@Test

@@ -59,10 +59,13 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
         getStyle().set("--vaadin-app-layout-drawer-width", "20rem");
 
         viewTitle.getStyle().set("font-size", "1.125rem").set("margin", "0");
-        // Language menu and appearance toggle sit at the right end of the navbar
+        // Language menu, appearance toggle and log out sit at the right end of the navbar
+        logout.addClickListener(_ -> authenticationContext.logout());
+        logout.addThemeVariants(ButtonVariant.TERTIARY);
         var preferences = new HorizontalLayout(new LanguageMenuButton(languagePreference),
-                new ColorSchemeToggleButton(colorSchemePreference));
-        preferences.setSpacing(false);
+                new ColorSchemeToggleButton(colorSchemePreference), logout);
+        // Vaadin's extra-small gap; the LUMO_SPACING_XS variant does not apply to the Aura theme
+        preferences.setSpacing("var(--vaadin-gap-xs)");
         preferences.getStyle().set("margin-inline-start", "auto").set("padding-inline-end", "0.5rem");
         addToNavbar(new DrawerToggle(), viewTitle, preferences);
 
@@ -115,10 +118,7 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
         var avatar = new Avatar(name);
         var userName = new Span(name);
 
-        logout.addClickListener(_ -> authenticationContext.logout());
-        logout.addThemeVariants(ButtonVariant.TERTIARY);
-
-        var footer = new HorizontalLayout(avatar, userName, logout);
+        var footer = new HorizontalLayout(avatar, userName);
         footer.setWidthFull();
         footer.setPadding(true);
         footer.setAlignItems(FlexComponent.Alignment.CENTER);
