@@ -244,8 +244,9 @@ class UserEditor extends VerticalLayout {
         if (account.getQuota().isEmpty() && records.isEmpty()) {
             return;
         }
-        add(new H4(getTranslation("history.title")),
-                new UsageHistoryGrid(records, dateTimeFormatter.getZone(), dateTimeFormatter.getLocale()));
+        add(new H4(getTranslation("history.title")), records.isEmpty()
+                ? new Span(getTranslation("history.empty"))
+                : new UsageHistoryChart(records, dateTimeFormatter.getZone(), dateTimeFormatter.getLocale()));
     }
 
     private Component createButtons() {

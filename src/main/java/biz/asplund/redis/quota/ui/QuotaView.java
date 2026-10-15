@@ -180,8 +180,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         return master;
     }
 
-    // Also used for the finished periods in the usage history
-    static Component usageBadge(QuotaStatus status) {
+    private Component usageBadge(QuotaStatus status) {
         var badge = new Badge(status.used() + " / " + status.limit());
         if (isUsedUp(status)) {
             badge.addThemeVariants(BadgeVariant.ERROR);

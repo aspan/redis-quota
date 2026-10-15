@@ -49,6 +49,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.vaadin.addons.chartjs.config.BarChartConfig;
+import org.vaadin.addons.chartjs.data.BarDataset;
+import org.vaadin.addons.chartjs.data.LineDataset;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -241,19 +244,39 @@ class UserViewIT extends SpringBrowserlessTest {
 	}
 
 	@Test
-	void showsUsageHistory() {
+	void showsUsageHistoryAsBarChart() {
 		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(),
 				new QuotaConfig(10, QuotaPeriod.DAILY));
-		var day = LocalDate.of(2026, 10, 13).atStartOfDay(ZoneId.systemDefault()).toInstant();
-		var record = new QuotaUsageRecord(account, QuotaPeriod.DAILY, day);
-		record.update(10, 10);
-		quotaUsageRecordRepository.save(record);
+		quotaUsageRecordRepository.saveAll(List.of(
+				usageRecord(account, LocalDate.of(2026, 10, 12), 3),
+				usageRecord(account, LocalDate.of(2026, 10, 13), 10)));
 
-		var history = test(find(UsageHistoryGrid.class, openEditor(account.getUsername())).single());
+		var chart = find(UsageHistoryChart.class, openEditor(account.getUsername())).single();
 
-		assertThat(history.size()).isEqualTo(1);
-		assertThat(history.getCellText(0, 0)).isEqualTo("Oct 13, 2026");
-		assertThat(history.getCellComponent(0, 1).getElement().getText()).isEqualTo("10 / 10");
+		// Oldest on the left, the used-up day in red, and the limit as a line
+		var data = ((BarChartConfig) chart.getConfig()).data();
+		assertThat(data.getLabels()).containsExactly("Oct 12, 2026", "Oct 13, 2026");
+		assertThat(data.getDatasets()).hasSize(2);
+		assertThat(((BarDataset) data.getDatasetAtIndex(0)).getData()).containsExactly(3.0, 10.0);
+		assertThat(((LineDataset) data.getDatasetAtIndex(1)).getData()).containsExactly(10.0, 10.0);
+	}
+
+	@Test
+	void tellsWhenNoHistoryIsRecorded() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(),
+				new QuotaConfig(10, QuotaPeriod.DAILY));
+
+		var editor = openEditor(account.getUsername());
+
+		assertThat(find(UsageHistoryChart.class, editor).exists()).isFalse();
+		assertThat(find(Span.class, editor).withText("No finished periods recorded yet").exists()).isTrue();
+	}
+
+	private static QuotaUsageRecord usageRecord(UserAccount account, LocalDate day, int used) {
+		var record = new QuotaUsageRecord(account, QuotaPeriod.DAILY, day.atStartOfDay(ZoneId.systemDefault())
+				.toInstant());
+		record.update(used, 10);
+		return record;
 	}
 
 	@Test
@@ -263,7 +286,7 @@ class UserViewIT extends SpringBrowserlessTest {
 		var editor = openEditor(account.getUsername());
 
 		assertThat(find(QuotaUsageCard.class, editor).exists()).isFalse();
-		assertThat(find(UsageHistoryGrid.class, editor).exists()).isFalse();
+		assertThat(find(UsageHistoryChart.class, editor).exists()).isFalse();
 	}
 
 	@Test
@@ -380,8 +403,7 @@ class UserViewIT extends SpringBrowserlessTest {
 
 	@SuppressWarnings("unchecked")
 	private GridTester<Grid<UserAccount>, UserAccount> grid() {
-		// The users grid, not an open editor's usage history
-		return test((Grid<UserAccount>) find(Grid.class).withCondition(grid -> grid.getClass() == Grid.class).single());
+		return test((Grid<UserAccount>) find(Grid.class).single());
 	}
 
 	private static int rowOf(GridTester<Grid<UserAccount>, UserAccount> grid, String username) {
