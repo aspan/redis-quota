@@ -27,6 +27,7 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.card.Card;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
@@ -44,6 +45,7 @@ import com.vaadin.flow.component.textfield.TextField;
 import org.springframework.dao.DataAccessException;
 
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.function.Consumer;
 
 // Detail panel for creating or editing one quota definition, a limit for a single period, and managing its usage
@@ -164,7 +166,6 @@ class QuotaEditor extends VerticalLayout {
         usageField.setPlaceholder(getTranslation("usage.placeholder"));
         usageField.setMin(0);
         usageField.setAriaLabel(getTranslation("usage.newUsage", QuotaView.label(period)));
-        usageField.setWidth("8rem");
         var set = new Button(getTranslation("usage.set"), _ -> {
             if (usageField.getValue() == null || usageField.getValue() < 0) {
                 usageField.setInvalid(true);
@@ -177,27 +178,20 @@ class QuotaEditor extends VerticalLayout {
                 _ -> modifyUsage(period, () -> quotaManager.resetQuota(row.id())));
         reset.addThemeVariants(ButtonVariant.TERTIARY);
 
-        var actions = new HorizontalLayout(usageField, set, reset);
-        actions.setAlignItems(FlexComponent.Alignment.BASELINE);
-
         // Runs a request against the quota as a client would, which also records the last use
         var amountField = new IntegerField();
         amountField.setValue(1);
         amountField.setMin(1);
         amountField.setStepButtonsVisible(true);
         amountField.setAriaLabel(getTranslation("usage.amount"));
-        amountField.setWidth("8rem");
         var checkAndIncrement = new Button(getTranslation("usage.checkAndIncrement"), VaadinIcon.PLAY.create(),
                 _ -> checkAndIncrement(amountField));
-        var request = new HorizontalLayout(amountField, checkAndIncrement);
-        request.setAlignItems(FlexComponent.Alignment.BASELINE);
 
         // Adds a signed amount to the usage, as a client refunding or charging extra would; usage stays at 0 or more
         var deltaField = new IntegerField();
         deltaField.setStepButtonsVisible(true);
         deltaField.setPlaceholder(getTranslation("usage.deltaPlaceholder"));
         deltaField.setAriaLabel(getTranslation("usage.delta", QuotaView.label(period)));
-        deltaField.setWidth("8rem");
         var adjust = new Button(getTranslation("usage.adjust"), VaadinIcon.PLUS_MINUS.create(), _ -> {
             if (deltaField.getValue() == null || deltaField.getValue() == 0) {
                 deltaField.setInvalid(true);
@@ -206,11 +200,22 @@ class QuotaEditor extends VerticalLayout {
             }
             modifyUsage(period, () -> quotaManager.adjustUsage(row.id(), deltaField.getValue()));
         });
-        var adjustment = new HorizontalLayout(deltaField, adjust);
-        adjustment.setAlignItems(FlexComponent.Alignment.BASELINE);
-
-        var footer = new VerticalLayout(actions, adjustment, request);
-        footer.setPadding(false);
+        // A grid of one row per action, so the fields line up and fill the card beside a shared button column
+        var footer = new Div(usageField, set, reset, deltaField, adjust, amountField, checkAndIncrement);
+        footer.setWidthFull();
+        footer.getStyle()
+                .set("display", "grid")
+                .set("grid-template-columns", "1fr auto auto")
+                .set("align-items", "baseline")
+                .set("gap", "var(--vaadin-gap-s)");
+        for (var field : List.of(usageField, deltaField, amountField)) {
+            field.setWidthFull();
+        }
+        // The single buttons span the column of Set and Reset
+        for (var button : List.of(adjust, checkAndIncrement)) {
+            button.setWidthFull();
+            button.getStyle().set("grid-column", "span 2");
+        }
         card.addToFooter(footer);
         return card;
     }

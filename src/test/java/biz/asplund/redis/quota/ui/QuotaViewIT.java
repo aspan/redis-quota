@@ -334,6 +334,19 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
+	void stretchesUsageActionsAcrossCard() {
+		var id = uniqueId();
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
+		var card = usageCard(openEditor(id), "Hourly");
+
+		assertThat(find(IntegerField.class, card).all()).hasSize(3)
+				.allSatisfy(field -> assertThat(field.getWidth()).isEqualTo("100%"));
+		assertThat(find(Button.class, card).withText("Adjust").single().getWidth()).isEqualTo("100%");
+		assertThat(find(Button.class, card).withText("Check and increment").single().getWidth()).isEqualTo("100%");
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
 	void stretchesFormFieldsAcrossEditor() {
 		navigate(QuotaView.class);
 		test(find(Button.class).withText("New quota").single()).click();
