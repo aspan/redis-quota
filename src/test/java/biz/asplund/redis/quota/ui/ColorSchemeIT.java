@@ -19,8 +19,6 @@ package biz.asplund.redis.quota.ui;
 import biz.asplund.redis.TestcontainersConfiguration;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.UI;
-import com.vaadin.flow.component.contextmenu.ContextMenu;
-import com.vaadin.flow.component.contextmenu.ContextMenuTester;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.page.ColorScheme;
 import com.vaadin.flow.server.VaadinSession;
@@ -32,8 +30,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.test.context.support.WithMockUser;
-
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -49,47 +45,55 @@ class ColorSchemeIT extends SpringBrowserlessTest {
 	void followsSystemByDefault() {
 		navigate(QuotaView.class);
 
-		assertThat(isChecked("System")).isTrue();
 		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.LIGHT_DARK);
+		assertThat(iconOf(toggleButton())).isEqualTo("vaadin:contrast");
+		assertThat(toggleButton().getAriaLabel()).contains("Appearance: switch to light");
 	}
 
 	@Test
-	void switchesPageToPickedScheme() {
+	void cyclesThroughLightAndDarkBackToSystem() {
 		navigate(QuotaView.class);
 
-		pick("Dark");
-
-		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.DARK);
-		assertThat(VaadinSession.getCurrent().getAttribute(ColorSchemeChoice.class)).isEqualTo(ColorSchemeChoice.DARK);
-		assertThat(((Icon) find(ColorSchemeMenuButton.class).single().getIcon()).getIcon()).isEqualTo("vaadin:moon");
-		assertThat(isChecked("Dark")).isTrue();
-		assertThat(isChecked("System")).isFalse();
-
-		pick("Light");
+		toggle();
 
 		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.LIGHT);
+		assertThat(VaadinSession.getCurrent().getAttribute(ColorSchemeChoice.class)).isEqualTo(ColorSchemeChoice.LIGHT);
+		assertThat(iconOf(toggleButton())).isEqualTo("vaadin:sun");
+		assertThat(toggleButton().getTooltip().getText()).isEqualTo("Appearance: switch to dark");
+
+		toggle();
+
+		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.DARK);
+		assertThat(iconOf(toggleButton())).isEqualTo("vaadin:moon");
+		assertThat(toggleButton().getAriaLabel()).contains("Appearance: switch to system");
+
+		toggle();
+
+		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.LIGHT_DARK);
+		assertThat(VaadinSession.getCurrent().getAttribute(ColorSchemeChoice.class)).isEqualTo(ColorSchemeChoice.SYSTEM);
+		assertThat(iconOf(toggleButton())).isEqualTo("vaadin:contrast");
 	}
 
 	@Test
 	void keepsChoiceAcrossViews() {
 		navigate(QuotaView.class);
-		pick("Dark");
+		toggle();
+		toggle();
 
 		navigate(LoginView.class);
 
-		assertThat(isChecked("Dark")).isTrue();
+		assertThat(iconOf(toggleButton())).isEqualTo("vaadin:moon");
 	}
 
 	@Test
-	void translatesChoices() {
+	void translatesLabel() {
 		navigate(QuotaView.class);
 		var languageMenu = test(find(LanguageMenuButton.class).single().menu());
 		languageMenu.open();
 		languageMenu.clickItem("Svenska");
 		languageMenu.close();
 
-		assertThat(itemTexts()).containsExactly("System", "Ljust", "Mörkt");
-		assertThat(find(ColorSchemeMenuButton.class).single().getAriaLabel()).contains("Utseende");
+		assertThat(toggleButton().getAriaLabel()).contains("Utseende: växla till ljust");
 	}
 
 	@Test
@@ -113,32 +117,16 @@ class ColorSchemeIT extends SpringBrowserlessTest {
 		assertThat(html.attr("style")).isEqualTo("--accent: red; color-scheme: dark;");
 	}
 
-	private void pick(String choice) {
-		var menu = menu();
-		menu.open();
-		menu.clickItem(choice);
-		menu.close();
+	private void toggle() {
+		test(toggleButton()).click();
 	}
 
-	// Menu items can only be read while the menu is open, as in the browser
-	private boolean isChecked(String choice) {
-		var menu = menu();
-		menu.open();
-		var checked = menu.isItemChecked(choice);
-		menu.close();
-		return checked;
+	private ColorSchemeToggleButton toggleButton() {
+		return find(ColorSchemeToggleButton.class).single();
 	}
 
-	private List<String> itemTexts() {
-		var menu = menu();
-		menu.open();
-		var texts = menu.getItemTexts();
-		menu.close();
-		return texts;
-	}
-
-	private ContextMenuTester<ContextMenu> menu() {
-		return test(find(ColorSchemeMenuButton.class).single().menu());
+	private static String iconOf(ColorSchemeToggleButton button) {
+		return ((Icon) button.getIcon()).getIcon();
 	}
 
 	private static MockHttpServletRequest request(Cookie... cookies) {

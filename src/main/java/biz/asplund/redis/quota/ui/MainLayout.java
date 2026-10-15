@@ -59,9 +59,9 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
         getStyle().set("--vaadin-app-layout-drawer-width", "20rem");
 
         viewTitle.getStyle().set("font-size", "1.125rem").set("margin", "0");
-        // Language and appearance menus sit at the right end of the navbar
+        // Language menu and appearance toggle sit at the right end of the navbar
         var preferences = new HorizontalLayout(new LanguageMenuButton(languagePreference),
-                new ColorSchemeMenuButton(colorSchemePreference));
+                new ColorSchemeToggleButton(colorSchemePreference));
         preferences.setSpacing(false);
         preferences.getStyle().set("margin-inline-start", "auto").set("padding-inline-end", "0.5rem");
         addToNavbar(new DrawerToggle(), viewTitle, preferences);

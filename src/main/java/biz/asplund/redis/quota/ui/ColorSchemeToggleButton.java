@@ -1,0 +1,58 @@
+/*
+ * Copyright 2026 Andreas Asplund
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package biz.asplund.redis.quota.ui;
+
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.i18n.LocaleChangeEvent;
+import com.vaadin.flow.i18n.LocaleChangeObserver;
+
+// Cycles through the system, light and dark color schemes; the choice applies to the session and is remembered
+// in a cookie
+class ColorSchemeToggleButton extends Button implements LocaleChangeObserver {
+
+    private final ColorSchemePreference colorSchemePreference;
+
+    ColorSchemeToggleButton(ColorSchemePreference colorSchemePreference) {
+        this.colorSchemePreference = colorSchemePreference;
+        addThemeVariants(ButtonVariant.TERTIARY);
+        addClickListener(_ -> {
+            colorSchemePreference.select(next(colorSchemePreference.current()));
+            update();
+        });
+    }
+
+    // System, light, dark and back to system, in the order of the enum
+    private static ColorSchemeChoice next(ColorSchemeChoice current) {
+        var choices = ColorSchemeChoice.values();
+        return choices[(current.ordinal() + 1) % choices.length];
+    }
+
+    @Override
+    public void localeChange(LocaleChangeEvent event) {
+        update();
+    }
+
+    // Shows the current scheme, and names the one a click switches to
+    private void update() {
+        var current = colorSchemePreference.current();
+        setIcon(current.icon().create());
+        var label = getTranslation("colorScheme.switchTo", getTranslation("colorScheme." + next(current).key()));
+        setAriaLabel(label);
+        setTooltipText(label);
+    }
+}

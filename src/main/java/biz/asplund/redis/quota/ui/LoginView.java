@@ -42,9 +42,9 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver, Lo
 
         login.setAction("login");
         login.setForgotPasswordButtonVisible(false);
-        // Language and appearance menus in the top right corner, as in the main layout
+        // Language menu and appearance toggle in the top right corner, as in the main layout
         var preferences = new HorizontalLayout(new LanguageMenuButton(languagePreference),
-                new ColorSchemeMenuButton(colorSchemePreference));
+                new ColorSchemeToggleButton(colorSchemePreference));
         preferences.setSpacing(false);
         preferences.getStyle().set("position", "absolute").set("top", "0.5rem").set("inset-inline-end", "0.5rem");
         getStyle().set("position", "relative");
