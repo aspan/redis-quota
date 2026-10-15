@@ -49,12 +49,12 @@ class UserQuotaSyncIT {
 
 	@Test
 	void runsDailyAtHalfPastThree() {
+		// The sync is the application's only cron task
 		assertThat(scheduledTaskHolder.getScheduledTasks())
 				.map(scheduled -> scheduled.getTask())
-				.filteredOn(task -> task.toString().contains("UserQuotaSync.sync"))
+				.filteredOn(CronTask.class::isInstance)
 				.singleElement()
-				.isInstanceOfSatisfying(CronTask.class,
-						task -> assertThat(task.getExpression()).isEqualTo("0 30 3 * * *"));
+				.satisfies(task -> assertThat(((CronTask) task).getExpression()).isEqualTo("0 30 3 * * *"));
 	}
 
 	@Test

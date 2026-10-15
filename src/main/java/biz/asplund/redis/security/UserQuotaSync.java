@@ -21,22 +21,27 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.dao.DataAccessException;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.scheduling.annotation.SchedulingConfigurer;
+import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.stereotype.Component;
 
 // Makes Redis match the users' quotas in PostgreSQL: copies them, so they come back after Redis has lost its data,
 // removes definitions that belong to no user, and deletes stale usage counters and last-used times. It runs at
-// startup and then once a day, at quota.sync.cron. A Redis outage is logged rather than stopping the application,
+// startup and then once a day, at quota.sync.cron (QuotaSyncProperties). A Redis outage is logged rather than stopping the application,
 // which fails open on quotas meanwhile, and the next run tries again
 @Component
-public class UserQuotaSync implements ApplicationRunner {
+@EnableConfigurationProperties(QuotaSyncProperties.class)
+public class UserQuotaSync implements ApplicationRunner, SchedulingConfigurer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(UserQuotaSync.class);
 
     private final UserAccountService userAccountService;
+    private final QuotaSyncProperties properties;
 
-    public UserQuotaSync(UserAccountService userAccountService) {
+    public UserQuotaSync(UserAccountService userAccountService, QuotaSyncProperties properties) {
         this.userAccountService = userAccountService;
+        this.properties = properties;
     }
 
     @Override
@@ -44,8 +49,14 @@ public class UserQuotaSync implements ApplicationRunner {
         sync();
     }
 
-    // Daily at 03:30 by default (application.properties); "-" as quota.sync.cron turns the daily run off
-    @Scheduled(cron = "${quota.sync.cron}")
+    // Daily at 03:30 by default; "-" as quota.sync.cron turns the daily run off
+    @Override
+    public void configureTasks(ScheduledTaskRegistrar registrar) {
+        if (properties.daily()) {
+            registrar.addCronTask(this::sync, properties.cron());
+        }
+    }
+
     public void sync() {
         try {
             var result = userAccountService.syncQuotasToRedis();
