@@ -50,7 +50,6 @@ import org.springframework.dao.DataAccessException;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Consumer;
 
 // Detail panel for creating or editing one user: password, whether it may log in, its roles, quota and settings, and
@@ -72,8 +71,6 @@ class UserEditor extends VerticalLayout {
     private final MultiSelectComboBox<Role> rolesField = new MultiSelectComboBox<>();
     private final Select<QuotaPeriod> quotaPeriodField = new Select<>();
     private final IntegerField quotaLimitField = new IntegerField();
-    private final Select<Locale> localeField = new Select<>();
-    private final Select<ColorSchemeChoice> colorSchemeField = new Select<>();
     // Validates with the constraints on UserAccount and the rules below, and writes the fields into a new
     // UserAccount, so the user shown in the grid is not changed before the service has accepted the change
     private final BeanValidationBinder<UserAccount> binder = new BeanValidationBinder<>(UserAccount.class);
@@ -241,50 +238,11 @@ class UserEditor extends VerticalLayout {
         }
     }
 
-    // The language and appearance the user's pages open in, also set from the toolbar while the user is logged in.
-    // Not set leaves them to the browser's cookie or language
+    // The language and appearance the user's pages open in, also set from the toolbar while the user is logged in
     private Component createSettingsForm(List<Locale> locales) {
-        var form = new FormLayout();
-        form.setAutoResponsive(true);
-        form.setMaxColumns(1);
-        form.setExpandColumns(true);
-        form.setExpandFields(true);
-        form.setWidthFull();
-
-        localeField.setLabel(getTranslation("userEditor.language"));
-        localeField.setItems(locales);
-        localeField.setItemLabelGenerator(locale -> locale == null ? getTranslation("userEditor.notSet")
-                : LanguagePreference.displayName(locale));
-        localeField.setEmptySelectionAllowed(true);
-        localeField.setEmptySelectionCaption(getTranslation("userEditor.notSet"));
-        localeField.setHelperText(getTranslation("userEditor.languageHint"));
-        // A stored language that is no longer configured shows as not set
-        binder.forField(localeField).bind(
-                user -> Optional.ofNullable(user.getSettings().locale()).map(Locale::forLanguageTag)
-                        .filter(locales::contains).orElse(null),
-                (user, locale) -> user.setSettings(user.getSettings()
-                        .withLocale(locale == null ? null : locale.toLanguageTag())));
-
-        colorSchemeField.setLabel(getTranslation("userEditor.colorScheme"));
-        colorSchemeField.setItems(ColorSchemeChoice.values());
-        colorSchemeField.setItemLabelGenerator(choice -> choice == null ? getTranslation("userEditor.notSet")
-                : capitalize(getTranslation("colorScheme." + choice.key())));
-        colorSchemeField.setEmptySelectionAllowed(true);
-        colorSchemeField.setEmptySelectionCaption(getTranslation("userEditor.notSet"));
-        colorSchemeField.setHelperText(getTranslation("userEditor.colorSchemeHint"));
-        binder.forField(colorSchemeField).bind(
-                user -> Optional.ofNullable(user.getSettings().colorScheme()).map(ColorSchemeChoice::fromKey)
-                        .orElse(null),
-                (user, choice) -> user.setSettings(user.getSettings()
-                        .withColorScheme(choice == null ? null : choice.key())));
-
-        form.add(localeField, colorSchemeField);
-        return form;
-    }
-
-    // The scheme names are written in lower case, to fit in the toolbar's "switch to" text
-    private String capitalize(String text) {
-        return text.isEmpty() ? text : text.substring(0, 1).toUpperCase(getLocale()) + text.substring(1);
+        var settingsField = new UserSettingsField(locales);
+        binder.forField(settingsField).bind(UserAccount::getSettings, UserAccount::setSettings);
+        return settingsField;
     }
 
     private Component createButtons() {

@@ -173,6 +173,18 @@ public class UserAccountService {
                 .ifPresent(account -> account.setSettings(change.apply(account.getSettings())));
     }
 
+    // Changes the password of the user with the username, as the user does on their profile page, which takes
+    // their current password to confirm it is them
+    @Transactional
+    public void changeOwnPassword(String username, String currentPassword, String newPassword) {
+        var account = userAccountRepository.findByUsername(username)
+                .orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
+        if (currentPassword == null || !passwordEncoder.matches(currentPassword, account.getPassword())) {
+            throw new AccountRuleException(Rule.WRONG_PASSWORD);
+        }
+        account.setPassword(encode(newPassword));
+    }
+
     @Transactional
     public void deleteUser(long id, String actingUsername) {
         var account = userAccountRepository.findById(id).orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
