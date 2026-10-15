@@ -89,9 +89,6 @@ Requests under `/api/**` log in as a user with HTTP Basic on every request, chec
 - `X-Quota-Remaining`
 - `X-Quota-Reset` (ISO-8601 instant)
 
-```bash
-curl -u alice:<password> http://localhost:8080/api/...
-```
 
 | Response | When |
 |---|---|
@@ -99,7 +96,29 @@ curl -u alice:<password> http://localhost:8080/api/...
 | `403 Forbidden` | No quota is stored for the username. The JSON body has `"error": "No Quota"`. |
 | `429 Too Many Requests` | The quota is used up. The JSON body has the limit, usage, remaining quota and reset time. |
 
-Allowed requests carry their `QuotaStatus` in the `quotaStatus` request attribute (`QuotaInterceptor.STATUS_ATTRIBUTE`) for the handler. If Redis cannot be reached, requests are allowed, as described in [Failing open](#failing-open). The application has no API endpoints of its own yet. HTTP Basic checks the bcrypt password on every request, which costs some CPU time per request.
+Allowed requests carry their `QuotaStatus` in the `quotaStatus` request attribute (`QuotaInterceptor.STATUS_ATTRIBUTE`) for the handler. If Redis cannot be reached, requests are allowed, as described in [Failing open](#failing-open). HTTP Basic checks the bcrypt password on every request, which costs some CPU time per request.
+
+### Quota status endpoint
+
+`GET /api/quota` shows the logged-in user their own quota. It is left out of the interceptor, so it does not use up quota and still answers when the quota is used up:
+
+```bash
+curl -u alice:<password> http://localhost:8080/api/quota
+```
+
+```json
+{
+  "id": "alice",
+  "period": "DAILY",
+  "limit": 500,
+  "used": 120,
+  "remaining": 380,
+  "resetAt": "2026-10-15T22:00:00Z",
+  "lastUsed": "2026-10-15T09:12:44.118Z"
+}
+```
+
+`lastUsed` is `null` until the first allowed request. A user without a quota gets `403` with `"error": "No Quota"`. Unlike requests, which fail open, the endpoint answers `503` with `"error": "Quota Unavailable"` when the quota cannot be read from Redis, since a status it could not read would only mislead.
 
 ## Running
 
@@ -150,6 +169,7 @@ All tests are integration tests (`*IT`) and run with the Maven Failsafe plugin d
 - `I18nPropertiesIT` checks how `quota.ui.i18n.locales` binds: the defaults, a custom order and fallback, limiting the languages, and rejecting an empty list.
 - `I18nIT` checks that the UI uses English by default, that the language menu switches the open views and the login form to Swedish and back, that both translation files have the same keys, that every configured locale has a translation file, and that English is served when the JVM's default locale is Swedish.
 - `QuotaInterceptorIT` sends API requests with HTTP Basic to a test endpoint: counting them against the user's quota with the quota headers until a `429`, refusing a user without a quota with a `403`, using a definition stored for the username, and not counting requests that fail to log in.
+- `QuotaStatusControllerIT` checks `GET /api/quota`: showing the user's own period, limit, usage, reset and last-used time without using up quota, a used-up quota, no last use before the first request, refusing a user without a quota, and requiring a login.
 - `SecurityConfigurationIT` checks the HTTP security rules with MockMvc: the login redirect, form login with the user stored in the database, rejecting a disabled user, and that `/api/**` requires HTTP Basic and keeps no session.
 - `UserAccountServiceIT` checks managing users and roles: creating users with encoded passwords and roles, rejecting a missing or taken username, a short password and unknown roles, changing roles, the enabled flag and the password, copying quotas to Redis under the username and removing them, leaving a definition of a user without a quota alone, copying all quotas again, keeping your own account an enabled admin, the role name rules, deleting a role from its users, and keeping the `ADMIN` role.
 - `UserViewIT` tests the users view with Vaadin browserless tests: access control, listing users with their roles and status, creating a user and showing why one is invalid, editing roles and disabling a user, setting a user's quota, showing a user's quota read-only in the quotas view, the limits on your own account, deleting a user, and adding and deleting roles in the roles dialog.

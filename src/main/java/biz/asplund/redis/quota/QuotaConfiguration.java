@@ -31,6 +31,8 @@ public class QuotaConfiguration implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         // The API paths, which Spring Security has authenticated with HTTP Basic before the interceptor runs
         registry.addInterceptor(quotaInterceptor)
-                .addPathPatterns("/api/**");
+                .addPathPatterns("/api/**")
+                // Reading your own quota does not count against it
+                .excludePathPatterns(QuotaStatusController.PATH);
     }
 }
