@@ -192,7 +192,24 @@ class QuotaEditor extends VerticalLayout {
         var request = new HorizontalLayout(amountField, checkAndIncrement);
         request.setAlignItems(FlexComponent.Alignment.BASELINE);
 
-        var footer = new VerticalLayout(actions, request);
+        // Adds a signed amount to the usage, as a client refunding or charging extra would; usage stays at 0 or more
+        var deltaField = new IntegerField();
+        deltaField.setStepButtonsVisible(true);
+        deltaField.setPlaceholder(getTranslation("usage.deltaPlaceholder"));
+        deltaField.setAriaLabel(getTranslation("usage.delta", QuotaView.label(period)));
+        deltaField.setWidth("8rem");
+        var adjust = new Button(getTranslation("usage.adjust"), VaadinIcon.PLUS_MINUS.create(), _ -> {
+            if (deltaField.getValue() == null || deltaField.getValue() == 0) {
+                deltaField.setInvalid(true);
+                deltaField.setErrorMessage(getTranslation("usage.deltaInvalid"));
+                return;
+            }
+            modifyUsage(period, () -> quotaManager.adjustUsage(row.id(), deltaField.getValue()));
+        });
+        var adjustment = new HorizontalLayout(deltaField, adjust);
+        adjustment.setAlignItems(FlexComponent.Alignment.BASELINE);
+
+        var footer = new VerticalLayout(actions, adjustment, request);
         footer.setPadding(false);
         card.addToFooter(footer);
         return card;
@@ -241,8 +258,10 @@ class QuotaEditor extends VerticalLayout {
             change.run();
             notify(getTranslation("usage.updated", QuotaView.label(period)), NotificationVariant.SUCCESS);
             onSaved.accept(row.definition());
-        } catch (DataAccessException e) {
-            notify(getTranslation("usage.updateFailed", e.getMostSpecificCause().getMessage()), NotificationVariant.ERROR);
+        } catch (IllegalArgumentException | DataAccessException e) {
+            // The definition may have been deleted elsewhere
+            var cause = e instanceof DataAccessException dataAccess ? dataAccess.getMostSpecificCause() : e;
+            notify(getTranslation("usage.updateFailed", cause.getMessage()), NotificationVariant.ERROR);
         }
     }
 

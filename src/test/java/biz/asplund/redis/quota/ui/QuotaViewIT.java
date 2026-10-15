@@ -233,6 +233,41 @@ class QuotaViewIT extends SpringBrowserlessTest {
 
 	@Test
 	@WithMockUser(username = "admin", roles = "ADMIN")
+	void adjustsUsageByASignedAmount() {
+		var id = uniqueId();
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
+		quotaManager.setUsage(id, 4);
+		var editor = openEditor(id);
+
+		adjustFromCard(usageCard(editor, "Hourly"), 3);
+
+		assertThat(quotaManager.getUsage(id)).isEqualTo(7);
+		var card = usageCard(find(QuotaEditor.class).single(), "Hourly");
+		assertThat(card.getSubtitle().getElement().getText()).isEqualTo("7 of 10 used, 3 left");
+
+		// A refund never takes usage below zero
+		adjustFromCard(card, -20);
+
+		assertThat(quotaManager.getUsage(id)).isZero();
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
+	void requiresNonZeroAmountToAdjust() {
+		var id = uniqueId();
+		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
+		var card = usageCard(openEditor(id), "Hourly");
+		var delta = find(IntegerField.class, card).withAriaLabel("Change in usage, Hourly").single();
+
+		test(delta).setValue(0);
+		test(find(Button.class, card).withText("Adjust").single()).click();
+
+		assertThat(delta.isInvalid()).isTrue();
+		assertThat(delta.getErrorMessage()).isEqualTo("Enter a positive or negative amount");
+	}
+
+	@Test
+	@WithMockUser(username = "admin", roles = "ADMIN")
 	void checksAndIncrementsLikeAClient() {
 		var id = uniqueId();
 		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 5));
@@ -375,6 +410,11 @@ class QuotaViewIT extends SpringBrowserlessTest {
 		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 20));
 		quotaManager.setUsage(id, used);
 		return find(ProgressBar.class, usageCard(openEditor(id), "Daily")).single();
+	}
+
+	private void adjustFromCard(Card card, int delta) {
+		test(find(IntegerField.class, card).withAriaLabel("Change in usage, Hourly").single()).setValue(delta);
+		test(find(Button.class, card).withText("Adjust").single()).click();
 	}
 
 	private void requestFromCard(Card card, int amount) {
