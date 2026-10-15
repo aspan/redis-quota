@@ -16,6 +16,8 @@
 
 package biz.asplund.redis.security;
 
+import biz.asplund.redis.quota.QuotaConfig;
+import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.testcontainers.TestcontainersConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +27,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.startsWith;
@@ -46,6 +50,9 @@ class SecurityConfigurationIT {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private UserAccountService userAccountService;
 
 	@Autowired
 	private UserAccountRepository userAccountRepository;
@@ -72,6 +79,21 @@ class SecurityConfigurationIT {
 		mockMvc.perform(formLogin("/login").user("admin").password("wrong"))
 				.andExpect(unauthenticated())
 				.andExpect(redirectedUrl("/login?error"));
+	}
+
+	@Test
+	void logsInWithEmailAddressUnderUsername() throws Exception {
+		var username = "email-login-" + UUID.randomUUID();
+		var email = username + "@example.com";
+		userAccountService.createUser(username, "password1", true, List.of("USER"),
+				new QuotaConfig(10, QuotaPeriod.DAILY), new UserProfile(null, email, UserSettings.NONE));
+
+		mockMvc.perform(formLogin("/login").user(email.toUpperCase(Locale.ROOT)).password("password1"))
+				.andExpect(authenticated().withUsername(username));
+		// The API's HTTP Basic login too, counted against the quota under the username
+		mockMvc.perform(get("/api/quota").with(httpBasic(email, "password1")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(username));
 	}
 
 	@Test

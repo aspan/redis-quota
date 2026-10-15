@@ -111,7 +111,9 @@ public class UserAccountService {
         if (trimmedUsername.isEmpty()) {
             throw new AccountRuleException(Rule.USERNAME_REQUIRED);
         }
-        if (userAccountRepository.existsByUsername(trimmedUsername)) {
+        // Another user's email address would be a second way to log in as either of them
+        if (userAccountRepository.existsByUsername(trimmedUsername)
+                || userAccountRepository.findByEmailIgnoreCase(trimmedUsername).isPresent()) {
             throw new AccountRuleException(Rule.USERNAME_TAKEN);
         }
         validate(quota);
@@ -277,13 +279,16 @@ public class UserAccountService {
         roleRepository.delete(role);
     }
 
-    // Another user's address, whatever its case, is refused; the database's unique index backs this up. Checked
-    // before the user is changed, as the query would otherwise first flush the change and fail on the index
+    // Another user's address, whatever its case, is refused; the database's unique index backs this up. So is
+    // another user's username, as both log in. Checked before the user is changed, as the queries would otherwise
+    // first flush the change and fail on the index
     private void checkEmailFree(String email, String username) {
         if (email == null || email.isBlank()) {
             return;
         }
-        if (userAccountRepository.findByEmailIgnoreCase(email.trim())
+        var address = email.trim();
+        if (userAccountRepository.findByEmailIgnoreCase(address)
+                .or(() -> userAccountRepository.findByUsernameIgnoreCase(address))
                 .filter(other -> !other.getUsername().equals(username)).isPresent()) {
             throw new AccountRuleException(Rule.EMAIL_TAKEN);
         }

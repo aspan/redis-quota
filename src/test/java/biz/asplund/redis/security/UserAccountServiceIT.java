@@ -278,6 +278,19 @@ class UserAccountServiceIT {
 	}
 
 	@Test
+	void keepsUsernamesAndEmailAddressesApart() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null,
+				new UserProfile(null, uniqueName() + "@example.com", UserSettings.NONE));
+		var email = userAccountService.findProfile(account.getUsername()).email();
+
+		// Both log in, so neither may be the other kind of another user's
+		assertRule(Rule.USERNAME_TAKEN, () -> userAccountService.createUser(email.toUpperCase(Locale.ROOT),
+				"password1", true, List.of(), null));
+		assertRule(Rule.EMAIL_TAKEN, () -> userAccountService.createUser(uniqueName(), "password1", true,
+				List.of(), null, new UserProfile(null, account.getUsername(), UserSettings.NONE)));
+	}
+
+	@Test
 	void createsRoleInUpperCase() {
 		var name = uniqueRoleName();
 

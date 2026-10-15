@@ -134,7 +134,7 @@ class ProfileViewIT extends SpringBrowserlessTest {
 		test(email).setValue(userAccountService.findProfile(other.getUsername()).email().toUpperCase(Locale.ROOT));
 		test(save).click();
 		assertThat(email.isInvalid()).isTrue();
-		assertThat(email.getErrorMessage()).isEqualTo("Another user already has this email address");
+		assertThat(email.getErrorMessage()).isEqualTo("Another user already has this email address, or this username");
 
 		test(email).setValue("me@example.com");
 		test(save).click();

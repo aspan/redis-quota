@@ -103,6 +103,16 @@ class DatabaseUserDetailsServiceIT {
 	}
 
 	@Test
+	void loadsUserByEmailAddressUnderUsername() {
+		var username = uniqueUsername();
+		var account = new UserAccount(username, passwordEncoder.encode("pw"));
+		account.setEmail(username + "@Example.com");
+		userAccountRepository.save(account);
+
+		assertThat(userDetailsService.loadUserByUsername(username + "@example.COM").getUsername()).isEqualTo(username);
+	}
+
+	@Test
 	void rejectsUnknownUser() {
 		assertThatExceptionOfType(UsernameNotFoundException.class)
 				.isThrownBy(() -> userDetailsService.loadUserByUsername(uniqueUsername()));

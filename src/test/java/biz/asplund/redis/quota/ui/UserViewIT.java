@@ -175,7 +175,7 @@ class UserViewIT extends SpringBrowserlessTest {
 		test(find(Button.class, editor).withText("Save").single()).click();
 
 		assertThat(username.isInvalid()).isTrue();
-		assertThat(username.getErrorMessage()).isEqualTo("A user with this username already exists");
+		assertThat(username.getErrorMessage()).isEqualTo("A user already has this username, or this email address");
 	}
 
 	@Test

@@ -38,7 +38,11 @@ public class DatabaseUserDetailsService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) {
+        // The login can be the username or the email address, whatever its case; the user is logged in under the
+        // username either way, which is what quotas and settings are kept under. UserAccountService keeps the two
+        // from meeting, so no login can mean two users
         var account = userAccountRepository.findByUsername(username)
+                .or(() -> userAccountRepository.findByEmailIgnoreCase(username.trim()))
                 .orElseThrow(() -> new UsernameNotFoundException("No user " + username));
         return User.withUsername(account.getUsername())
                 .password(account.getPassword())
