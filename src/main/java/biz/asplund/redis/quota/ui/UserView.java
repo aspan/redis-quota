@@ -103,7 +103,8 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
 
         masterDetail.setMaster(createMaster());
         masterDetail.setMasterSize("40rem", true);
-        masterDetail.setDetailSize("28rem");
+        // Wide enough for the usage card and the usage history chart
+        masterDetail.setDetailSize("36rem");
         masterDetail.addDetailEscapePressListener(_ -> closeEditor());
         masterDetail.addBackdropClickListener(_ -> closeEditor());
         masterDetail.setSizeFull();
