@@ -102,8 +102,8 @@ class QuotaViewIT extends SpringBrowserlessTest {
 		assertThat(find(H1.class).single().getText()).isEqualTo("Quotas");
 		assertThat(find(SideNav.class).single().getItems())
 				.extracting(SideNavItem::getLabel, SideNavItem::getPath)
-				.containsExactly(tuple("Home", ""), tuple("Quotas", "quotas"), tuple("Users", "users"),
-						tuple("My profile", "profile"));
+				.containsExactly(tuple("Home", ""), tuple("Send SMS", "sms"), tuple("Quotas", "quotas"),
+						tuple("Users", "users"), tuple("My profile", "profile"));
 		// Log out is at the right end of the navbar, after the language and appearance buttons
 		var logout = find(Button.class).withAriaLabel("Log out").single();
 		var navbarEnd = logout.getParent().orElseThrow();
