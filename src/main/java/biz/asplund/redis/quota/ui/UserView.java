@@ -270,7 +270,8 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
             roles = userAccountService.findAllRoles();
         } catch (DataAccessException e) {
             users = List.of();
-            Notification.show(getTranslation("users.loadFailed", e.getMostSpecificCause().getMessage()))
+            Notification.show(getTranslation("users.loadFailed", e.getMostSpecificCause().getMessage()),
+                            5000, Notification.Position.TOP_CENTER)
                     .addThemeVariants(NotificationVariant.ERROR);
         }
         applyFilter();

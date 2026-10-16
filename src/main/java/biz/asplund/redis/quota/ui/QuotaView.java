@@ -237,7 +237,8 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         } catch (DataAccessException e) {
             rows = List.of();
             var notification = Notification.show(
-                    getTranslation("quotas.loadFailed", e.getMostSpecificCause().getMessage()));
+                    getTranslation("quotas.loadFailed", e.getMostSpecificCause().getMessage()),
+                    5000, Notification.Position.TOP_CENTER);
             notification.addThemeVariants(NotificationVariant.ERROR);
         }
         applyFilter();

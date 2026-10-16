@@ -373,6 +373,6 @@ class UserEditor extends VerticalLayout {
     }
 
     private static void notify(String text, NotificationVariant variant) {
-        Notification.show(text).addThemeVariants(variant);
+        Notification.show(text, 5000, Notification.Position.TOP_CENTER).addThemeVariants(variant);
     }
 }
