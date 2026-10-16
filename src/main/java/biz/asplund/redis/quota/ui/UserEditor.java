@@ -86,15 +86,15 @@ class UserEditor extends VerticalLayout {
 
     /// Creates the panel for `account`, or for a new user if it is `null`.
     ///
-    /// @param roles the roles the user can be given
-    /// @param locales the languages the user's settings can choose from
+    /// @param roles          the roles the user can be given
+    /// @param locales        the languages the user's settings can choose from
     /// @param actingUsername the logged-in user, who cannot disable, delete or take the `ADMIN` role from themselves
-    /// @param onSaved run with the saved user after a save, and with `account` after its usage has been changed
-    /// @param onDeleted run after the user has been deleted
-    /// @param onClose run when the panel's close button is clicked
+    /// @param onSaved        run with the saved user after a save, and with `account` after its usage has been changed
+    /// @param onDeleted      run after the user has been deleted
+    /// @param onClose        run when the panel's close button is clicked
     UserEditor(UserAccount account, List<Role> roles, List<Locale> locales, UserAccountService userAccountService,
-            QuotaManager quotaManager, QuotaHistoryService quotaHistoryService, DateTimeFormatter dateTimeFormatter,
-            String actingUsername, Consumer<UserAccount> onSaved, Runnable onDeleted, Runnable onClose) {
+               QuotaManager quotaManager, QuotaHistoryService quotaHistoryService, DateTimeFormatter dateTimeFormatter,
+               String actingUsername, Consumer<UserAccount> onSaved, Runnable onDeleted, Runnable onClose) {
         this.account = account;
         this.userAccountService = userAccountService;
         this.quotaManager = quotaManager;
@@ -342,9 +342,9 @@ class UserEditor extends VerticalLayout {
         try {
             var saved = account == null
                     ? userAccountService.createUser(user.getUsername(), passwordField.getValue(), user.isEnabled(),
-                            roleNames, quota, user.getProfile(), user.getSenderIds())
+                    roleNames, quota, user.getProfile(), user.getSenderIds())
                     : userAccountService.updateUser(account.getId(), passwordField.getValue(), user.isEnabled(),
-                            roleNames, quota, user.getProfile(), user.getSenderIds(), actingUsername);
+                    roleNames, quota, user.getProfile(), user.getSenderIds(), actingUsername);
             notify(getTranslation("userEditor.saved", saved.getUsername()), NotificationVariant.SUCCESS);
             onSaved.accept(saved);
         } catch (AccountRuleException e) {

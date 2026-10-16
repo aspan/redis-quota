@@ -25,10 +25,10 @@ import java.util.List;
 /// The quota status is as it was after charging, before any refund.
 ///
 /// @param outcome whether anything was sent, and if not, why
-/// @param cost the units the send takes: one per part per recipient, whether or not it was charged
-/// @param sent the recipients the gateway accepted
-/// @param failed the recipients the gateway did not accept, whose units were refunded
-/// @param quota the quota status after charging, or `null` when the sender id is not approved or the user has no
+/// @param cost    the units the send takes: one per part per recipient, whether or not it was charged
+/// @param sent    the recipients the gateway accepted
+/// @param failed  the recipients the gateway did not accept, whose units were refunded
+/// @param quota   the quota status after charging, or `null` when the sender id is not approved or the user has no
 ///              quota
 public record SmsSendResult(Outcome outcome, int cost, List<String> sent, List<String> failed, QuotaStatus quota) {
 

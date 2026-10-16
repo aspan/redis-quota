@@ -38,7 +38,7 @@ public class LanguagePreference {
 
     /// Creates the preference for the languages configured in `properties`.
     LanguagePreference(LocaleResolver localeResolver, I18nProperties properties,
-            LoggedInUserSettings loggedInUserSettings) {
+                       LoggedInUserSettings loggedInUserSettings) {
         this.localeResolver = localeResolver;
         this.properties = properties;
         this.loggedInUserSettings = loggedInUserSettings;

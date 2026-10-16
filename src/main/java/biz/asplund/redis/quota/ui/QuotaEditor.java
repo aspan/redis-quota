@@ -43,9 +43,9 @@ class QuotaEditor extends VerticalLayout {
     /// Creates the panel for `row`.
     ///
     /// @param onUsageChanged run after the usage has been changed in the panel
-    /// @param onClose run when the panel's close button is clicked
+    /// @param onClose        run when the panel's close button is clicked
     QuotaEditor(QuotaRow row, QuotaManager quotaManager, QuotaHistoryService quotaHistoryService,
-            DateTimeFormatter dateTimeFormatter, Runnable onUsageChanged, Runnable onClose) {
+                DateTimeFormatter dateTimeFormatter, Runnable onUsageChanged, Runnable onClose) {
         this.row = row;
 
         setWidthFull();

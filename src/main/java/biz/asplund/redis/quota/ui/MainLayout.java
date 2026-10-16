@@ -71,7 +71,7 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
 
     /// Creates the navbar, the drawer with the menu and the logged-in user, and the preference buttons.
     public MainLayout(AuthenticationContext authenticationContext, LanguagePreference languagePreference,
-            ColorSchemePreference colorSchemePreference, UserAccountService userAccountService) {
+                      ColorSchemePreference colorSchemePreference, UserAccountService userAccountService) {
         this.userAccountService = userAccountService;
         this.username = authenticationContext.getPrincipalName().orElse("");
         setPrimarySection(Section.DRAWER);

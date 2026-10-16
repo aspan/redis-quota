@@ -66,7 +66,7 @@ public class ProfileView extends VerticalLayout implements LocaleChangeObserver 
 
     /// Creates the view for the logged-in user; the page itself is built in [#localeChange(LocaleChangeEvent)].
     public ProfileView(UserAccountService userAccountService, LanguagePreference languagePreference,
-            ColorSchemePreference colorSchemePreference, AuthenticationContext authenticationContext) {
+                       ColorSchemePreference colorSchemePreference, AuthenticationContext authenticationContext) {
         this.userAccountService = userAccountService;
         this.languagePreference = languagePreference;
         this.colorSchemePreference = colorSchemePreference;

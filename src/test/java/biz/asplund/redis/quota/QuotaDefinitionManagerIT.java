@@ -41,177 +41,177 @@ import static org.assertj.core.api.SoftAssertions.assertSoftly;
 @SpringBootTest
 class QuotaDefinitionManagerIT {
 
-	@Autowired
-	private QuotaDefinitionRepository repository;
+    @Autowired
+    private QuotaDefinitionRepository repository;
 
-	@Autowired
-	private QuotaManager quotaManager;
+    @Autowired
+    private QuotaManager quotaManager;
 
-	@TestBean
-	private Clock clock;
+    @TestBean
+    private Clock clock;
 
-	static Clock clock() {
-		// Mid-hour, so hourly quotas do not roll over during the test
-		return Clock.fixed(Instant.parse("2026-10-14T08:15:30Z"), ZoneId.of("Europe/Stockholm"));
-	}
+    static Clock clock() {
+        // Mid-hour, so hourly quotas do not roll over during the test
+        return Clock.fixed(Instant.parse("2026-10-14T08:15:30Z"), ZoneId.of("Europe/Stockholm"));
+    }
 
-	@Test
-	void storedLimitIsEnforced() {
-		var id = uniqueId();
-		repository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 5));
+    @Test
+    void storedLimitIsEnforced() {
+        var id = uniqueId();
+        repository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 5));
 
-		for (var i = 1; i <= 5; i++) {
-			assertThat(quotaManager.checkAndIncrement(id, 1).allowed()).as("request %d", i).isTrue();
-		}
+        for (var i = 1; i <= 5; i++) {
+            assertThat(quotaManager.checkAndIncrement(id, 1).allowed()).as("request %d", i).isTrue();
+        }
 
-		assertThat(quotaManager.checkAndIncrement(id, 1))
-				.returns(false, QuotaStatus::allowed)
-				.returns(5, QuotaStatus::limit)
-				.returns(5, QuotaStatus::used)
-				.returns(0, QuotaStatus::remaining);
-	}
+        assertThat(quotaManager.checkAndIncrement(id, 1))
+                .returns(false, QuotaStatus::allowed)
+                .returns(5, QuotaStatus::limit)
+                .returns(5, QuotaStatus::used)
+                .returns(0, QuotaStatus::remaining);
+    }
 
-	@Test
-	void storedLimitMatchesExplicitConfig() {
-		var stored = uniqueId();
-		var explicit = uniqueId();
-		repository.save(new QuotaDefinition(stored, QuotaPeriod.DAILY, 100));
+    @Test
+    void storedLimitMatchesExplicitConfig() {
+        var stored = uniqueId();
+        var explicit = uniqueId();
+        repository.save(new QuotaDefinition(stored, QuotaPeriod.DAILY, 100));
 
-		var fromDefinition = quotaManager.checkAndIncrement(stored, 30);
-		var fromConfig = quotaManager.checkAndIncrement(explicit, new QuotaConfig(100, QuotaPeriod.DAILY), 30);
+        var fromDefinition = quotaManager.checkAndIncrement(stored, 30);
+        var fromConfig = quotaManager.checkAndIncrement(explicit, new QuotaConfig(100, QuotaPeriod.DAILY), 30);
 
-		assertThat(fromDefinition).isEqualTo(fromConfig);
-	}
+        assertThat(fromDefinition).isEqualTo(fromConfig);
+    }
 
-	@Test
-	void requestsCountInStoredPeriod() {
-		var id = uniqueId();
-		repository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
+    @Test
+    void requestsCountInStoredPeriod() {
+        var id = uniqueId();
+        repository.save(new QuotaDefinition(id, QuotaPeriod.HOURLY, 10));
 
-		var status = quotaManager.checkAndIncrement(id, 3);
+        var status = quotaManager.checkAndIncrement(id, 3);
 
-		assertSoftly(softly -> {
-			softly.assertThat(status.resetAt()).as("reset").isEqualTo(Instant.parse("2026-10-14T09:00:00Z"));
-			softly.assertThat(usage(id, QuotaPeriod.HOURLY)).as("hourly usage").isEqualTo(3);
-			softly.assertThat(usage(id, QuotaPeriod.DAILY)).as("daily usage").isZero();
-		});
-	}
+        assertSoftly(softly -> {
+            softly.assertThat(status.resetAt()).as("reset").isEqualTo(Instant.parse("2026-10-14T09:00:00Z"));
+            softly.assertThat(usage(id, QuotaPeriod.HOURLY)).as("hourly usage").isEqualTo(3);
+            softly.assertThat(usage(id, QuotaPeriod.DAILY)).as("daily usage").isZero();
+        });
+    }
 
-	@Test
-	void changingStoredPeriodStartsCountingInNewPeriod() {
-		var id = uniqueId();
-		repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
-		quotaManager.checkAndIncrement(id, 30);
+    @Test
+    void changingStoredPeriodStartsCountingInNewPeriod() {
+        var id = uniqueId();
+        repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
+        quotaManager.checkAndIncrement(id, 30);
 
-		repository.save(new QuotaDefinition(id, QuotaPeriod.MONTHLY, 100));
+        repository.save(new QuotaDefinition(id, QuotaPeriod.MONTHLY, 100));
 
-		assertSoftly(softly -> {
-			softly.assertThat(quotaManager.getStatus(id))
-					.returns(0, QuotaStatus::used)
-					.returns(Instant.parse("2026-10-31T23:00:00Z"), QuotaStatus::resetAt);
-			softly.assertThat(usage(id, QuotaPeriod.DAILY)).as("earlier daily usage is kept").isEqualTo(30);
-		});
-	}
+        assertSoftly(softly -> {
+            softly.assertThat(quotaManager.getStatus(id))
+                    .returns(0, QuotaStatus::used)
+                    .returns(Instant.parse("2026-10-31T23:00:00Z"), QuotaStatus::resetAt);
+            softly.assertThat(usage(id, QuotaPeriod.DAILY)).as("earlier daily usage is kept").isEqualTo(30);
+        });
+    }
 
-	@Test
-	void raisingStoredLimitAllowsMoreRequestsWithoutResettingUsage() {
-		var id = uniqueId();
-		repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 10));
-		quotaManager.checkAndIncrement(id, 10);
-		assertThat(quotaManager.checkAndIncrement(id, 1).allowed()).as("at original limit").isFalse();
+    @Test
+    void raisingStoredLimitAllowsMoreRequestsWithoutResettingUsage() {
+        var id = uniqueId();
+        repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 10));
+        quotaManager.checkAndIncrement(id, 10);
+        assertThat(quotaManager.checkAndIncrement(id, 1).allowed()).as("at original limit").isFalse();
 
-		repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 20));
+        repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 20));
 
-		assertThat(quotaManager.checkAndIncrement(id, 5))
-				.returns(true, QuotaStatus::allowed)
-				.returns(20, QuotaStatus::limit)
-				.returns(15, QuotaStatus::used)
-				.returns(5, QuotaStatus::remaining);
-	}
+        assertThat(quotaManager.checkAndIncrement(id, 5))
+                .returns(true, QuotaStatus::allowed)
+                .returns(20, QuotaStatus::limit)
+                .returns(15, QuotaStatus::used)
+                .returns(5, QuotaStatus::remaining);
+    }
 
-	@Test
-	void loweringStoredLimitBelowUsageRejectsFurtherRequests() {
-		var id = uniqueId();
-		repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
-		quotaManager.checkAndIncrement(id, 50);
+    @Test
+    void loweringStoredLimitBelowUsageRejectsFurtherRequests() {
+        var id = uniqueId();
+        repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
+        quotaManager.checkAndIncrement(id, 50);
 
-		repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 40));
+        repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 40));
 
-		assertThat(quotaManager.checkAndIncrement(id, 1))
-				.returns(false, QuotaStatus::allowed)
-				.returns(50, QuotaStatus::used)
-				.returns(0, QuotaStatus::remaining);
-	}
+        assertThat(quotaManager.checkAndIncrement(id, 1))
+                .returns(false, QuotaStatus::allowed)
+                .returns(50, QuotaStatus::used)
+                .returns(0, QuotaStatus::remaining);
+    }
 
-	@Test
-	void deletingDefinitionKeepsUsage() {
-		var id = uniqueId();
-		repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
-		quotaManager.checkAndIncrement(id, 30);
+    @Test
+    void deletingDefinitionKeepsUsage() {
+        var id = uniqueId();
+        repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
+        quotaManager.checkAndIncrement(id, 30);
 
-		repository.deleteById(id);
+        repository.deleteById(id);
 
-		assertThat(repository.findById(id)).isEmpty();
-		assertThat(usage(id, QuotaPeriod.DAILY)).isEqualTo(30);
-	}
+        assertThat(repository.findById(id)).isEmpty();
+        assertThat(usage(id, QuotaPeriod.DAILY)).isEqualTo(30);
+    }
 
-	@Test
-	void resettingQuotaKeepsDefinition() {
-		var id = uniqueId();
-		var definition = new QuotaDefinition(id, QuotaPeriod.DAILY, 100);
-		repository.save(definition);
-		quotaManager.checkAndIncrement(id, 30);
+    @Test
+    void resettingQuotaKeepsDefinition() {
+        var id = uniqueId();
+        var definition = new QuotaDefinition(id, QuotaPeriod.DAILY, 100);
+        repository.save(definition);
+        quotaManager.checkAndIncrement(id, 30);
 
-		quotaManager.resetQuota(id);
+        quotaManager.resetQuota(id);
 
-		assertThat(repository.findById(id)).contains(definition);
-		assertThat(quotaManager.checkAndIncrement(id, 100).allowed()).isTrue();
-	}
+        assertThat(repository.findById(id)).contains(definition);
+        assertThat(quotaManager.checkAndIncrement(id, 100).allowed()).isTrue();
+    }
 
-	@Test
-	void getStatusUsesStoredLimit() {
-		var id = uniqueId();
-		repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
-		var afterRequest = quotaManager.checkAndIncrement(id, 40);
+    @Test
+    void getStatusUsesStoredLimit() {
+        var id = uniqueId();
+        repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
+        var afterRequest = quotaManager.checkAndIncrement(id, 40);
 
-		assertThat(quotaManager.getStatus(id))
-				.isEqualTo(afterRequest)
-				.returns(100, QuotaStatus::limit)
-				.returns(60, QuotaStatus::remaining);
-	}
+        assertThat(quotaManager.getStatus(id))
+                .isEqualTo(afterRequest)
+                .returns(100, QuotaStatus::limit)
+                .returns(60, QuotaStatus::remaining);
+    }
 
-	@Test
-	void getStatusForUndefinedIdIsRejected() {
-		var id = uniqueId();
+    @Test
+    void getStatusForUndefinedIdIsRejected() {
+        var id = uniqueId();
 
-		assertThatIllegalArgumentException()
-				.isThrownBy(() -> quotaManager.getStatus(id))
-				.withMessage("No quota defined for id " + id);
-	}
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> quotaManager.getStatus(id))
+                .withMessage("No quota defined for id " + id);
+    }
 
-	@Test
-	void undefinedIdIsRejected() {
-		var id = uniqueId();
+    @Test
+    void undefinedIdIsRejected() {
+        var id = uniqueId();
 
-		assertThatIllegalArgumentException()
-				.isThrownBy(() -> quotaManager.checkAndIncrement(id, 1))
-				.withMessage("No quota defined for id " + id);
-		assertThat(quotaManager.getLastUsed(id)).isEmpty();
-	}
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> quotaManager.checkAndIncrement(id, 1))
+                .withMessage("No quota defined for id " + id);
+        assertThat(quotaManager.getLastUsed(id)).isEmpty();
+    }
 
-	@Test
-	void definitionNeedsPeriodAndNonNegativeLimit() {
-		assertThatNullPointerException().isThrownBy(() -> new QuotaDefinition("id", null, 10));
-		assertThatIllegalArgumentException().isThrownBy(() -> new QuotaDefinition("id", QuotaPeriod.DAILY, -1));
-	}
+    @Test
+    void definitionNeedsPeriodAndNonNegativeLimit() {
+        assertThatNullPointerException().isThrownBy(() -> new QuotaDefinition("id", null, 10));
+        assertThatIllegalArgumentException().isThrownBy(() -> new QuotaDefinition("id", QuotaPeriod.DAILY, -1));
+    }
 
-	// Usage in the given period, read through an explicit config, which needs no stored definition
-	private int usage(String id, QuotaPeriod period) {
-		return quotaManager.getStatus(id, new QuotaConfig(Integer.MAX_VALUE, period)).used();
-	}
+    // Usage in the given period, read through an explicit config, which needs no stored definition
+    private int usage(String id, QuotaPeriod period) {
+        return quotaManager.getStatus(id, new QuotaConfig(Integer.MAX_VALUE, period)).used();
+    }
 
-	private static String uniqueId() {
-		return "test-id-" + UUID.randomUUID();
-	}
+    private static String uniqueId() {
+        return "test-id-" + UUID.randomUUID();
+    }
 
 }

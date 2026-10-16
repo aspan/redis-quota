@@ -36,10 +36,10 @@ class UsageHistorySection extends VerticalLayout {
 
     /// Reads the history of the user and creates the section.
     ///
-    /// @param username the user whose history is shown
+    /// @param username          the user whose history is shown
     /// @param dateTimeFormatter gives the time zone and language the periods are shown in
     UsageHistorySection(QuotaHistoryService quotaHistoryService, String username,
-            DateTimeFormatter dateTimeFormatter) {
+                        DateTimeFormatter dateTimeFormatter) {
         setPadding(false);
         setWidthFull();
         add(new H4(getTranslation("history.title")));

@@ -43,7 +43,7 @@ public class AdminAccountInitializer implements ApplicationRunner {
 
     /// Creates the initializer for the user in `securityProperties`.
     public AdminAccountInitializer(SecurityProperties securityProperties, UserAccountRepository userAccountRepository,
-            RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
+                                   RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
         this.securityProperties = securityProperties;
         this.userAccountRepository = userAccountRepository;
         this.roleRepository = roleRepository;

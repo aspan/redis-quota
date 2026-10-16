@@ -43,8 +43,8 @@ public class QuotaHistoryService {
 
     /// Creates the service, which reads the counters through `quotaManager` and the time from `clock`.
     public QuotaHistoryService(UserAccountRepository userAccountRepository,
-            QuotaUsageRecordRepository quotaUsageRecordRepository, QuotaManager quotaManager,
-            QuotaHistoryProperties properties, Clock clock) {
+                               QuotaUsageRecordRepository quotaUsageRecordRepository, QuotaManager quotaManager,
+                               QuotaHistoryProperties properties, Clock clock) {
         this.userAccountRepository = userAccountRepository;
         this.quotaUsageRecordRepository = quotaUsageRecordRepository;
         this.quotaManager = quotaManager;

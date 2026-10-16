@@ -39,86 +39,86 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 @SpringBootTest(properties = "spring.security.user.password=secret")
 class DatabaseUserDetailsServiceIT {
 
-	@Autowired
-	private DatabaseUserDetailsService userDetailsService;
+    @Autowired
+    private DatabaseUserDetailsService userDetailsService;
 
-	@Autowired
-	private UserAccountRepository userAccountRepository;
+    @Autowired
+    private UserAccountRepository userAccountRepository;
 
-	@Autowired
-	private RoleRepository roleRepository;
+    @Autowired
+    private RoleRepository roleRepository;
 
-	@Autowired
-	private PasswordEncoder passwordEncoder;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
-	@Autowired
-	private AdminAccountInitializer adminAccountInitializer;
+    @Autowired
+    private AdminAccountInitializer adminAccountInitializer;
 
-	@Test
-	void storesConfiguredAdminAtStartup() {
-		var admin = userDetailsService.loadUserByUsername("admin");
+    @Test
+    void storesConfiguredAdminAtStartup() {
+        var admin = userDetailsService.loadUserByUsername("admin");
 
-		assertThat(admin.getAuthorities()).extracting(GrantedAuthority::getAuthority).containsExactly("ROLE_ADMIN");
-		assertThat(admin.getPassword()).startsWith("{bcrypt}");
-		assertThat(passwordEncoder.matches("secret", admin.getPassword())).isTrue();
-		assertThat(admin.isEnabled()).isTrue();
-	}
+        assertThat(admin.getAuthorities()).extracting(GrantedAuthority::getAuthority).containsExactly("ROLE_ADMIN");
+        assertThat(admin.getPassword()).startsWith("{bcrypt}");
+        assertThat(passwordEncoder.matches("secret", admin.getPassword())).isTrue();
+        assertThat(admin.isEnabled()).isTrue();
+    }
 
-	@Test
-	void leavesExistingAdminAsItIs() {
-		var admin = userAccountRepository.findByUsername("admin").orElseThrow();
-		var password = admin.getPassword();
+    @Test
+    void leavesExistingAdminAsItIs() {
+        var admin = userAccountRepository.findByUsername("admin").orElseThrow();
+        var password = admin.getPassword();
 
-		adminAccountInitializer.run(new DefaultApplicationArguments());
+        adminAccountInitializer.run(new DefaultApplicationArguments());
 
-		assertThat(userAccountRepository.findByUsername("admin").orElseThrow().getPassword()).isEqualTo(password);
-		assertThat(userAccountRepository.findAll()).filteredOn(account -> account.getUsername().equals("admin"))
-				.hasSize(1);
-	}
+        assertThat(userAccountRepository.findByUsername("admin").orElseThrow().getPassword()).isEqualTo(password);
+        assertThat(userAccountRepository.findAll()).filteredOn(account -> account.getUsername().equals("admin"))
+                .hasSize(1);
+    }
 
-	@Test
-	void loadsRolesOfUser() {
-		var username = uniqueUsername();
-		var account = new UserAccount(username, passwordEncoder.encode("pw"));
-		account.getRoles().add(roleRepository.findByName("ADMIN").orElseThrow());
-		// Role names are upper case letters, digits and _
-		var roleName = "AUDITOR_" + UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
-		account.getRoles().add(roleRepository.save(new Role(roleName)));
-		userAccountRepository.save(account);
+    @Test
+    void loadsRolesOfUser() {
+        var username = uniqueUsername();
+        var account = new UserAccount(username, passwordEncoder.encode("pw"));
+        account.getRoles().add(roleRepository.findByName("ADMIN").orElseThrow());
+        // Role names are upper case letters, digits and _
+        var roleName = "AUDITOR_" + UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
+        account.getRoles().add(roleRepository.save(new Role(roleName)));
+        userAccountRepository.save(account);
 
-		var user = userDetailsService.loadUserByUsername(username);
+        var user = userDetailsService.loadUserByUsername(username);
 
-		assertThat(user.getAuthorities()).extracting(GrantedAuthority::getAuthority)
-				.containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_" + roleName);
-	}
+        assertThat(user.getAuthorities()).extracting(GrantedAuthority::getAuthority)
+                .containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_" + roleName);
+    }
 
-	@Test
-	void loadsDisabledUserAsDisabled() {
-		var username = uniqueUsername();
-		var account = new UserAccount(username, passwordEncoder.encode("pw"));
-		account.setEnabled(false);
-		userAccountRepository.save(account);
+    @Test
+    void loadsDisabledUserAsDisabled() {
+        var username = uniqueUsername();
+        var account = new UserAccount(username, passwordEncoder.encode("pw"));
+        account.setEnabled(false);
+        userAccountRepository.save(account);
 
-		assertThat(userDetailsService.loadUserByUsername(username).isEnabled()).isFalse();
-	}
+        assertThat(userDetailsService.loadUserByUsername(username).isEnabled()).isFalse();
+    }
 
-	@Test
-	void loadsUserByEmailAddressUnderUsername() {
-		var username = uniqueUsername();
-		var account = new UserAccount(username, passwordEncoder.encode("pw"));
-		account.setEmail(username + "@Example.com");
-		userAccountRepository.save(account);
+    @Test
+    void loadsUserByEmailAddressUnderUsername() {
+        var username = uniqueUsername();
+        var account = new UserAccount(username, passwordEncoder.encode("pw"));
+        account.setEmail(username + "@Example.com");
+        userAccountRepository.save(account);
 
-		assertThat(userDetailsService.loadUserByUsername(username + "@example.COM").getUsername()).isEqualTo(username);
-	}
+        assertThat(userDetailsService.loadUserByUsername(username + "@example.COM").getUsername()).isEqualTo(username);
+    }
 
-	@Test
-	void rejectsUnknownUser() {
-		assertThatExceptionOfType(UsernameNotFoundException.class)
-				.isThrownBy(() -> userDetailsService.loadUserByUsername(uniqueUsername()));
-	}
+    @Test
+    void rejectsUnknownUser() {
+        assertThatExceptionOfType(UsernameNotFoundException.class)
+                .isThrownBy(() -> userDetailsService.loadUserByUsername(uniqueUsername()));
+    }
 
-	private static String uniqueUsername() {
-		return "user-" + UUID.randomUUID();
-	}
+    private static String uniqueUsername() {
+        return "user-" + UUID.randomUUID();
+    }
 }

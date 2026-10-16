@@ -81,7 +81,7 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
 
     /// Creates the view for the logged-in user; the page itself is built in [#localeChange(LocaleChangeEvent)].
     public SendSmsView(UserAccountService userAccountService, QuotaManager quotaManager, SmsService smsService,
-            Clock clock, AuthenticationContext authenticationContext) {
+                       Clock clock, AuthenticationContext authenticationContext) {
         this.userAccountService = userAccountService;
         this.quotaManager = quotaManager;
         this.smsService = smsService;
@@ -171,7 +171,7 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
 
     /// The recipients entered, split into phone numbers and entries that are not.
     ///
-    /// @param valid the distinct normalized numbers, in the order entered
+    /// @param valid   the distinct normalized numbers, in the order entered
     /// @param invalid the entries that are not phone numbers
     private record Recipients(List<String> valid, List<String> invalid) {
     }

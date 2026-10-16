@@ -96,8 +96,8 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     /// Creates the view; `clock` gives the time zone that quota times are shown in, and `authenticationContext` the
     /// acting user, whom the editor keeps from locking themselves out.
     public UserView(UserAccountService userAccountService, QuotaManager quotaManager,
-            QuotaHistoryService quotaHistoryService, LanguagePreference languagePreference,
-            ColorSchemePreference colorSchemePreference, Clock clock, AuthenticationContext authenticationContext) {
+                    QuotaHistoryService quotaHistoryService, LanguagePreference languagePreference,
+                    ColorSchemePreference colorSchemePreference, Clock clock, AuthenticationContext authenticationContext) {
         this.userAccountService = userAccountService;
         this.languagePreference = languagePreference;
         this.colorSchemePreference = colorSchemePreference;
@@ -298,7 +298,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     private void applyFilter() {
         var term = filter.getValue().trim().toLowerCase(Locale.ROOT);
         grid.setItems(term.isEmpty() ? users
-                : users.stream().filter(user -> matches(user, term)).toList())
+                        : users.stream().filter(user -> matches(user, term)).toList())
                 .setIdentifierProvider(UserAccount::getId);
     }
 

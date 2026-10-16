@@ -74,7 +74,7 @@ public class SmsService {
     /// Creates a service that reads recipients' numbers without a country code in the default region of
     /// `properties`.
     public SmsService(QuotaManager quotaManager, SmsSender smsSender, UserAccountService userAccountService,
-            SmsProperties properties) {
+                      SmsProperties properties) {
         this.quotaManager = quotaManager;
         this.smsSender = smsSender;
         this.userAccountService = userAccountService;

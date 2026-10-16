@@ -75,8 +75,8 @@ public class UserAccountService {
 
     /// Creates the service, which keeps the users in PostgreSQL and copies their quotas to Redis.
     public UserAccountService(UserAccountRepository userAccountRepository, RoleRepository roleRepository,
-            PasswordEncoder passwordEncoder, QuotaDefinitionRepository quotaDefinitionRepository,
-            QuotaManager quotaManager) {
+                              PasswordEncoder passwordEncoder, QuotaDefinitionRepository quotaDefinitionRepository,
+                              QuotaManager quotaManager) {
         this.userAccountRepository = userAccountRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -115,7 +115,7 @@ public class UserAccountService {
     /// @throws AccountRuleException if the change breaks one of the [AccountRuleException.Rule]s
     @Transactional
     public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
-            QuotaConfig quota) {
+                                  QuotaConfig quota) {
         return createUser(username, password, enabled, roleNames, quota, UserProfile.NONE);
     }
 
@@ -124,7 +124,7 @@ public class UserAccountService {
     /// @throws AccountRuleException if the change breaks one of the [AccountRuleException.Rule]s
     @Transactional
     public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
-            QuotaConfig quota, UserProfile profile) {
+                                  QuotaConfig quota, UserProfile profile) {
         return createUser(username, password, enabled, roleNames, quota, profile, Set.of());
     }
 
@@ -134,7 +134,7 @@ public class UserAccountService {
     /// @throws AccountRuleException if the change breaks one of the [AccountRuleException.Rule]s
     @Transactional
     public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
-            QuotaConfig quota, UserProfile profile, Collection<String> senderIds) {
+                                  QuotaConfig quota, UserProfile profile, Collection<String> senderIds) {
         var trimmedUsername = username == null ? "" : username.trim();
         if (trimmedUsername.isEmpty()) {
             throw new AccountRuleException(Rule.USERNAME_REQUIRED);
@@ -163,7 +163,7 @@ public class UserAccountService {
     /// @throws AccountRuleException if the change breaks one of the [AccountRuleException.Rule]s
     @Transactional
     public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
-            QuotaConfig quota, String actingUsername) {
+                                  QuotaConfig quota, String actingUsername) {
         return updateUser(id, password, enabled, roleNames, quota, null, actingUsername);
     }
 
@@ -173,7 +173,7 @@ public class UserAccountService {
     /// @throws AccountRuleException if the change breaks one of the [AccountRuleException.Rule]s
     @Transactional
     public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
-            QuotaConfig quota, UserProfile profile, String actingUsername) {
+                                  QuotaConfig quota, UserProfile profile, String actingUsername) {
         return updateUser(id, password, enabled, roleNames, quota, profile, null, actingUsername);
     }
 
@@ -184,7 +184,7 @@ public class UserAccountService {
     /// @throws AccountRuleException if the change breaks one of the [AccountRuleException.Rule]s
     @Transactional
     public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
-            QuotaConfig quota, UserProfile profile, Collection<String> senderIds, String actingUsername) {
+                                  QuotaConfig quota, UserProfile profile, Collection<String> senderIds, String actingUsername) {
         var account = userAccountRepository.findById(id).orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
         if (account.getUsername().equals(actingUsername)) {
             if (!enabled) {

@@ -43,58 +43,58 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class SecurityConfigurationIT {
 
-	@Autowired
-	private MockMvc mockMvc;
+    @Autowired
+    private MockMvc mockMvc;
 
-	@Autowired
-	private UserAccountService userAccountService;
+    @Autowired
+    private UserAccountService userAccountService;
 
-	@Autowired
-	private UserAccountRepository userAccountRepository;
+    @Autowired
+    private UserAccountRepository userAccountRepository;
 
-	@Autowired
-	private PasswordEncoder passwordEncoder;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
-	@Test
-	void redirectsAnonymousUiRequestsToLogin() throws Exception {
-		mockMvc.perform(get("/"))
-				.andExpect(status().is3xxRedirection())
-				.andExpect(redirectedUrl("/login"));
-	}
+    @Test
+    void redirectsAnonymousUiRequestsToLogin() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"));
+    }
 
-	@Test
-	void logsInWithConfiguredCredentials() throws Exception {
-		mockMvc.perform(formLogin("/login").user("admin").password("secret"))
-				.andExpect(authenticated().withUsername("admin").withRoles("ADMIN"))
-				.andExpect(redirectedUrl("/"));
-	}
+    @Test
+    void logsInWithConfiguredCredentials() throws Exception {
+        mockMvc.perform(formLogin("/login").user("admin").password("secret"))
+                .andExpect(authenticated().withUsername("admin").withRoles("ADMIN"))
+                .andExpect(redirectedUrl("/"));
+    }
 
-	@Test
-	void rejectsWrongPassword() throws Exception {
-		mockMvc.perform(formLogin("/login").user("admin").password("wrong"))
-				.andExpect(unauthenticated())
-				.andExpect(redirectedUrl("/login?error"));
-	}
+    @Test
+    void rejectsWrongPassword() throws Exception {
+        mockMvc.perform(formLogin("/login").user("admin").password("wrong"))
+                .andExpect(unauthenticated())
+                .andExpect(redirectedUrl("/login?error"));
+    }
 
-	@Test
-	void logsInWithEmailAddressUnderUsername() throws Exception {
-		var username = "email-login-" + UUID.randomUUID();
-		var email = username + "@example.com";
-		userAccountService.createUser(username, "password1", true, List.of("USER"),
-				new QuotaConfig(10, QuotaPeriod.DAILY), new UserProfile(null, email, UserSettings.NONE));
+    @Test
+    void logsInWithEmailAddressUnderUsername() throws Exception {
+        var username = "email-login-" + UUID.randomUUID();
+        var email = username + "@example.com";
+        userAccountService.createUser(username, "password1", true, List.of("USER"),
+                new QuotaConfig(10, QuotaPeriod.DAILY), new UserProfile(null, email, UserSettings.NONE));
 
-		mockMvc.perform(formLogin("/login").user(email.toUpperCase(Locale.ROOT)).password("password1"))
-				.andExpect(authenticated().withUsername(username));
-	}
+        mockMvc.perform(formLogin("/login").user(email.toUpperCase(Locale.ROOT)).password("password1"))
+                .andExpect(authenticated().withUsername(username));
+    }
 
-	@Test
-	void rejectsDisabledUser() throws Exception {
-		var account = new UserAccount("disabled-" + UUID.randomUUID(), passwordEncoder.encode("secret"));
-		account.setEnabled(false);
-		userAccountRepository.save(account);
+    @Test
+    void rejectsDisabledUser() throws Exception {
+        var account = new UserAccount("disabled-" + UUID.randomUUID(), passwordEncoder.encode("secret"));
+        account.setEnabled(false);
+        userAccountRepository.save(account);
 
-		mockMvc.perform(formLogin("/login").user(account.getUsername()).password("secret"))
-				.andExpect(unauthenticated())
-				.andExpect(redirectedUrl("/login?error"));
-	}
+        mockMvc.perform(formLogin("/login").user(account.getUsername()).password("secret"))
+                .andExpect(unauthenticated())
+                .andExpect(redirectedUrl("/login?error"));
+    }
 }

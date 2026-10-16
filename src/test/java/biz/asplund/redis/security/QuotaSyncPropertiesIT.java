@@ -29,34 +29,34 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 // Binds quota.sync.* the way Spring Boot does, without starting the application
 class QuotaSyncPropertiesIT {
 
-	@Test
-	void runsDailyAtHalfPastThreeByDefault() {
-		var properties = bind(Map.of());
+    @Test
+    void runsDailyAtHalfPastThreeByDefault() {
+        var properties = bind(Map.of());
 
-		assertThat(properties.cron()).isEqualTo("0 30 3 * * *");
-		assertThat(properties.daily()).isTrue();
-	}
+        assertThat(properties.cron()).isEqualTo("0 30 3 * * *");
+        assertThat(properties.daily()).isTrue();
+    }
 
-	@Test
-	void bindsCustomSchedule() {
-		assertThat(bind(Map.of("quota.sync.cron", "0 0 */6 * * *")).cron()).isEqualTo("0 0 */6 * * *");
-	}
+    @Test
+    void bindsCustomSchedule() {
+        assertThat(bind(Map.of("quota.sync.cron", "0 0 */6 * * *")).cron()).isEqualTo("0 0 */6 * * *");
+    }
 
-	@Test
-	void turnsDailyRunOffWithDash() {
-		assertThat(bind(Map.of("quota.sync.cron", "-")).daily()).isFalse();
-	}
+    @Test
+    void turnsDailyRunOffWithDash() {
+        assertThat(bind(Map.of("quota.sync.cron", "-")).daily()).isFalse();
+    }
 
-	@Test
-	void rejectsInvalidCronExpression() {
-		assertThatExceptionOfType(BindException.class)
-				.isThrownBy(() -> bind(Map.of("quota.sync.cron", "every night")))
-				.havingRootCause()
-				.withMessageContaining("quota.sync.cron must be a cron expression or -");
-	}
+    @Test
+    void rejectsInvalidCronExpression() {
+        assertThatExceptionOfType(BindException.class)
+                .isThrownBy(() -> bind(Map.of("quota.sync.cron", "every night")))
+                .havingRootCause()
+                .withMessageContaining("quota.sync.cron must be a cron expression or -");
+    }
 
-	private static QuotaSyncProperties bind(Map<String, String> values) {
-		return new Binder(new MapConfigurationPropertySource(values))
-				.bindOrCreate("quota.sync", QuotaSyncProperties.class);
-	}
+    private static QuotaSyncProperties bind(Map<String, String> values) {
+        return new Binder(new MapConfigurationPropertySource(values))
+                .bindOrCreate("quota.sync", QuotaSyncProperties.class);
+    }
 }

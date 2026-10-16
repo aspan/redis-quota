@@ -53,15 +53,15 @@ class QuotaUsageCard extends Card {
 
     /// Creates the card for the given status.
     ///
-    /// @param id the quota id
-    /// @param period the period of the quota, shown as the title
-    /// @param status the usage to show
-    /// @param lastUsed when the quota was last used, if ever
-    /// @param quotaManager changes the usage
+    /// @param id                the quota id
+    /// @param period            the period of the quota, shown as the title
+    /// @param status            the usage to show
+    /// @param lastUsed          when the quota was last used, if ever
+    /// @param quotaManager      changes the usage
     /// @param dateTimeFormatter formats the reset and last use times
-    /// @param onChanged called after the usage was changed, to rebuild the card; `null` shows the usage only
+    /// @param onChanged         called after the usage was changed, to rebuild the card; `null` shows the usage only
     QuotaUsageCard(String id, QuotaPeriod period, QuotaStatus status, Optional<Instant> lastUsed,
-            QuotaManager quotaManager, DateTimeFormatter dateTimeFormatter, Runnable onChanged) {
+                   QuotaManager quotaManager, DateTimeFormatter dateTimeFormatter, Runnable onChanged) {
         this.id = id;
         this.period = period;
         this.quotaManager = quotaManager;

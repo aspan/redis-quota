@@ -54,7 +54,7 @@ public class HomeView extends VerticalLayout implements BeforeEnterObserver, Loc
 
     /// Creates the view for the logged-in user; the page itself is built on every navigation and language change.
     public HomeView(UserAccountService userAccountService, QuotaManager quotaManager,
-            QuotaHistoryService quotaHistoryService, Clock clock, AuthenticationContext authenticationContext) {
+                    QuotaHistoryService quotaHistoryService, Clock clock, AuthenticationContext authenticationContext) {
         this.userAccountService = userAccountService;
         this.quotaManager = quotaManager;
         this.quotaHistoryService = quotaHistoryService;

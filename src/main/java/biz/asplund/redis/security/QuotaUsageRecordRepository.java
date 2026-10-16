@@ -29,7 +29,7 @@ public interface QuotaUsageRecordRepository extends JpaRepository<QuotaUsageReco
 
     /// Finds the user's records of the period that started at or after `periodStart`.
     List<QuotaUsageRecord> findByUserAndPeriodAndPeriodStartGreaterThanEqual(UserAccount user, QuotaPeriod period,
-            Instant periodStart);
+                                                                             Instant periodStart);
 
     /// Finds the records of the user with the username, newest first.
     List<QuotaUsageRecord> findByUserUsernameOrderByPeriodStartDesc(String username);

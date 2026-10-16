@@ -53,162 +53,162 @@ import static org.mockito.Mockito.verify;
 @SpringBootTest
 class SendSmsViewIT extends SpringBrowserlessTest {
 
-	static final String WITH_QUOTA = "send-sms-with-quota";
-	static final String WITHOUT_QUOTA = "send-sms-without-quota";
-	static final String WITHOUT_SENDER_IDS = "send-sms-without-sender-ids";
+    static final String WITH_QUOTA = "send-sms-with-quota";
+    static final String WITHOUT_QUOTA = "send-sms-without-quota";
+    static final String WITHOUT_SENDER_IDS = "send-sms-without-sender-ids";
 
-	@Autowired
-	private UserAccountService userAccountService;
+    @Autowired
+    private UserAccountService userAccountService;
 
-	@Autowired
-	private UserAccountRepository userAccountRepository;
+    @Autowired
+    private UserAccountRepository userAccountRepository;
 
-	@Autowired
-	private QuotaManager quotaManager;
+    @Autowired
+    private QuotaManager quotaManager;
 
-	@MockitoBean
-	private SmsSender smsSender;
+    @MockitoBean
+    private SmsSender smsSender;
 
-	@BeforeEach
-	void storeUsers() {
-		if (!userAccountRepository.existsByUsername(WITH_QUOTA)) {
-			userAccountService.createUser(WITH_QUOTA, "password1", true, List.of("USER"),
-					new QuotaConfig(10, QuotaPeriod.DAILY), UserProfile.NONE, List.of("Lekab", "+46701234500"));
-		}
-		if (!userAccountRepository.existsByUsername(WITHOUT_QUOTA)) {
-			userAccountService.createUser(WITHOUT_QUOTA, "password1", true, List.of("USER"), null,
-					UserProfile.NONE, List.of("Lekab"));
-		}
-		if (!userAccountRepository.existsByUsername(WITHOUT_SENDER_IDS)) {
-			userAccountService.createUser(WITHOUT_SENDER_IDS, "password1", true, List.of("USER"),
-					new QuotaConfig(10, QuotaPeriod.DAILY));
-		}
-		quotaManager.resetQuota(WITH_QUOTA);
-	}
+    @BeforeEach
+    void storeUsers() {
+        if (!userAccountRepository.existsByUsername(WITH_QUOTA)) {
+            userAccountService.createUser(WITH_QUOTA, "password1", true, List.of("USER"),
+                    new QuotaConfig(10, QuotaPeriod.DAILY), UserProfile.NONE, List.of("Lekab", "+46701234500"));
+        }
+        if (!userAccountRepository.existsByUsername(WITHOUT_QUOTA)) {
+            userAccountService.createUser(WITHOUT_QUOTA, "password1", true, List.of("USER"), null,
+                    UserProfile.NONE, List.of("Lekab"));
+        }
+        if (!userAccountRepository.existsByUsername(WITHOUT_SENDER_IDS)) {
+            userAccountService.createUser(WITHOUT_SENDER_IDS, "password1", true, List.of("USER"),
+                    new QuotaConfig(10, QuotaPeriod.DAILY));
+        }
+        quotaManager.resetQuota(WITH_QUOTA);
+    }
 
-	@Test
-	@WithAnonymousUser
-	void requiresLogin() {
-		navigate("sms", LoginView.class);
-	}
+    @Test
+    @WithAnonymousUser
+    void requiresLogin() {
+        navigate("sms", LoginView.class);
+    }
 
-	@Test
-	@WithMockUser(username = WITH_QUOTA, roles = "OTHER")
-	void requiresUserRole() {
-		navigate("sms", RouteNotFoundError.class);
-	}
+    @Test
+    @WithMockUser(username = WITH_QUOTA, roles = "OTHER")
+    void requiresUserRole() {
+        navigate("sms", RouteNotFoundError.class);
+    }
 
-	@Test
-	@WithMockUser(username = WITH_QUOTA, roles = "ADMIN")
-	void opensForAdmin() {
-		navigate("sms", SendSmsView.class);
+    @Test
+    @WithMockUser(username = WITH_QUOTA, roles = "ADMIN")
+    void opensForAdmin() {
+        navigate("sms", SendSmsView.class);
 
-		assertThat(find(TextArea.class).withLabel("Recipients").exists()).isTrue();
-	}
+        assertThat(find(TextArea.class).withLabel("Recipients").exists()).isTrue();
+    }
 
-	@Test
-	@WithMockUser(username = WITH_QUOTA, roles = "USER")
-	void sendsAndChargesQuota() {
-		navigate("sms", SendSmsView.class);
-		assertThat(usageSummary()).isEqualTo("0 of 10 used, 10 left");
+    @Test
+    @WithMockUser(username = WITH_QUOTA, roles = "USER")
+    void sendsAndChargesQuota() {
+        navigate("sms", SendSmsView.class);
+        assertThat(usageSummary()).isEqualTo("0 of 10 used, 10 left");
 
-		assertThat(sender().getListDataView().getItems()).containsExactly("+46701234500", "Lekab");
-		sender().setValue("Lekab");
-		test(recipients()).setValue("+46 70 123 45 67, 070-123 45 68\n+46701234567");
-		test(message()).setValue("Hello");
-		assertThat(find(Span.class).withText("2 recipient(s) × 1 part(s) = 2 unit(s) of your quota").exists())
-				.isTrue();
-		test(find(Button.class).withText("Send").single()).click();
+        assertThat(sender().getListDataView().getItems()).containsExactly("+46701234500", "Lekab");
+        sender().setValue("Lekab");
+        test(recipients()).setValue("+46 70 123 45 67, 070-123 45 68\n+46701234567");
+        test(message()).setValue("Hello");
+        assertThat(find(Span.class).withText("2 recipient(s) × 1 part(s) = 2 unit(s) of your quota").exists())
+                .isTrue();
+        test(find(Button.class).withText("Send").single()).click();
 
-		verify(smsSender).send("Lekab", "+46701234567", "Hello");
-		verify(smsSender).send("Lekab", "+46701234568", "Hello");
-		assertThat(usageSummary()).isEqualTo("2 of 10 used, 8 left");
-		assertThat(message().getValue()).isEmpty();
-		// The sender and recipients are kept for the next message
-		assertThat(sender().getValue()).isEqualTo("Lekab");
-	}
+        verify(smsSender).send("Lekab", "+46701234567", "Hello");
+        verify(smsSender).send("Lekab", "+46701234568", "Hello");
+        assertThat(usageSummary()).isEqualTo("2 of 10 used, 8 left");
+        assertThat(message().getValue()).isEmpty();
+        // The sender and recipients are kept for the next message
+        assertThat(sender().getValue()).isEqualTo("Lekab");
+    }
 
-	@Test
-	@WithMockUser(username = WITH_QUOTA, roles = "USER")
-	void showsPartsOfLongMessage() {
-		navigate("sms", SendSmsView.class);
+    @Test
+    @WithMockUser(username = WITH_QUOTA, roles = "USER")
+    void showsPartsOfLongMessage() {
+        navigate("sms", SendSmsView.class);
 
-		test(message()).setValue("a".repeat(161));
-		assertThat(message().getHelperText()).isEqualTo("161 characters, 2 part(s)");
-		test(message()).setValue("ą");
-		assertThat(message().getHelperText())
-				.isEqualTo("1 characters, 1 part(s); special characters make each part shorter");
-	}
+        test(message()).setValue("a".repeat(161));
+        assertThat(message().getHelperText()).isEqualTo("161 characters, 2 part(s)");
+        test(message()).setValue("ą");
+        assertThat(message().getHelperText())
+                .isEqualTo("1 characters, 1 part(s); special characters make each part shorter");
+    }
 
-	@Test
-	@WithMockUser(username = WITH_QUOTA, roles = "USER")
-	void rejectsInvalidInput() {
-		navigate("sms", SendSmsView.class);
+    @Test
+    @WithMockUser(username = WITH_QUOTA, roles = "USER")
+    void rejectsInvalidInput() {
+        navigate("sms", SendSmsView.class);
 
-		test(recipients()).setValue("+46701234567, not a number\n08-123 456 78");
-		test(find(Button.class).withText("Send").single()).click();
+        test(recipients()).setValue("+46701234567, not a number\n08-123 456 78");
+        test(find(Button.class).withText("Send").single()).click();
 
-		assertThat(sender().isInvalid()).isTrue();
-		assertThat(recipients().isInvalid()).isTrue();
-		assertThat(recipients().getErrorMessage()).isEqualTo("Not mobile phone numbers: not a number, 08-123 456 78");
-		assertThat(message().isInvalid()).isTrue();
-		verify(smsSender, never()).send(anyString(), anyString(), any());
-		assertThat(quotaManager.getUsage(WITH_QUOTA)).isZero();
-	}
+        assertThat(sender().isInvalid()).isTrue();
+        assertThat(recipients().isInvalid()).isTrue();
+        assertThat(recipients().getErrorMessage()).isEqualTo("Not mobile phone numbers: not a number, 08-123 456 78");
+        assertThat(message().isInvalid()).isTrue();
+        verify(smsSender, never()).send(anyString(), anyString(), any());
+        assertThat(quotaManager.getUsage(WITH_QUOTA)).isZero();
+    }
 
-	@Test
-	@WithMockUser(username = WITH_QUOTA, roles = "USER")
-	void sendsNothingWhenQuotaHasNoRoom() {
-		quotaManager.setUsage(WITH_QUOTA, 9);
-		navigate("sms", SendSmsView.class);
+    @Test
+    @WithMockUser(username = WITH_QUOTA, roles = "USER")
+    void sendsNothingWhenQuotaHasNoRoom() {
+        quotaManager.setUsage(WITH_QUOTA, 9);
+        navigate("sms", SendSmsView.class);
 
-		sender().setValue("+46701234500");
-		test(recipients()).setValue("+46701234567, +46701234568");
-		test(message()).setValue("Hello");
-		test(find(Button.class).withText("Send").single()).click();
+        sender().setValue("+46701234500");
+        test(recipients()).setValue("+46701234567, +46701234568");
+        test(message()).setValue("Hello");
+        test(find(Button.class).withText("Send").single()).click();
 
-		verify(smsSender, never()).send(anyString(), anyString(), any());
-		assertThat(usageSummary()).isEqualTo("9 of 10 used, 1 left");
-		assertThat(message().getValue()).isEqualTo("Hello");
-	}
+        verify(smsSender, never()).send(anyString(), anyString(), any());
+        assertThat(usageSummary()).isEqualTo("9 of 10 used, 1 left");
+        assertThat(message().getValue()).isEqualTo("Hello");
+    }
 
-	@Test
-	@WithMockUser(username = WITHOUT_QUOTA, roles = "USER")
-	void tellsUserWithoutQuota() {
-		navigate("sms", SendSmsView.class);
+    @Test
+    @WithMockUser(username = WITHOUT_QUOTA, roles = "USER")
+    void tellsUserWithoutQuota() {
+        navigate("sms", SendSmsView.class);
 
-		assertThat(find(TextArea.class).exists()).isFalse();
-		assertThat(find(Select.class).exists()).isFalse();
-		assertThat(find(Span.class)
-				.withText("You have no quota, so you cannot send SMS. Ask an admin to give you one.").exists())
-				.isTrue();
-	}
+        assertThat(find(TextArea.class).exists()).isFalse();
+        assertThat(find(Select.class).exists()).isFalse();
+        assertThat(find(Span.class)
+                .withText("You have no quota, so you cannot send SMS. Ask an admin to give you one.").exists())
+                .isTrue();
+    }
 
-	@Test
-	@WithMockUser(username = WITHOUT_SENDER_IDS, roles = "USER")
-	void tellsUserWithoutSenderIds() {
-		navigate("sms", SendSmsView.class);
+    @Test
+    @WithMockUser(username = WITHOUT_SENDER_IDS, roles = "USER")
+    void tellsUserWithoutSenderIds() {
+        navigate("sms", SendSmsView.class);
 
-		assertThat(find(TextArea.class).exists()).isFalse();
-		assertThat(find(Span.class).withText(
-				"You have no approved sender ids, so you cannot send SMS. Ask an admin to approve one for you.")
-				.exists()).isTrue();
-	}
+        assertThat(find(TextArea.class).exists()).isFalse();
+        assertThat(find(Span.class).withText(
+                        "You have no approved sender ids, so you cannot send SMS. Ask an admin to approve one for you.")
+                .exists()).isTrue();
+    }
 
-	@SuppressWarnings("unchecked")
-	private Select<String> sender() {
-		return find(Select.class).withLabel("Sender").single();
-	}
+    @SuppressWarnings("unchecked")
+    private Select<String> sender() {
+        return find(Select.class).withLabel("Sender").single();
+    }
 
-	private TextArea recipients() {
-		return find(TextArea.class).withLabel("Recipients").single();
-	}
+    private TextArea recipients() {
+        return find(TextArea.class).withLabel("Recipients").single();
+    }
 
-	private TextArea message() {
-		return find(TextArea.class).withLabel("Message").single();
-	}
+    private TextArea message() {
+        return find(TextArea.class).withLabel("Message").single();
+    }
 
-	private String usageSummary() {
-		return find(QuotaUsageCard.class).single().getSubtitle().getElement().getText();
-	}
+    private String usageSummary() {
+        return find(QuotaUsageCard.class).single().getSubtitle().getElement().getText();
+    }
 }

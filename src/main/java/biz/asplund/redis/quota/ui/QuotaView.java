@@ -94,7 +94,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
 
     /// Creates the view; `clock` gives the time zone that reset and last-used times are shown in.
     public QuotaView(QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager,
-            UserAccountService userAccountService, QuotaHistoryService quotaHistoryService, Clock clock) {
+                     UserAccountService userAccountService, QuotaHistoryService quotaHistoryService, Clock clock) {
         this.quotaDefinitionRepository = quotaDefinitionRepository;
         this.quotaManager = quotaManager;
         this.userAccountService = userAccountService;
@@ -263,7 +263,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
     private void applyFilter() {
         var term = filter.getValue().trim().toLowerCase(Locale.ROOT);
         grid.setItems(term.isEmpty() ? rows
-                : rows.stream().filter(row -> row.id().toLowerCase(Locale.ROOT).contains(term)).toList())
+                        : rows.stream().filter(row -> row.id().toLowerCase(Locale.ROOT).contains(term)).toList())
                 .setIdentifierProvider(QuotaRow::id);
     }
 

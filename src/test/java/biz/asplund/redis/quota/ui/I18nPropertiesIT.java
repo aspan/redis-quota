@@ -31,48 +31,48 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 // Binds quota.ui.i18n.* the way Spring Boot does, without starting the application
 class I18nPropertiesIT {
 
-	private static final Locale SWEDISH = Locale.of("sv");
+    private static final Locale SWEDISH = Locale.of("sv");
 
-	@Test
-	void defaultsToEnglishAndSwedish() {
-		var properties = bind(Map.of());
+    @Test
+    void defaultsToEnglishAndSwedish() {
+        var properties = bind(Map.of());
 
-		assertThat(properties.locales()).containsExactly(Locale.ENGLISH, SWEDISH);
-		assertThat(properties.fallback()).isEqualTo(Locale.ENGLISH);
-	}
+        assertThat(properties.locales()).containsExactly(Locale.ENGLISH, SWEDISH);
+        assertThat(properties.fallback()).isEqualTo(Locale.ENGLISH);
+    }
 
-	@Test
-	void usesFirstConfiguredLocaleAsFallback() {
-		var properties = bind(Map.of("quota.ui.i18n.locales", "sv,en"));
+    @Test
+    void usesFirstConfiguredLocaleAsFallback() {
+        var properties = bind(Map.of("quota.ui.i18n.locales", "sv,en"));
 
-		assertThat(properties.locales()).containsExactly(SWEDISH, Locale.ENGLISH);
-		assertThat(properties.supported(Locale.GERMAN)).isEqualTo(SWEDISH);
-		assertThat(properties.supported(Locale.UK)).isEqualTo(Locale.ENGLISH);
-		assertThat(properties.fromAcceptLanguage(request("de-DE,fr;q=0.5"))).isEqualTo(SWEDISH);
-	}
+        assertThat(properties.locales()).containsExactly(SWEDISH, Locale.ENGLISH);
+        assertThat(properties.supported(Locale.GERMAN)).isEqualTo(SWEDISH);
+        assertThat(properties.supported(Locale.UK)).isEqualTo(Locale.ENGLISH);
+        assertThat(properties.fromAcceptLanguage(request("de-DE,fr;q=0.5"))).isEqualTo(SWEDISH);
+    }
 
-	@Test
-	void limitsLanguagesToConfiguredOnes() {
-		var properties = bind(Map.of("quota.ui.i18n.locales", "en"));
+    @Test
+    void limitsLanguagesToConfiguredOnes() {
+        var properties = bind(Map.of("quota.ui.i18n.locales", "en"));
 
-		assertThat(properties.supported(SWEDISH)).isEqualTo(Locale.ENGLISH);
-		assertThat(properties.fromAcceptLanguage(request("sv-SE,sv;q=0.9"))).isEqualTo(Locale.ENGLISH);
-	}
+        assertThat(properties.supported(SWEDISH)).isEqualTo(Locale.ENGLISH);
+        assertThat(properties.fromAcceptLanguage(request("sv-SE,sv;q=0.9"))).isEqualTo(Locale.ENGLISH);
+    }
 
-	@Test
-	void rejectsEmptyList() {
-		assertThatExceptionOfType(BindException.class)
-				.isThrownBy(() -> bind(Map.of("quota.ui.i18n.locales", "")))
-				.havingRootCause().withMessageContaining("at least one locale");
-	}
+    @Test
+    void rejectsEmptyList() {
+        assertThatExceptionOfType(BindException.class)
+                .isThrownBy(() -> bind(Map.of("quota.ui.i18n.locales", "")))
+                .havingRootCause().withMessageContaining("at least one locale");
+    }
 
-	private static I18nProperties bind(Map<String, String> source) {
-		return new Binder(new MapConfigurationPropertySource(source)).bindOrCreate("quota.ui.i18n", I18nProperties.class);
-	}
+    private static I18nProperties bind(Map<String, String> source) {
+        return new Binder(new MapConfigurationPropertySource(source)).bindOrCreate("quota.ui.i18n", I18nProperties.class);
+    }
 
-	private static MockHttpServletRequest request(String acceptLanguage) {
-		var request = new MockHttpServletRequest();
-		request.addHeader("Accept-Language", acceptLanguage);
-		return request;
-	}
+    private static MockHttpServletRequest request(String acceptLanguage) {
+        var request = new MockHttpServletRequest();
+        request.addHeader("Accept-Language", acceptLanguage);
+        return request;
+    }
 }

@@ -53,7 +53,7 @@ public class UserQuotaSync implements ApplicationRunner, SchedulingConfigurer {
 
     /// Creates the sync, scheduled by `properties`.
     public UserQuotaSync(UserAccountService userAccountService, QuotaHistoryService quotaHistoryService,
-            QuotaSyncProperties properties) {
+                         QuotaSyncProperties properties) {
         this.userAccountService = userAccountService;
         this.quotaHistoryService = quotaHistoryService;
         this.properties = properties;
@@ -84,7 +84,7 @@ public class UserQuotaSync implements ApplicationRunner, SchedulingConfigurer {
             var result = userAccountService.syncQuotasToRedis();
             var expired = quotaHistoryService.deleteExpired();
             LOGGER.info("Recorded {} finished period(s), copied {} user quota(s) to Redis, removed {} definition(s) of "
-                    + "no user and {} stale usage key(s), and deleted {} period(s) of history past its retention",
+                            + "no user and {} stale usage key(s), and deleted {} period(s) of history past its retention",
                     recorded, result.copied(), result.removed(), result.staleUsage(), expired);
         } catch (DataAccessException e) {
             // A failure to record stops the sync before it deletes counters that are not yet in the history

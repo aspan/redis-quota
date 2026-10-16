@@ -29,9 +29,9 @@ import java.util.Objects;
 /// The constraints are for forms, which validate them with Vaadin's `BeanValidationBinder`; the constructor still
 /// rejects a missing period and a negative limit.
 ///
-/// @param id the id the quota is for, such as a username
+/// @param id     the id the quota is for, such as a username
 /// @param period how often the usage resets
-/// @param limit the most units that can be used in one period
+/// @param limit  the most units that can be used in one period
 @RedisHash("quota-definitions")
 public record QuotaDefinition(
         @Id @NotBlank(message = "{quotaDefinition.id.notBlank}") String id,
@@ -40,7 +40,7 @@ public record QuotaDefinition(
 
     /// Rejects a missing period and a negative limit.
     ///
-    /// @throws NullPointerException if `period` is `null`
+    /// @throws NullPointerException     if `period` is `null`
     /// @throws IllegalArgumentException if `limit` is negative
     public QuotaDefinition {
         Objects.requireNonNull(period, "period");

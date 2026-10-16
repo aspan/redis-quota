@@ -14,7 +14,9 @@ target/
 .sts4-cache
 
 ### IntelliJ IDEA ###
-.idea
+# Only the code style is shared, so the project formats the same in every IDE
+.idea/*
+!.idea/codeStyles/
 *.iws
 *.iml
 *.ipr

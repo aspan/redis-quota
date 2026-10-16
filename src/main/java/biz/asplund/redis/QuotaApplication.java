@@ -35,16 +35,16 @@ import java.time.Clock;
 @ColorScheme(ColorScheme.Value.LIGHT_DARK)
 public class QuotaApplication implements AppShellConfigurator {
 
-	/// Starts the application.
-	public static void main(String[] args) {
-		SpringApplication.run(QuotaApplication.class, args);
-	}
+    /// Starts the application.
+    public static void main(String[] args) {
+        SpringApplication.run(QuotaApplication.class, args);
+    }
 
-	/// The clock in the system time zone, which is what quota periods start and reset in. Tests replace it with a
-	/// fixed one.
-	@Bean
-	Clock clock() {
-		return Clock.systemDefaultZone();
-	}
+    /// The clock in the system time zone, which is what quota periods start and reset in. Tests replace it with a
+    /// fixed one.
+    @Bean
+    Clock clock() {
+        return Clock.systemDefaultZone();
+    }
 
 }

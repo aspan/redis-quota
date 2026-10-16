@@ -26,8 +26,8 @@ import java.util.Optional;
 /// A quota definition with its current status, read once per refresh.
 ///
 /// @param definition the quota's period and limit
-/// @param status the usage in the current period
-/// @param lastUsed when the quota was last used, or empty if never
+/// @param status     the usage in the current period
+/// @param lastUsed   when the quota was last used, or empty if never
 record QuotaRow(QuotaDefinition definition, QuotaStatus status, Optional<Instant> lastUsed) {
 
     /// Reads the current status and last use of `definition` from [QuotaManager].

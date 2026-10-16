@@ -56,124 +56,124 @@ import static org.assertj.core.api.Assertions.assertThat;
 @WithMockUser(username = ProfileViewIT.USERNAME, roles = "USER")
 class ProfileViewIT extends SpringBrowserlessTest {
 
-	static final String USERNAME = "profile-user";
-	private static final String PASSWORD = "password1";
+    static final String USERNAME = "profile-user";
+    private static final String PASSWORD = "password1";
 
-	@Autowired
-	private UserAccountService userAccountService;
+    @Autowired
+    private UserAccountService userAccountService;
 
-	@Autowired
-	private UserAccountRepository userAccountRepository;
+    @Autowired
+    private UserAccountRepository userAccountRepository;
 
-	@Autowired
-	private PasswordEncoder passwordEncoder;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
-	@BeforeEach
-	void storeUser() {
-		if (!userAccountRepository.existsByUsername(USERNAME)) {
-			userAccountService.createUser(USERNAME, PASSWORD, true, List.of("USER"), null);
-		}
-		reset();
-	}
+    @BeforeEach
+    void storeUser() {
+        if (!userAccountRepository.existsByUsername(USERNAME)) {
+            userAccountService.createUser(USERNAME, PASSWORD, true, List.of("USER"), null);
+        }
+        reset();
+    }
 
-	// Also afterwards, as the browserless setup starts the next test's UI before storeUser runs
-	@AfterEach
-	void reset() {
-		var account = userAccountRepository.findByUsername(USERNAME).orElseThrow();
-		userAccountService.updateUser(account.getId(), PASSWORD, true, List.of("USER"), null, UserProfile.NONE,
-				"someone-else");
-	}
+    // Also afterwards, as the browserless setup starts the next test's UI before storeUser runs
+    @AfterEach
+    void reset() {
+        var account = userAccountRepository.findByUsername(USERNAME).orElseThrow();
+        userAccountService.updateUser(account.getId(), PASSWORD, true, List.of("USER"), null, UserProfile.NONE,
+                "someone-else");
+    }
 
-	@Test
-	void opensForUserWithoutAdminRole() {
-		navigate(ProfileView.class);
+    @Test
+    void opensForUserWithoutAdminRole() {
+        navigate(ProfileView.class);
 
-		assertThat(find(SideNav.class).single().getItems()).extracting(SideNavItem::getLabel)
-				.containsExactly("Home", "Send SMS", "My profile");
-		navigate("quotas", RouteNotFoundError.class);
-	}
+        assertThat(find(SideNav.class).single().getItems()).extracting(SideNavItem::getLabel)
+                .containsExactly("Home", "Send SMS", "My profile");
+        navigate("quotas", RouteNotFoundError.class);
+    }
 
-	@Test
-	@SuppressWarnings("unchecked")
-	void savesAndAppliesSettings() {
-		navigate(ProfileView.class);
+    @Test
+    @SuppressWarnings("unchecked")
+    void savesAndAppliesSettings() {
+        navigate(ProfileView.class);
 
-		test((Select<Locale>) find(Select.class).withLabel("Language").single()).selectItem("Svenska");
-		test((Select<ColorSchemeChoice>) find(Select.class).withLabel("Appearance").single()).selectItem("Dark");
-		test(find(TextField.class).withLabel("Name").single()).setValue("Anna Andersson");
-		test(find(Button.class).withText("Save").single()).click();
+        test((Select<Locale>) find(Select.class).withLabel("Language").single()).selectItem("Svenska");
+        test((Select<ColorSchemeChoice>) find(Select.class).withLabel("Appearance").single()).selectItem("Dark");
+        test(find(TextField.class).withLabel("Name").single()).setValue("Anna Andersson");
+        test(find(Button.class).withText("Save").single()).click();
 
-		assertThat(userAccountService.findSettings(USERNAME)).isEqualTo(new UserSettings("dark", "sv"));
-		assertThat(userAccountService.findName(USERNAME)).isEqualTo("Anna Andersson");
-		// The side menu shows the new name at once
-		var layout = find(MainLayout.class).single();
-		assertThat(find(Avatar.class, layout).single().getName()).isEqualTo("Anna Andersson");
-		assertThat(find(Span.class, layout).withText("Anna Andersson").exists()).isTrue();
-		assertThat(UI.getCurrent().getLocale().getLanguage()).isEqualTo("sv");
-		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.DARK);
-		// The page is rebuilt in Swedish, showing the saved settings
-		assertThat(find(Button.class).withText("Spara").exists()).isTrue();
-		assertThat(find(TextField.class).withLabel("Namn").single().getValue()).isEqualTo("Anna Andersson");
-		assertThat(((Select<Locale>) find(Select.class).withLabel("Språk").single()).getValue())
-				.isEqualTo(Locale.of("sv"));
-	}
+        assertThat(userAccountService.findSettings(USERNAME)).isEqualTo(new UserSettings("dark", "sv"));
+        assertThat(userAccountService.findName(USERNAME)).isEqualTo("Anna Andersson");
+        // The side menu shows the new name at once
+        var layout = find(MainLayout.class).single();
+        assertThat(find(Avatar.class, layout).single().getName()).isEqualTo("Anna Andersson");
+        assertThat(find(Span.class, layout).withText("Anna Andersson").exists()).isTrue();
+        assertThat(UI.getCurrent().getLocale().getLanguage()).isEqualTo("sv");
+        assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.DARK);
+        // The page is rebuilt in Swedish, showing the saved settings
+        assertThat(find(Button.class).withText("Spara").exists()).isTrue();
+        assertThat(find(TextField.class).withLabel("Namn").single().getValue()).isEqualTo("Anna Andersson");
+        assertThat(((Select<Locale>) find(Select.class).withLabel("Språk").single()).getValue())
+                .isEqualTo(Locale.of("sv"));
+    }
 
-	@Test
-	void checksEmailAddress() {
-		var other = userAccountService.createUser("profile-other-" + System.nanoTime(), PASSWORD, true, List.of(),
-				null, new UserProfile(null, "taken-" + System.nanoTime() + "@example.com", UserSettings.NONE));
-		navigate(ProfileView.class);
-		var email = find(EmailField.class).withLabel("Email").single();
-		var save = find(Button.class).withText("Save").single();
+    @Test
+    void checksEmailAddress() {
+        var other = userAccountService.createUser("profile-other-" + System.nanoTime(), PASSWORD, true, List.of(),
+                null, new UserProfile(null, "taken-" + System.nanoTime() + "@example.com", UserSettings.NONE));
+        navigate(ProfileView.class);
+        var email = find(EmailField.class).withLabel("Email").single();
+        var save = find(Button.class).withText("Save").single();
 
-		test(email).setValue("not an address");
-		test(save).click();
-		assertThat(email.isInvalid()).isTrue();
-		assertThat(email.getErrorMessage()).isEqualTo("Enter a valid email address");
+        test(email).setValue("not an address");
+        test(save).click();
+        assertThat(email.isInvalid()).isTrue();
+        assertThat(email.getErrorMessage()).isEqualTo("Enter a valid email address");
 
-		test(email).setValue(userAccountService.findProfile(other.getUsername()).email().toUpperCase(Locale.ROOT));
-		test(save).click();
-		assertThat(email.isInvalid()).isTrue();
-		assertThat(email.getErrorMessage()).isEqualTo("Another user already has this email address, or this username");
+        test(email).setValue(userAccountService.findProfile(other.getUsername()).email().toUpperCase(Locale.ROOT));
+        test(save).click();
+        assertThat(email.isInvalid()).isTrue();
+        assertThat(email.getErrorMessage()).isEqualTo("Another user already has this email address, or this username");
 
-		test(email).setValue("me@example.com");
-		test(save).click();
-		assertThat(userAccountService.findProfile(USERNAME).email()).isEqualTo("me@example.com");
-	}
+        test(email).setValue("me@example.com");
+        test(save).click();
+        assertThat(userAccountService.findProfile(USERNAME).email()).isEqualTo("me@example.com");
+    }
 
-	@Test
-	void changesPasswordWithCurrentOne() {
-		navigate(ProfileView.class);
-		var current = find(PasswordField.class).withLabel("Current password").single();
-		var newPassword = find(PasswordField.class).withLabel("New password").single();
-		var repeat = find(PasswordField.class).withLabel("Repeat new password").single();
-		var change = find(Button.class).withText("Change password").single();
+    @Test
+    void changesPasswordWithCurrentOne() {
+        navigate(ProfileView.class);
+        var current = find(PasswordField.class).withLabel("Current password").single();
+        var newPassword = find(PasswordField.class).withLabel("New password").single();
+        var repeat = find(PasswordField.class).withLabel("Repeat new password").single();
+        var change = find(Button.class).withText("Change password").single();
 
-		test(current).setValue("wrong-password");
-		test(newPassword).setValue("password2");
-		test(repeat).setValue("password2");
-		test(change).click();
-		assertThat(current.isInvalid()).isTrue();
-		assertThat(current.getErrorMessage()).isEqualTo("The current password is not correct");
+        test(current).setValue("wrong-password");
+        test(newPassword).setValue("password2");
+        test(repeat).setValue("password2");
+        test(change).click();
+        assertThat(current.isInvalid()).isTrue();
+        assertThat(current.getErrorMessage()).isEqualTo("The current password is not correct");
 
-		test(current).setValue(PASSWORD);
-		test(repeat).setValue("password3");
-		test(change).click();
-		assertThat(repeat.isInvalid()).isTrue();
-		assertThat(repeat.getErrorMessage()).isEqualTo("The passwords are not the same");
+        test(current).setValue(PASSWORD);
+        test(repeat).setValue("password3");
+        test(change).click();
+        assertThat(repeat.isInvalid()).isTrue();
+        assertThat(repeat.getErrorMessage()).isEqualTo("The passwords are not the same");
 
-		test(newPassword).setValue("short");
-		test(repeat).setValue("short");
-		test(change).click();
-		assertThat(newPassword.isInvalid()).isTrue();
-		assertThat(newPassword.getErrorMessage()).isEqualTo("Enter a password of at least 8 characters");
+        test(newPassword).setValue("short");
+        test(repeat).setValue("short");
+        test(change).click();
+        assertThat(newPassword.isInvalid()).isTrue();
+        assertThat(newPassword.getErrorMessage()).isEqualTo("Enter a password of at least 8 characters");
 
-		test(newPassword).setValue("password2");
-		test(repeat).setValue("password2");
-		test(change).click();
+        test(newPassword).setValue("password2");
+        test(repeat).setValue("password2");
+        test(change).click();
 
-		var stored = userAccountRepository.findByUsername(USERNAME).orElseThrow().getPassword();
-		assertThat(passwordEncoder.matches("password2", stored)).isTrue();
-		assertThat(current.getValue()).isEmpty();
-	}
+        var stored = userAccountRepository.findByUsername(USERNAME).orElseThrow().getPassword();
+        assertThat(passwordEncoder.matches("password2", stored)).isTrue();
+        assertThat(current.getValue()).isEmpty();
+    }
 }

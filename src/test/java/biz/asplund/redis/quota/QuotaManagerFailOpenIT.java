@@ -43,77 +43,77 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 @SpringBootTest(properties = "spring.data.redis.connect-timeout=500ms")
 class QuotaManagerFailOpenIT {
 
-	private static final Instant NOW = Instant.parse("2026-10-14T08:15:30Z");
+    private static final Instant NOW = Instant.parse("2026-10-14T08:15:30Z");
 
-	@Autowired
-	private QuotaManager quotaManager;
+    @Autowired
+    private QuotaManager quotaManager;
 
-	@TestBean
-	private Clock clock;
+    @TestBean
+    private Clock clock;
 
-	static Clock clock() {
-		return Clock.fixed(NOW, ZoneOffset.UTC);
-	}
+    static Clock clock() {
+        return Clock.fixed(NOW, ZoneOffset.UTC);
+    }
 
-	@DynamicPropertySource
-	static void unreachableRedis(DynamicPropertyRegistry registry) {
-		registry.add("spring.data.redis.host", () -> "localhost");
-		registry.add("spring.data.redis.port", QuotaManagerFailOpenIT::unusedPort);
-	}
+    @DynamicPropertySource
+    static void unreachableRedis(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.redis.host", () -> "localhost");
+        registry.add("spring.data.redis.port", QuotaManagerFailOpenIT::unusedPort);
+    }
 
-	@Test
-	void checkAndIncrementAllowsRequestWhenRedisIsDown() {
-		var config = new QuotaConfig(100, QuotaPeriod.DAILY);
+    @Test
+    void checkAndIncrementAllowsRequestWhenRedisIsDown() {
+        var config = new QuotaConfig(100, QuotaPeriod.DAILY);
 
-		var status = quotaManager.checkAndIncrement("user", config, 10);
+        var status = quotaManager.checkAndIncrement("user", config, 10);
 
-		assertThat(status).isEqualTo(new QuotaStatus(true, 100, 0, 100, Instant.parse("2026-10-15T00:00:00Z")));
-	}
+        assertThat(status).isEqualTo(new QuotaStatus(true, 100, 0, 100, Instant.parse("2026-10-15T00:00:00Z")));
+    }
 
-	@Test
-	void checkAndIncrementWithStoredDefinitionAllowsRequestWhenRedisIsDown() {
-		var status = quotaManager.checkAndIncrement("user", 10);
+    @Test
+    void checkAndIncrementWithStoredDefinitionAllowsRequestWhenRedisIsDown() {
+        var status = quotaManager.checkAndIncrement("user", 10);
 
-		// The stored period is unknown, so the status resets now
-		assertThat(status).isEqualTo(new QuotaStatus(true, 0, 0, 0, NOW));
-	}
+        // The stored period is unknown, so the status resets now
+        assertThat(status).isEqualTo(new QuotaStatus(true, 0, 0, 0, NOW));
+    }
 
-	@Test
-	void getStatusReportsFullQuotaWhenRedisIsDown() {
-		var reset = Instant.parse("2026-10-15T00:00:00Z");
+    @Test
+    void getStatusReportsFullQuotaWhenRedisIsDown() {
+        var reset = Instant.parse("2026-10-15T00:00:00Z");
 
-		assertThat(quotaManager.getStatus("user", new QuotaConfig(100, QuotaPeriod.DAILY)))
-				.isEqualTo(new QuotaStatus(true, 100, 0, 100, reset));
-		assertThat(quotaManager.getStatus("user"))
-				.isEqualTo(new QuotaStatus(true, 0, 0, 0, NOW));
-	}
+        assertThat(quotaManager.getStatus("user", new QuotaConfig(100, QuotaPeriod.DAILY)))
+                .isEqualTo(new QuotaStatus(true, 100, 0, 100, reset));
+        assertThat(quotaManager.getStatus("user"))
+                .isEqualTo(new QuotaStatus(true, 0, 0, 0, NOW));
+    }
 
-	@Test
-	void getUsageReturnsZeroWhenRedisIsDown() {
-		assertThat(quotaManager.getUsage("user")).isZero();
-	}
+    @Test
+    void getUsageReturnsZeroWhenRedisIsDown() {
+        assertThat(quotaManager.getUsage("user")).isZero();
+    }
 
-	@Test
-	void getLastUsedIsEmptyWhenRedisIsDown() {
-		assertThat(quotaManager.getLastUsed("user")).isEmpty();
-	}
+    @Test
+    void getLastUsedIsEmptyWhenRedisIsDown() {
+        assertThat(quotaManager.getLastUsed("user")).isEmpty();
+    }
 
-	@Test
-	void writeOperationsFailWhenRedisIsDown() {
-		assertThatExceptionOfType(RedisConnectionFailureException.class)
-				.isThrownBy(() -> quotaManager.resetQuota("user"));
-		assertThatExceptionOfType(RedisConnectionFailureException.class)
-				.isThrownBy(() -> quotaManager.adjustUsage("user", -1));
-		assertThatExceptionOfType(RedisConnectionFailureException.class)
-				.isThrownBy(() -> quotaManager.setUsage("user", 0));
-	}
+    @Test
+    void writeOperationsFailWhenRedisIsDown() {
+        assertThatExceptionOfType(RedisConnectionFailureException.class)
+                .isThrownBy(() -> quotaManager.resetQuota("user"));
+        assertThatExceptionOfType(RedisConnectionFailureException.class)
+                .isThrownBy(() -> quotaManager.adjustUsage("user", -1));
+        assertThatExceptionOfType(RedisConnectionFailureException.class)
+                .isThrownBy(() -> quotaManager.setUsage("user", 0));
+    }
 
-	private static int unusedPort() {
-		try (var socket = new ServerSocket(0)) {
-			return socket.getLocalPort();
-		} catch (IOException e) {
-			throw new UncheckedIOException(e);
-		}
-	}
+    private static int unusedPort() {
+        try (var socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
 }

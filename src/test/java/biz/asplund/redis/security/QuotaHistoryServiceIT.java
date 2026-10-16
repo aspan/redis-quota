@@ -48,128 +48,128 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 @SpringBootTest
 class QuotaHistoryServiceIT {
 
-	@Autowired
-	private QuotaHistoryService quotaHistoryService;
+    @Autowired
+    private QuotaHistoryService quotaHistoryService;
 
-	@Autowired
-	private QuotaUsageRecordRepository quotaUsageRecordRepository;
+    @Autowired
+    private QuotaUsageRecordRepository quotaUsageRecordRepository;
 
-	@Autowired
-	private UserAccountService userAccountService;
+    @Autowired
+    private UserAccountService userAccountService;
 
-	@Autowired
-	private QuotaDefinitionRepository quotaDefinitionRepository;
+    @Autowired
+    private QuotaDefinitionRepository quotaDefinitionRepository;
 
-	@Autowired
-	private StringRedisTemplate redisTemplate;
+    @Autowired
+    private StringRedisTemplate redisTemplate;
 
-	@Autowired
-	private QuotaCounterProperties counterProperties;
+    @Autowired
+    private QuotaCounterProperties counterProperties;
 
-	@Autowired
-	private Clock clock;
+    @Autowired
+    private Clock clock;
 
-	@Test
-	void recordsFinishedPeriodOfUserQuota() {
-		var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
-		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 4);
+    @Test
+    void recordsFinishedPeriodOfUserQuota() {
+        var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
+        yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 4);
 
-		quotaHistoryService.recordFinishedPeriods();
+        quotaHistoryService.recordFinishedPeriods();
 
-		assertThat(quotaHistoryService.findHistory(account.getUsername())).singleElement().satisfies(record -> {
-			assertThat(record.getPeriod()).isEqualTo(QuotaPeriod.DAILY);
-			assertThat(record.getUsed()).isEqualTo(4);
-			assertThat(record.getQuotaLimit()).isEqualTo(10);
-		});
-	}
+        assertThat(quotaHistoryService.findHistory(account.getUsername())).singleElement().satisfies(record -> {
+            assertThat(record.getPeriod()).isEqualTo(QuotaPeriod.DAILY);
+            assertThat(record.getUsed()).isEqualTo(4);
+            assertThat(record.getQuotaLimit()).isEqualTo(10);
+        });
+    }
 
-	@Test
-	void updatesPeriodWhenRecordedAgain() {
-		var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
-		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 4);
-		quotaHistoryService.recordFinishedPeriods();
+    @Test
+    void updatesPeriodWhenRecordedAgain() {
+        var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
+        yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 4);
+        quotaHistoryService.recordFinishedPeriods();
 
-		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 3);
-		quotaHistoryService.recordFinishedPeriods();
+        yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 3);
+        quotaHistoryService.recordFinishedPeriods();
 
-		assertThat(quotaHistoryService.findHistory(account.getUsername())).singleElement()
-				.satisfies(record -> assertThat(record.getUsed()).isEqualTo(7));
-	}
+        assertThat(quotaHistoryService.findHistory(account.getUsername())).singleElement()
+                .satisfies(record -> assertThat(record.getUsed()).isEqualTo(7));
+    }
 
-	@Test
-	void recordsPeriodsThatEndedWhileNotRecording() {
-		var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
-		daysAgo(4).checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 2);
-		daysAgo(3).checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 5);
-		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 1);
+    @Test
+    void recordsPeriodsThatEndedWhileNotRecording() {
+        var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
+        daysAgo(4).checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 2);
+        daysAgo(3).checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 5);
+        yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 1);
 
-		assertThat(quotaHistoryService.recordFinishedPeriods()).isGreaterThanOrEqualTo(3);
+        assertThat(quotaHistoryService.recordFinishedPeriods()).isGreaterThanOrEqualTo(3);
 
-		assertThat(quotaHistoryService.findHistory(account.getUsername()))
-				.extracting(QuotaUsageRecord::getUsed)
-				.containsExactly(1, 5, 2);
-	}
+        assertThat(quotaHistoryService.findHistory(account.getUsername()))
+                .extracting(QuotaUsageRecord::getUsed)
+                .containsExactly(1, 5, 2);
+    }
 
-	@Test
-	void recordsNothingWithoutUsageOrQuota() {
-		var unused = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
-		var withoutQuota = createUser(null);
+    @Test
+    void recordsNothingWithoutUsageOrQuota() {
+        var unused = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
+        var withoutQuota = createUser(null);
 
-		quotaHistoryService.recordFinishedPeriods();
+        quotaHistoryService.recordFinishedPeriods();
 
-		assertThat(quotaHistoryService.findHistory(unused.getUsername())).isEmpty();
-		assertThat(quotaHistoryService.findHistory(withoutQuota.getUsername())).isEmpty();
-	}
+        assertThat(quotaHistoryService.findHistory(unused.getUsername())).isEmpty();
+        assertThat(quotaHistoryService.findHistory(withoutQuota.getUsername())).isEmpty();
+    }
 
-	@Test
-	void deletesPeriodsPastRetention() {
-		var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
-		var old = new QuotaUsageRecord(account, QuotaPeriod.DAILY, clock.instant().minus(Duration.ofDays(400)));
-		old.update(5, 10);
-		var recent = new QuotaUsageRecord(account, QuotaPeriod.DAILY, clock.instant().minus(Duration.ofDays(2)));
-		recent.update(3, 10);
-		quotaUsageRecordRepository.saveAll(List.of(old, recent));
+    @Test
+    void deletesPeriodsPastRetention() {
+        var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
+        var old = new QuotaUsageRecord(account, QuotaPeriod.DAILY, clock.instant().minus(Duration.ofDays(400)));
+        old.update(5, 10);
+        var recent = new QuotaUsageRecord(account, QuotaPeriod.DAILY, clock.instant().minus(Duration.ofDays(2)));
+        recent.update(3, 10);
+        quotaUsageRecordRepository.saveAll(List.of(old, recent));
 
-		assertThat(quotaHistoryService.deleteExpired()).isPositive();
+        assertThat(quotaHistoryService.deleteExpired()).isPositive();
 
-		assertThat(quotaHistoryService.findHistory(account.getUsername())).extracting(QuotaUsageRecord::getUsed).containsExactly(3);
-	}
+        assertThat(quotaHistoryService.findHistory(account.getUsername())).extracting(QuotaUsageRecord::getUsed).containsExactly(3);
+    }
 
-	@Test
-	void deletesHistoryWithUser() {
-		var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
-		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 1);
-		quotaHistoryService.recordFinishedPeriods();
+    @Test
+    void deletesHistoryWithUser() {
+        var account = createUser(new QuotaConfig(10, QuotaPeriod.DAILY));
+        yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 1);
+        quotaHistoryService.recordFinishedPeriods();
 
-		userAccountService.deleteUser(account.getId(), "someone-else");
+        userAccountService.deleteUser(account.getId(), "someone-else");
 
-		assertThat(quotaHistoryService.findHistory(account.getUsername())).isEmpty();
-	}
+        assertThat(quotaHistoryService.findHistory(account.getUsername())).isEmpty();
+    }
 
-	@Test
-	void keepsOneYearByDefault() {
-		assertThat(bind(Map.of()).retention()).isEqualTo(Duration.ofDays(365));
-		assertThat(bind(Map.of("quota.history.retention", "90d")).retention()).isEqualTo(Duration.ofDays(90));
-		assertThatExceptionOfType(BindException.class)
-				.isThrownBy(() -> bind(Map.of("quota.history.retention", "0d")));
-	}
+    @Test
+    void keepsOneYearByDefault() {
+        assertThat(bind(Map.of()).retention()).isEqualTo(Duration.ofDays(365));
+        assertThat(bind(Map.of("quota.history.retention", "90d")).retention()).isEqualTo(Duration.ofDays(90));
+        assertThatExceptionOfType(BindException.class)
+                .isThrownBy(() -> bind(Map.of("quota.history.retention", "0d")));
+    }
 
-	private UserAccount createUser(QuotaConfig quota) {
-		return userAccountService.createUser("history-" + UUID.randomUUID(), "password1", true, List.of(), quota);
-	}
+    private UserAccount createUser(QuotaConfig quota) {
+        return userAccountService.createUser("history-" + UUID.randomUUID(), "password1", true, List.of(), quota);
+    }
 
-	// Counts in the period before the current one, as the counters of finished periods were written
-	private QuotaManager yesterday() {
-		return daysAgo(1);
-	}
+    // Counts in the period before the current one, as the counters of finished periods were written
+    private QuotaManager yesterday() {
+        return daysAgo(1);
+    }
 
-	private QuotaManager daysAgo(int days) {
-		return new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.offset(clock, Duration.ofDays(-days)),
-				counterProperties);
-	}
+    private QuotaManager daysAgo(int days) {
+        return new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.offset(clock, Duration.ofDays(-days)),
+                counterProperties);
+    }
 
-	private static QuotaHistoryProperties bind(Map<String, String> values) {
-		return new Binder(new MapConfigurationPropertySource(values))
-				.bindOrCreate("quota.history", QuotaHistoryProperties.class);
-	}
+    private static QuotaHistoryProperties bind(Map<String, String> values) {
+        return new Binder(new MapConfigurationPropertySource(values))
+                .bindOrCreate("quota.history", QuotaHistoryProperties.class);
+    }
 }

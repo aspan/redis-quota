@@ -26,13 +26,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 // Which country's flag stands for a language, without starting the application
 class LanguageFlagIT {
 
-	@ParameterizedTest
-	@CsvSource({"en, gb", "sv, se", "da, dk", "nb, no", "ja, jp", "de, de", "fi, fi", "fr, fr", "en-US, us",
-			"pt-BR, br"})
-	void picksFlagCountry(String languageTag, String country) {
-		var locale = Locale.forLanguageTag(languageTag);
+    @ParameterizedTest
+    @CsvSource({"en, gb", "sv, se", "da, dk", "nb, no", "ja, jp", "de, de", "fi, fi", "fr, fr", "en-US, us",
+            "pt-BR, br"})
+    void picksFlagCountry(String languageTag, String country) {
+        var locale = Locale.forLanguageTag(languageTag);
 
-		assertThat(LanguageFlag.country(locale)).isEqualTo(country);
-		assertThat(new LanguageFlag(locale).getSrc()).isEqualTo(LanguageFlag.PATH + country + ".svg");
-	}
+        assertThat(LanguageFlag.country(locale)).isEqualTo(country);
+        assertThat(new LanguageFlag(locale).getSrc()).isEqualTo(LanguageFlag.PATH + country + ".svg");
+    }
 }

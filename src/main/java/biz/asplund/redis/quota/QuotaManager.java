@@ -63,21 +63,21 @@ public class QuotaManager {
     /// Takes the counter and last-used keys, and the amount, the expiry in seconds, the limit and the current time in
     /// milliseconds. Returns `{1, new usage}` when the amount was counted, and `{0, current usage}` when it was not.
     public static final String QUOTA_SCRIPT = """
-        local current = tonumber(redis.call('GET', KEYS[1]) or '0')
-        local amount = tonumber(ARGV[1])
-        local ttl = tonumber(ARGV[2])
-        local limit = tonumber(ARGV[3])
-        local new_usage = current + amount
-
-        if new_usage <= limit then
-            redis.call('INCRBY', KEYS[1], amount)
-            redis.call('EXPIRE', KEYS[1], ttl)
-            redis.call('SET', KEYS[2], ARGV[4])
-            return {1, new_usage}
-        end
-
-        return {0, current}
-        """;
+            local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+            local amount = tonumber(ARGV[1])
+            local ttl = tonumber(ARGV[2])
+            local limit = tonumber(ARGV[3])
+            local new_usage = current + amount
+            
+            if new_usage <= limit then
+                redis.call('INCRBY', KEYS[1], amount)
+                redis.call('EXPIRE', KEYS[1], ttl)
+                redis.call('SET', KEYS[2], ARGV[4])
+                return {1, new_usage}
+            end
+            
+            return {0, current}
+            """;
 
     private static final String QUOTA_PREFIX = "quota";
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHxx");
@@ -106,7 +106,7 @@ public class QuotaManager {
 
     /// Creates a manager that keeps counters for the retention in `properties` after their period ends.
     public QuotaManager(RedisTemplate<String, String> redisTemplate,
-            QuotaDefinitionRepository quotaDefinitionRepository, Clock clock, QuotaCounterProperties properties) {
+                        QuotaDefinitionRepository quotaDefinitionRepository, Clock clock, QuotaCounterProperties properties) {
         this.redisTemplate = redisTemplate;
         this.quotaDefinitionRepository = quotaDefinitionRepository;
         this.clock = clock;
@@ -144,12 +144,12 @@ public class QuotaManager {
 
         try {
             var result = redisTemplate.execute(
-                redisScript,
-                List.of(key, lastUsedKey),
-                String.valueOf(amount),
-                String.valueOf(ttl),
-                String.valueOf(config.limit()),
-                String.valueOf(clock.millis())
+                    redisScript,
+                    List.of(key, lastUsedKey),
+                    String.valueOf(amount),
+                    String.valueOf(ttl),
+                    String.valueOf(config.limit()),
+                    String.valueOf(clock.millis())
             );
 
             if (result.size() >= 2) {
@@ -224,10 +224,10 @@ public class QuotaManager {
     public int adjustUsage(String id, int delta) {
         var period = definition(id).period();
         var usage = redisTemplate.execute(
-            ADJUST_USAGE_SCRIPT,
-            Collections.singletonList(getPeriodKey(id, period)),
-            String.valueOf(delta),
-            String.valueOf(getTTL(period))
+                ADJUST_USAGE_SCRIPT,
+                Collections.singletonList(getPeriodKey(id, period)),
+                String.valueOf(delta),
+                String.valueOf(getTTL(period))
         );
         return usage.intValue();
     }
@@ -241,7 +241,7 @@ public class QuotaManager {
         }
         var period = definition(id).period();
         redisTemplate.opsForValue().set(getPeriodKey(id, period), String.valueOf(usage),
-            Duration.ofSeconds(getTTL(period)));
+                Duration.ofSeconds(getTTL(period)));
     }
 
     private QuotaStatus withDefinition(String id, Function<QuotaConfig, QuotaStatus> action) {
@@ -258,7 +258,7 @@ public class QuotaManager {
 
     private QuotaDefinition definition(String id) {
         return quotaDefinitionRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("No quota defined for id " + id));
+                .orElseThrow(() -> new IllegalArgumentException("No quota defined for id " + id));
     }
 
     private int readUsage(String id, QuotaPeriod period) {
@@ -336,7 +336,7 @@ public class QuotaManager {
     /// The usage of a finished period.
     ///
     /// @param start when the period started
-    /// @param used the final count
+    /// @param used  the final count
     public record PeriodUsage(Instant start, int used) {
     }
 
@@ -350,7 +350,7 @@ public class QuotaManager {
         var starts = new ArrayList<ZonedDateTime>();
         // From the period that ended within the retention, so the oldest counter that can still be there
         for (var start = getPeriodStart(period, now.minus(counterRetention)); start.isBefore(current);
-                start = getNextPeriodStart(period, start)) {
+             start = getNextPeriodStart(period, start)) {
             starts.add(start);
         }
         if (starts.isEmpty()) {

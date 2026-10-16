@@ -45,69 +45,69 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class UserQuotaSyncIT {
 
-	@Autowired
-	private ScheduledTaskHolder scheduledTaskHolder;
+    @Autowired
+    private ScheduledTaskHolder scheduledTaskHolder;
 
-	@Autowired
-	private UserQuotaSync userQuotaSync;
+    @Autowired
+    private UserQuotaSync userQuotaSync;
 
-	@Autowired
-	private QuotaDefinitionRepository quotaDefinitionRepository;
+    @Autowired
+    private QuotaDefinitionRepository quotaDefinitionRepository;
 
-	@Autowired
-	private UserAccountService userAccountService;
+    @Autowired
+    private UserAccountService userAccountService;
 
-	@Autowired
-	private QuotaHistoryService quotaHistoryService;
+    @Autowired
+    private QuotaHistoryService quotaHistoryService;
 
-	@Autowired
-	private QuotaManager quotaManager;
+    @Autowired
+    private QuotaManager quotaManager;
 
-	@Autowired
-	private StringRedisTemplate redisTemplate;
+    @Autowired
+    private StringRedisTemplate redisTemplate;
 
-	@Autowired
-	private QuotaCounterProperties counterProperties;
+    @Autowired
+    private QuotaCounterProperties counterProperties;
 
-	@Autowired
-	private Clock clock;
+    @Autowired
+    private Clock clock;
 
-	@Test
-	void runsSyncDailyAndHistoryHourly() {
-		// The application's only cron tasks
-		assertThat(scheduledTaskHolder.getScheduledTasks())
-				.map(scheduled -> scheduled.getTask())
-				.filteredOn(CronTask.class::isInstance)
-				.map(task -> ((CronTask) task).getExpression())
-				.containsExactlyInAnyOrder("0 30 3 * * *", "0 5 * * * *");
-	}
+    @Test
+    void runsSyncDailyAndHistoryHourly() {
+        // The application's only cron tasks
+        assertThat(scheduledTaskHolder.getScheduledTasks())
+                .map(scheduled -> scheduled.getTask())
+                .filteredOn(CronTask.class::isInstance)
+                .map(task -> ((CronTask) task).getExpression())
+                .containsExactlyInAnyOrder("0 30 3 * * *", "0 5 * * * *");
+    }
 
-	@Test
-	void recordsHistoryBeforeDeletingCountersOfFinishedPeriods() {
-		var account = userAccountService.createUser("sync-" + UUID.randomUUID(), "password1", true, List.of(),
-				new QuotaConfig(10, QuotaPeriod.DAILY));
-		yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 6);
+    @Test
+    void recordsHistoryBeforeDeletingCountersOfFinishedPeriods() {
+        var account = userAccountService.createUser("sync-" + UUID.randomUUID(), "password1", true, List.of(),
+                new QuotaConfig(10, QuotaPeriod.DAILY));
+        yesterday().checkAndIncrement(account.getUsername(), new QuotaConfig(10, QuotaPeriod.DAILY), 6);
 
-		userQuotaSync.sync();
+        userQuotaSync.sync();
 
-		assertThat(quotaHistoryService.findHistory(account.getUsername())).singleElement()
-				.satisfies(record -> assertThat(record.getUsed()).isEqualTo(6));
-		// The sync deleted yesterday's counter after recording it
-		assertThat(quotaManager.getFinishedPeriodUsage(account.getUsername(), QuotaPeriod.DAILY)).isEmpty();
-	}
+        assertThat(quotaHistoryService.findHistory(account.getUsername())).singleElement()
+                .satisfies(record -> assertThat(record.getUsed()).isEqualTo(6));
+        // The sync deleted yesterday's counter after recording it
+        assertThat(quotaManager.getFinishedPeriodUsage(account.getUsername(), QuotaPeriod.DAILY)).isEmpty();
+    }
 
-	private QuotaManager yesterday() {
-		return new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.offset(clock, Duration.ofDays(-1)),
-				counterProperties);
-	}
+    private QuotaManager yesterday() {
+        return new QuotaManager(redisTemplate, quotaDefinitionRepository, Clock.offset(clock, Duration.ofDays(-1)),
+                counterProperties);
+    }
 
-	@Test
-	void removesDefinitionsOfNoUserWhenRun() {
-		var id = "no-user-" + UUID.randomUUID();
-		quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 5));
+    @Test
+    void removesDefinitionsOfNoUserWhenRun() {
+        var id = "no-user-" + UUID.randomUUID();
+        quotaDefinitionRepository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 5));
 
-		userQuotaSync.sync();
+        userQuotaSync.sync();
 
-		assertThat(quotaDefinitionRepository.existsById(id)).isFalse();
-	}
+        assertThat(quotaDefinitionRepository.existsById(id)).isFalse();
+    }
 }

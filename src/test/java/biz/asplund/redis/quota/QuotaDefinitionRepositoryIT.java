@@ -30,47 +30,47 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DataRedisTest
 class QuotaDefinitionRepositoryIT {
 
-	@Autowired
-	private QuotaDefinitionRepository repository;
+    @Autowired
+    private QuotaDefinitionRepository repository;
 
-	@Test
-	void savesAndFindsDefinitionById() {
-		var definition = new QuotaDefinition(uniqueId(), QuotaPeriod.MONTHLY, 10_000);
+    @Test
+    void savesAndFindsDefinitionById() {
+        var definition = new QuotaDefinition(uniqueId(), QuotaPeriod.MONTHLY, 10_000);
 
-		repository.save(definition);
+        repository.save(definition);
 
-		assertThat(repository.findById(definition.id())).contains(definition);
-	}
+        assertThat(repository.findById(definition.id())).contains(definition);
+    }
 
-	@Test
-	void saveReplacesExistingDefinition() {
-		var id = uniqueId();
-		repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
+    @Test
+    void saveReplacesExistingDefinition() {
+        var id = uniqueId();
+        repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
 
-		var updated = new QuotaDefinition(id, QuotaPeriod.WEEKLY, 500);
-		repository.save(updated);
+        var updated = new QuotaDefinition(id, QuotaPeriod.WEEKLY, 500);
+        repository.save(updated);
 
-		assertThat(repository.findById(id)).contains(updated);
-	}
+        assertThat(repository.findById(id)).contains(updated);
+    }
 
-	@Test
-	void deleteRemovesDefinition() {
-		var id = uniqueId();
-		repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
+    @Test
+    void deleteRemovesDefinition() {
+        var id = uniqueId();
+        repository.save(new QuotaDefinition(id, QuotaPeriod.DAILY, 100));
 
-		repository.deleteById(id);
+        repository.deleteById(id);
 
-		assertThat(repository.existsById(id)).isFalse();
-		assertThat(repository.findById(id)).isEmpty();
-	}
+        assertThat(repository.existsById(id)).isFalse();
+        assertThat(repository.findById(id)).isEmpty();
+    }
 
-	@Test
-	void findByUnknownIdIsEmpty() {
-		assertThat(repository.findById(uniqueId())).isEmpty();
-	}
+    @Test
+    void findByUnknownIdIsEmpty() {
+        assertThat(repository.findById(uniqueId())).isEmpty();
+    }
 
-	private static String uniqueId() {
-		return "test-id-" + UUID.randomUUID();
-	}
+    private static String uniqueId() {
+        return "test-id-" + UUID.randomUUID();
+    }
 
 }

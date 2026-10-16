@@ -40,102 +40,102 @@ import static org.assertj.core.api.Assertions.assertThat;
 @WithMockUser(username = "not-a-stored-user", roles = "ADMIN")
 class ColorSchemeIT extends SpringBrowserlessTest {
 
-	@Autowired
-	private ColorSchemePreference colorSchemePreference;
+    @Autowired
+    private ColorSchemePreference colorSchemePreference;
 
-	@Test
-	void followsSystemByDefault() {
-		navigate(QuotaView.class);
+    @Test
+    void followsSystemByDefault() {
+        navigate(QuotaView.class);
 
-		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.LIGHT_DARK);
-		assertThat(iconOf(toggleButton())).isEqualTo("vaadin:contrast");
-		assertThat(toggleButton().getAriaLabel()).contains("Appearance: switch to light");
-	}
+        assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.LIGHT_DARK);
+        assertThat(iconOf(toggleButton())).isEqualTo("vaadin:contrast");
+        assertThat(toggleButton().getAriaLabel()).contains("Appearance: switch to light");
+    }
 
-	@Test
-	void cyclesThroughLightAndDarkBackToSystem() {
-		navigate(QuotaView.class);
+    @Test
+    void cyclesThroughLightAndDarkBackToSystem() {
+        navigate(QuotaView.class);
 
-		toggle();
+        toggle();
 
-		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.LIGHT);
-		assertThat(VaadinSession.getCurrent().getAttribute(ColorSchemeChoice.class)).isEqualTo(ColorSchemeChoice.LIGHT);
-		assertThat(iconOf(toggleButton())).isEqualTo("vaadin:sun");
-		assertThat(toggleButton().getTooltip().getText()).isEqualTo("Appearance: switch to dark");
+        assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.LIGHT);
+        assertThat(VaadinSession.getCurrent().getAttribute(ColorSchemeChoice.class)).isEqualTo(ColorSchemeChoice.LIGHT);
+        assertThat(iconOf(toggleButton())).isEqualTo("vaadin:sun");
+        assertThat(toggleButton().getTooltip().getText()).isEqualTo("Appearance: switch to dark");
 
-		toggle();
+        toggle();
 
-		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.DARK);
-		assertThat(iconOf(toggleButton())).isEqualTo("vaadin:moon");
-		assertThat(toggleButton().getAriaLabel()).contains("Appearance: switch to system");
+        assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.DARK);
+        assertThat(iconOf(toggleButton())).isEqualTo("vaadin:moon");
+        assertThat(toggleButton().getAriaLabel()).contains("Appearance: switch to system");
 
-		toggle();
+        toggle();
 
-		assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.LIGHT_DARK);
-		assertThat(VaadinSession.getCurrent().getAttribute(ColorSchemeChoice.class)).isEqualTo(ColorSchemeChoice.SYSTEM);
-		assertThat(iconOf(toggleButton())).isEqualTo("vaadin:contrast");
-	}
+        assertThat(UI.getCurrent().getPage().getColorScheme()).isEqualTo(ColorScheme.Value.LIGHT_DARK);
+        assertThat(VaadinSession.getCurrent().getAttribute(ColorSchemeChoice.class)).isEqualTo(ColorSchemeChoice.SYSTEM);
+        assertThat(iconOf(toggleButton())).isEqualTo("vaadin:contrast");
+    }
 
-	@Test
-	void keepsChoiceAcrossViews() {
-		navigate(QuotaView.class);
-		toggle();
-		toggle();
+    @Test
+    void keepsChoiceAcrossViews() {
+        navigate(QuotaView.class);
+        toggle();
+        toggle();
 
-		navigate(LoginView.class);
+        navigate(LoginView.class);
 
-		assertThat(iconOf(toggleButton())).isEqualTo("vaadin:moon");
-	}
+        assertThat(iconOf(toggleButton())).isEqualTo("vaadin:moon");
+    }
 
-	@Test
-	void translatesLabel() {
-		navigate(QuotaView.class);
-		var languageMenu = test(find(LanguageMenuButton.class).single().menu());
-		languageMenu.open();
-		languageMenu.clickItem("Svenska");
-		languageMenu.close();
+    @Test
+    void translatesLabel() {
+        navigate(QuotaView.class);
+        var languageMenu = test(find(LanguageMenuButton.class).single().menu());
+        languageMenu.open();
+        languageMenu.clickItem("Svenska");
+        languageMenu.close();
 
-		assertThat(toggleButton().getAriaLabel()).contains("Utseende: växla till ljust");
-	}
+        assertThat(toggleButton().getAriaLabel()).contains("Utseende: växla till ljust");
+    }
 
-	@Test
-	void readsChoiceFromCookie() {
-		assertThat(colorSchemePreference.resolve(request(new Cookie(ColorSchemePreference.COOKIE, "dark"))))
-				.isEqualTo(ColorSchemeChoice.DARK);
-		assertThat(colorSchemePreference.resolve(request(new Cookie(ColorSchemePreference.COOKIE, "sepia"))))
-				.isEqualTo(ColorSchemeChoice.SYSTEM);
-		assertThat(colorSchemePreference.resolve(request())).isEqualTo(ColorSchemeChoice.SYSTEM);
-	}
+    @Test
+    void readsChoiceFromCookie() {
+        assertThat(colorSchemePreference.resolve(request(new Cookie(ColorSchemePreference.COOKIE, "dark"))))
+                .isEqualTo(ColorSchemeChoice.DARK);
+        assertThat(colorSchemePreference.resolve(request(new Cookie(ColorSchemePreference.COOKIE, "sepia"))))
+                .isEqualTo(ColorSchemeChoice.SYSTEM);
+        assertThat(colorSchemePreference.resolve(request())).isEqualTo(ColorSchemeChoice.SYSTEM);
+    }
 
-	@Test
-	void setsSchemeInFirstPage() {
-		var document = Jsoup.parse(
-				"<html theme=\"light dark\" style=\"--accent: red; color-scheme: light dark;\"><head></head><body></body></html>");
+    @Test
+    void setsSchemeInFirstPage() {
+        var document = Jsoup.parse(
+                "<html theme=\"light dark\" style=\"--accent: red; color-scheme: light dark;\"><head></head><body></body></html>");
 
-		ColorSchemePreference.apply(document, ColorSchemeChoice.DARK);
+        ColorSchemePreference.apply(document, ColorSchemeChoice.DARK);
 
-		var html = document.selectFirst("html");
-		assertThat(html.attr("theme")).isEqualTo(ColorScheme.Value.DARK.getThemeValue());
-		assertThat(html.attr("style")).isEqualTo("--accent: red; color-scheme: dark;");
-	}
+        var html = document.selectFirst("html");
+        assertThat(html.attr("theme")).isEqualTo(ColorScheme.Value.DARK.getThemeValue());
+        assertThat(html.attr("style")).isEqualTo("--accent: red; color-scheme: dark;");
+    }
 
-	private void toggle() {
-		test(toggleButton()).click();
-	}
+    private void toggle() {
+        test(toggleButton()).click();
+    }
 
-	private ColorSchemeToggleButton toggleButton() {
-		return find(ColorSchemeToggleButton.class).single();
-	}
+    private ColorSchemeToggleButton toggleButton() {
+        return find(ColorSchemeToggleButton.class).single();
+    }
 
-	private static String iconOf(ColorSchemeToggleButton button) {
-		return ((Icon) button.getIcon()).getIcon();
-	}
+    private static String iconOf(ColorSchemeToggleButton button) {
+        return ((Icon) button.getIcon()).getIcon();
+    }
 
-	private static MockHttpServletRequest request(Cookie... cookies) {
-		var request = new MockHttpServletRequest();
-		if (cookies.length > 0) {
-			request.setCookies(cookies);
-		}
-		return request;
-	}
+    private static MockHttpServletRequest request(Cookie... cookies) {
+        var request = new MockHttpServletRequest();
+        if (cookies.length > 0) {
+            request.setCookies(cookies);
+        }
+        return request;
+    }
 }

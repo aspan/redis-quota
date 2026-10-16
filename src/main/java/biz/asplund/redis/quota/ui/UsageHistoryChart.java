@@ -53,8 +53,8 @@ class UsageHistoryChart extends ChartJs {
     ///
     /// @param records the records newest first, as
     ///     [QuotaHistoryService][biz.asplund.redis.security.QuotaHistoryService] returns them
-    /// @param zone the time zone the periods are shown in
-    /// @param locale the language the periods are shown in
+    /// @param zone    the time zone the periods are shown in
+    /// @param locale  the language the periods are shown in
     UsageHistoryChart(List<QuotaUsageRecord> records, ZoneId zone, Locale locale) {
         this.zone = zone;
         this.locale = locale;

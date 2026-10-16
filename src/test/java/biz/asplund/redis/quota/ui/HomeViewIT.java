@@ -46,71 +46,71 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class HomeViewIT extends SpringBrowserlessTest {
 
-	static final String WITH_QUOTA = "home-with-quota";
-	static final String WITHOUT_QUOTA = "home-without-quota";
+    static final String WITH_QUOTA = "home-with-quota";
+    static final String WITHOUT_QUOTA = "home-without-quota";
 
-	@Autowired
-	private UserAccountService userAccountService;
+    @Autowired
+    private UserAccountService userAccountService;
 
-	@Autowired
-	private UserAccountRepository userAccountRepository;
+    @Autowired
+    private UserAccountRepository userAccountRepository;
 
-	@Autowired
-	private QuotaManager quotaManager;
+    @Autowired
+    private QuotaManager quotaManager;
 
-	@BeforeEach
-	void storeUsers() {
-		if (!userAccountRepository.existsByUsername(WITH_QUOTA)) {
-			userAccountService.createUser(WITH_QUOTA, "password1", true, List.of("USER"),
-					new QuotaConfig(10, QuotaPeriod.DAILY));
-		}
-		if (!userAccountRepository.existsByUsername(WITHOUT_QUOTA)) {
-			userAccountService.createUser(WITHOUT_QUOTA, "password1", true, List.of("USER"), null);
-		}
-	}
+    @BeforeEach
+    void storeUsers() {
+        if (!userAccountRepository.existsByUsername(WITH_QUOTA)) {
+            userAccountService.createUser(WITH_QUOTA, "password1", true, List.of("USER"),
+                    new QuotaConfig(10, QuotaPeriod.DAILY));
+        }
+        if (!userAccountRepository.existsByUsername(WITHOUT_QUOTA)) {
+            userAccountService.createUser(WITHOUT_QUOTA, "password1", true, List.of("USER"), null);
+        }
+    }
 
-	@Test
-	@WithAnonymousUser
-	void requiresLogin() {
-		navigate("", LoginView.class);
-	}
+    @Test
+    @WithAnonymousUser
+    void requiresLogin() {
+        navigate("", LoginView.class);
+    }
 
-	@Test
-	@WithMockUser(username = WITH_QUOTA, roles = "USER")
-	void showsOwnQuotaReadOnly() {
-		quotaManager.setUsage(WITH_QUOTA, 4);
+    @Test
+    @WithMockUser(username = WITH_QUOTA, roles = "USER")
+    void showsOwnQuotaReadOnly() {
+        quotaManager.setUsage(WITH_QUOTA, 4);
 
-		navigate("", HomeView.class);
+        navigate("", HomeView.class);
 
-		assertThat(find(Span.class).withText("Welcome, " + WITH_QUOTA).exists()).isTrue();
-		var card = find(QuotaUsageCard.class).single();
-		assertThat(card.getSubtitle().getElement().getText()).isEqualTo("4 of 10 used, 6 left");
-		// Only admins change usage
-		assertThat(find(Button.class, card).exists()).isFalse();
-		assertThat(find(UsageHistorySection.class).exists()).isTrue();
-	}
+        assertThat(find(Span.class).withText("Welcome, " + WITH_QUOTA).exists()).isTrue();
+        var card = find(QuotaUsageCard.class).single();
+        assertThat(card.getSubtitle().getElement().getText()).isEqualTo("4 of 10 used, 6 left");
+        // Only admins change usage
+        assertThat(find(Button.class, card).exists()).isFalse();
+        assertThat(find(UsageHistorySection.class).exists()).isTrue();
+    }
 
-	@Test
-	@WithMockUser(username = WITHOUT_QUOTA, roles = "USER")
-	void greetsUserByName() {
-		userAccountService.changeOwnProfile(WITHOUT_QUOTA, new UserProfile("Anna Andersson", null, UserSettings.NONE));
-		try {
-			navigate("", HomeView.class);
+    @Test
+    @WithMockUser(username = WITHOUT_QUOTA, roles = "USER")
+    void greetsUserByName() {
+        userAccountService.changeOwnProfile(WITHOUT_QUOTA, new UserProfile("Anna Andersson", null, UserSettings.NONE));
+        try {
+            navigate("", HomeView.class);
 
-			assertThat(find(Span.class).withText("Welcome, Anna Andersson").exists()).isTrue();
-		} finally {
-			userAccountService.changeOwnProfile(WITHOUT_QUOTA, UserProfile.NONE);
-		}
-	}
+            assertThat(find(Span.class).withText("Welcome, Anna Andersson").exists()).isTrue();
+        } finally {
+            userAccountService.changeOwnProfile(WITHOUT_QUOTA, UserProfile.NONE);
+        }
+    }
 
-	@Test
-	@WithMockUser(username = WITHOUT_QUOTA, roles = "USER")
-	void tellsUserWithoutQuota() {
-		navigate("", HomeView.class);
+    @Test
+    @WithMockUser(username = WITHOUT_QUOTA, roles = "USER")
+    void tellsUserWithoutQuota() {
+        navigate("", HomeView.class);
 
-		assertThat(find(QuotaUsageCard.class).exists()).isFalse();
-		assertThat(find(Span.class)
-				.withText("You have no quota, so you cannot send SMS. Ask an admin to give you one.").exists())
-				.isTrue();
-	}
+        assertThat(find(QuotaUsageCard.class).exists()).isFalse();
+        assertThat(find(Span.class)
+                .withText("You have no quota, so you cannot send SMS. Ask an admin to give you one.").exists())
+                .isTrue();
+    }
 }
