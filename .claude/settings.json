@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./mvnw versions:display-dependency-updates *)",
+      "Bash(./mvnw -q versions:display-dependency-updates *)",
+      "Bash(./mvnw -q help:effective-pom -Doutput=/dev/stdout)"
+    ]
+  }
+}
