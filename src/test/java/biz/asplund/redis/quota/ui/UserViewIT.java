@@ -29,8 +29,10 @@ import biz.asplund.redis.security.UserAccountRepository;
 import biz.asplund.redis.security.UserAccountService;
 import biz.asplund.testcontainers.TestcontainersConfiguration;
 import com.vaadin.browserless.SpringBrowserlessTest;
+import com.vaadin.flow.component.ComponentUtil;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
+import com.vaadin.flow.component.combobox.ComboBoxBase;
 import com.vaadin.flow.component.combobox.MultiSelectComboBox;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.grid.Grid;
@@ -216,6 +218,24 @@ class UserViewIT extends SpringBrowserlessTest {
 				.contains(new QuotaDefinition(account.getUsername(), QuotaPeriod.DAILY, 100));
 		var grid = grid();
 		assertThat(grid.getCellText(rowOf(grid, account.getUsername()), 4)).isEqualTo("100 / Daily");
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void approvesSenderIdsOfUser() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null);
+		var editor = openEditor(account.getUsername());
+		var senderIds = (MultiSelectComboBox<String>) find(MultiSelectComboBox.class, editor)
+				.withLabel("Approved sender ids").single();
+
+		ComponentUtil.fireEvent(senderIds, new ComboBoxBase.CustomValueSetEvent<>(senderIds, true, "Far too long"));
+		assertThat(senderIds.isInvalid()).isTrue();
+		ComponentUtil.fireEvent(senderIds, new ComboBoxBase.CustomValueSetEvent<>(senderIds, true, " Lekab "));
+		ComponentUtil.fireEvent(senderIds, new ComboBoxBase.CustomValueSetEvent<>(senderIds, true, "070-123 45 00"));
+		assertThat(senderIds.getValue()).containsExactlyInAnyOrder("Lekab", "0701234500");
+		test(find(Button.class, editor).withText("Save").single()).click();
+
+		assertThat(userAccountService.findSenderIds(account.getUsername())).containsExactly("0701234500", "Lekab");
 	}
 
 	@Test

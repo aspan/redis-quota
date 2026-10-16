@@ -21,6 +21,7 @@ import biz.asplund.redis.quota.QuotaDefinition;
 import biz.asplund.redis.quota.QuotaDefinitionRepository;
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.security.AccountRuleException.Rule;
+import biz.asplund.redis.sms.SmsService;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -43,7 +44,9 @@ import java.util.stream.StreamSupport;
 // account or take the ADMIN role from it, and the built-in ADMIN and USER roles cannot be deleted, so at least one admin always
 // remains. A user's quota is kept in PostgreSQL and copied to Redis as the QuotaDefinition under the username,
 // which QuotaManager reads. The copy is written inside the transaction, so a Redis error rolls back the change.
-// Quotas belong to users: Redis holds no other definitions, and syncQuotasToRedis removes any that appear
+// Quotas belong to users: Redis holds no other definitions, and syncQuotasToRedis removes any that appear. A user's
+// sender ids, the ones they may send SMS from, are set only by createUser and updateUser, which only the admin-only
+// users view calls; the methods a user changes their own account with leave them alone
 @Service
 public class UserAccountService {
 
@@ -104,9 +107,17 @@ public class UserAccountService {
         return createUser(username, password, enabled, roleNames, quota, UserProfile.NONE);
     }
 
+    // The user starts without sender ids
     @Transactional
     public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota, UserProfile profile) {
+        return createUser(username, password, enabled, roleNames, quota, profile, Set.of());
+    }
+
+    // The sender ids are normalized as SmsService.normalizeSenderId does
+    @Transactional
+    public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
+            QuotaConfig quota, UserProfile profile, Collection<String> senderIds) {
         var trimmedUsername = username == null ? "" : username.trim();
         if (trimmedUsername.isEmpty()) {
             throw new AccountRuleException(Rule.USERNAME_REQUIRED);
@@ -123,6 +134,7 @@ public class UserAccountService {
         account.setQuota(quota);
         checkEmailFree(profile.email(), trimmedUsername);
         account.setProfile(profile);
+        account.setSenderIds(normalizeSenderIds(senderIds));
         var saved = userAccountRepository.save(account);
         copyQuota(saved);
         return saved;
@@ -135,10 +147,17 @@ public class UserAccountService {
         return updateUser(id, password, enabled, roleNames, quota, null, actingUsername);
     }
 
-    // As above, with the profile, where a null profile keeps the current one
+    // As above, with the profile, where a null profile keeps the current one. The sender ids are kept
     @Transactional
     public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota, UserProfile profile, String actingUsername) {
+        return updateUser(id, password, enabled, roleNames, quota, profile, null, actingUsername);
+    }
+
+    // As above, with the sender ids, normalized as SmsService.normalizeSenderId does, where null keeps the current ones
+    @Transactional
+    public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
+            QuotaConfig quota, UserProfile profile, Collection<String> senderIds, String actingUsername) {
         var account = userAccountRepository.findById(id).orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
         if (account.getUsername().equals(actingUsername)) {
             if (!enabled) {
@@ -149,6 +168,7 @@ public class UserAccountService {
             }
         }
         validate(quota);
+        var normalizedSenderIds = senderIds == null ? null : normalizeSenderIds(senderIds);
         if (password != null && !password.isEmpty()) {
             account.setPassword(encode(password));
         }
@@ -160,6 +180,9 @@ public class UserAccountService {
             checkEmailFree(profile.email(), account.getUsername());
             account.setProfile(profile);
         }
+        if (normalizedSenderIds != null) {
+            account.setSenderIds(normalizedSenderIds);
+        }
         copyQuota(account);
         return account;
     }
@@ -168,6 +191,13 @@ public class UserAccountService {
     @Transactional(readOnly = true)
     public Optional<QuotaConfig> findQuota(String username) {
         return userAccountRepository.findByUsername(username).flatMap(UserAccount::getQuota);
+    }
+
+    // The sender ids the user with the username may send SMS from, sorted, or none when no user has the username
+    @Transactional(readOnly = true)
+    public List<String> findSenderIds(String username) {
+        return userAccountRepository.findByUsername(username)
+                .map(account -> account.getSenderIds().stream().sorted().toList()).orElse(List.of());
     }
 
     // The name people read for the user with the username: their name, or else the username itself
@@ -292,6 +322,12 @@ public class UserAccountService {
                 .filter(other -> !other.getUsername().equals(username)).isPresent()) {
             throw new AccountRuleException(Rule.EMAIL_TAKEN);
         }
+    }
+
+    private static Set<String> normalizeSenderIds(Collection<String> senderIds) {
+        return senderIds.stream().map(senderId -> SmsService.normalizeSenderId(senderId)
+                        .orElseThrow(() -> new AccountRuleException(Rule.SENDER_ID_INVALID)))
+                .collect(Collectors.toSet());
     }
 
     private static void validate(QuotaConfig quota) {

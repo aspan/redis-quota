@@ -18,7 +18,9 @@ package biz.asplund.redis.security;
 
 import biz.asplund.redis.quota.QuotaConfig;
 import biz.asplund.redis.quota.QuotaPeriod;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -88,6 +90,13 @@ public class UserAccount {
     @PositiveOrZero(message = "{userAccount.quotaLimit.positiveOrZero}")
     @Column(name = "quota_limit")
     private Integer quotaLimit;
+
+    // The sender ids the user may send SMS from, normalized; only admins change them. Few, and every send checks
+    // them, so they are loaded with the user
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_sender_ids", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "sender_id", nullable = false, length = 16)
+    private Set<String> senderIds = new HashSet<>();
 
     // The appearance and language the user picked, or null when not set; see UserSettings
     @Pattern(regexp = "system|light|dark")
@@ -174,6 +183,14 @@ public class UserAccount {
 
     public void setRoles(Set<Role> roles) {
         this.roles = new HashSet<>(roles);
+    }
+
+    public Set<String> getSenderIds() {
+        return senderIds;
+    }
+
+    public void setSenderIds(Set<String> senderIds) {
+        this.senderIds = new HashSet<>(senderIds);
     }
 
     public QuotaPeriod getQuotaPeriod() {

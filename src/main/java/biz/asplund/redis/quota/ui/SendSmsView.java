@@ -29,8 +29,8 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.TextArea;
-import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.i18n.LocaleChangeEvent;
 import com.vaadin.flow.i18n.LocaleChangeObserver;
@@ -53,7 +53,8 @@ import java.util.regex.Pattern;
 
 // Sends an SMS to one or more recipients, charged to the logged-in user's own quota: each part to each recipient
 // uses one unit. Like the API, it requires the USER or ADMIN role; Vaadin's view access check does not apply the
-// role hierarchy in which ADMIN implies USER, so both are listed. Only a user with a quota can send
+// role hierarchy in which ADMIN implies USER, so both are listed. Only a user with a quota and at least one sender
+// id approved by an admin can send, and only from those sender ids
 @Route("sms")
 @PageTitle("sms.title")
 @Menu(title = "sms.title", icon = "vaadin:envelope", order = 0.5)
@@ -70,8 +71,9 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
 
     // Created in localeChange, so the page is built in the current language
     private QuotaPeriod period;
+    private List<String> senderIds;
     private Div quotaHolder;
-    private TextField senderField;
+    private Select<String> senderField;
     private TextArea recipientsField;
     private TextArea messageField;
     private Span costSummary;
@@ -97,13 +99,23 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
                 return;
             }
             period = quota.get().period();
+            senderIds = userAccountService.findSenderIds(username);
+            if (senderIds.isEmpty()) {
+                add(new Span(getTranslation("sms.noSenderIds")));
+                return;
+            }
         } catch (DataAccessException e) {
             add(new Span(getTranslation("sms.loadFailed", e.getMostSpecificCause().getMessage())));
             return;
         }
 
-        senderField = new TextField(getTranslation("sms.sender"));
-        senderField.setHelperText(getTranslation("sms.senderHint", SmsService.MAX_ALPHANUMERIC_SENDER_ID_LENGTH));
+        senderField = new Select<>();
+        senderField.setLabel(getTranslation("sms.sender"));
+        senderField.setHelperText(getTranslation("sms.senderHint"));
+        senderField.setItems(senderIds);
+        if (senderIds.size() == 1) {
+            senderField.setValue(senderIds.getFirst());
+        }
         senderField.setWidthFull();
 
         recipientsField = new TextArea(getTranslation("sms.recipients"));
@@ -175,15 +187,12 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
         senderField.setInvalid(false);
         recipientsField.setInvalid(false);
         messageField.setInvalid(false);
-        var senderId = SmsService.normalizeSenderId(senderField.getValue());
+        var senderId = senderField.getValue();
         var recipients = parseRecipients();
         var text = messageField.getValue();
         var valid = true;
-        if (senderField.getValue().isBlank()) {
+        if (senderId == null) {
             valid = invalid(senderField, getTranslation("sms.senderRequired"));
-        } else if (senderId.isEmpty()) {
-            valid = invalid(senderField, getTranslation("sms.senderInvalid",
-                    SmsService.MAX_ALPHANUMERIC_SENDER_ID_LENGTH));
         }
         if (!recipients.invalid().isEmpty()) {
             valid = invalid(recipientsField, getTranslation("sms.recipientsInvalid",
@@ -202,12 +211,15 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
             return;
         }
 
-        var result = smsService.send(username, senderId.orElseThrow(), recipients.valid(), text);
+        var result = smsService.send(username, senderId, recipients.valid(), text);
         switch (result.outcome()) {
             case SENT -> sent(result);
             case QUOTA_EXCEEDED -> notify(getTranslation("sms.quotaExceeded", result.cost(),
                     result.quota().remaining()), NotificationVariant.ERROR);
             case NO_QUOTA -> notify(getTranslation("sms.noQuota"), NotificationVariant.ERROR);
+            // An admin took the sender id away after the page was loaded
+            case SENDER_NOT_APPROVED -> notify(getTranslation("sms.senderNotApproved", senderId),
+                    NotificationVariant.ERROR);
         }
         showQuota();
     }

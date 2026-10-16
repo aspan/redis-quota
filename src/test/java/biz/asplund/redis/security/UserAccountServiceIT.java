@@ -262,6 +262,30 @@ class UserAccountServiceIT {
 	}
 
 	@Test
+	void storesSenderIdsNormalizedAndOnlyAdminChangesThem() {
+		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null,
+				UserProfile.NONE, List.of(" Lekab ", "+46 70-123 45 00"));
+		var username = account.getUsername();
+		assertThat(userAccountService.findSenderIds(username)).containsExactly("+46701234500", "Lekab");
+
+		// Kept by an update without them, and by the user changing their own profile, settings or password
+		userAccountService.updateUser(account.getId(), null, true, List.of(), null,
+				new UserProfile("Anna", null, UserSettings.NONE), "someone-else");
+		userAccountService.changeOwnProfile(username, new UserProfile("Anna", null, UserSettings.NONE));
+		userAccountService.changeSettings(username, settings -> settings.withLocale("sv"));
+		userAccountService.changeOwnPassword(username, "password1", "password2");
+		assertThat(userAccountService.findSenderIds(username)).containsExactly("+46701234500", "Lekab");
+
+		userAccountService.updateUser(account.getId(), null, true, List.of(), null, null, List.of("Shop"),
+				"someone-else");
+		assertThat(userAccountService.findSenderIds(username)).containsExactly("Shop");
+		assertRule(Rule.SENDER_ID_INVALID, () -> userAccountService.updateUser(account.getId(), null, true,
+				List.of(), null, null, List.of("Far too long"), "someone-else"));
+		assertThat(userAccountService.findSenderIds(username)).containsExactly("Shop");
+		assertThat(userAccountService.findSenderIds("no-such-user")).isEmpty();
+	}
+
+	@Test
 	void keepsEmailAddressesUniqueWhateverTheirCase() {
 		var email = uniqueName() + "@example.com";
 		var account = userAccountService.createUser(uniqueName(), "password1", true, List.of(), null,

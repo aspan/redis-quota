@@ -23,6 +23,7 @@ import biz.asplund.redis.security.QuotaHistoryService;
 import biz.asplund.redis.security.Role;
 import biz.asplund.redis.security.UserAccount;
 import biz.asplund.redis.security.UserAccountService;
+import biz.asplund.redis.sms.SmsService;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -49,12 +50,13 @@ import com.vaadin.flow.data.binder.ValidationException;
 import org.springframework.dao.DataAccessException;
 
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
-// Detail panel for creating or editing one user: password, whether it may log in, its roles, quota and settings, and
-// for a user with a quota, its usage in the current period and in finished periods
+// Detail panel for creating or editing one user: password, whether it may log in, its roles, quota, the sender ids it
+// may send SMS from and settings, and for a user with a quota, its usage in the current period and in finished periods
 class UserEditor extends VerticalLayout {
 
     private final UserAccount account;
@@ -74,6 +76,9 @@ class UserEditor extends VerticalLayout {
     private final MultiSelectComboBox<Role> rolesField = new MultiSelectComboBox<>();
     private final Select<QuotaPeriod> quotaPeriodField = new Select<>();
     private final IntegerField quotaLimitField = new IntegerField();
+    private final MultiSelectComboBox<String> senderIdsField = new MultiSelectComboBox<>();
+    // The sender ids to choose from: the user's own and those typed in since the editor opened
+    private final List<String> senderIdItems = new ArrayList<>();
     // Validates with the constraints on UserAccount and the rules below, and writes the fields into a new
     // UserAccount, so the user shown in the grid is not changed before the service has accepted the change
     private final BeanValidationBinder<UserAccount> binder = new BeanValidationBinder<>(UserAccount.class);
@@ -101,6 +106,7 @@ class UserEditor extends VerticalLayout {
         header.setAlignItems(FlexComponent.Alignment.CENTER);
         header.expand(title);
         add(header, createForm(roles), new H4(getTranslation("userEditor.quota")), createQuotaForm(),
+                new H4(getTranslation("userEditor.sms")), createSenderIdsForm(),
                 new H4(getTranslation("userEditor.settings")), createSettingsForm(locales), createButtons());
         addUsage();
         addHistory();
@@ -222,6 +228,34 @@ class UserEditor extends VerticalLayout {
         return form;
     }
 
+    // The sender ids the user may send SMS from, typed in and normalized as the service stores them
+    private Component createSenderIdsForm() {
+        if (account != null) {
+            senderIdItems.addAll(account.getSenderIds().stream().sorted().toList());
+        }
+        senderIdsField.setLabel(getTranslation("userEditor.senderIds"));
+        senderIdsField.setHelperText(getTranslation("userEditor.senderIdsHint",
+                SmsService.MAX_ALPHANUMERIC_SENDER_ID_LENGTH));
+        senderIdsField.setItems(senderIdItems);
+        senderIdsField.setSelectedItemsOnTop(true);
+        senderIdsField.setAllowCustomValue(true);
+        senderIdsField.setWidthFull();
+        senderIdsField.addCustomValueSetListener(event -> SmsService.normalizeSenderId(event.getDetail())
+                .ifPresentOrElse(senderId -> {
+                    if (!senderIdItems.contains(senderId)) {
+                        senderIdItems.add(senderId);
+                        senderIdsField.getListDataView().refreshAll();
+                    }
+                    senderIdsField.select(senderId);
+                    senderIdsField.setInvalid(false);
+                }, () -> {
+                    senderIdsField.setInvalid(true);
+                    senderIdsField.setErrorMessage(getTranslation("users.rule.SENDER_ID_INVALID"));
+                }));
+        binder.forField(senderIdsField).bind("senderIds");
+        return senderIdsField;
+    }
+
     // The usage of the saved quota, which the quota form above may since have been changed from. The quota is read
     // from Redis, where it is copied when the user is saved
     private void addUsage() {
@@ -293,9 +327,9 @@ class UserEditor extends VerticalLayout {
         try {
             var saved = account == null
                     ? userAccountService.createUser(user.getUsername(), passwordField.getValue(), user.isEnabled(),
-                            roleNames, quota, user.getProfile())
+                            roleNames, quota, user.getProfile(), user.getSenderIds())
                     : userAccountService.updateUser(account.getId(), passwordField.getValue(), user.isEnabled(),
-                            roleNames, quota, user.getProfile(), actingUsername);
+                            roleNames, quota, user.getProfile(), user.getSenderIds(), actingUsername);
             notify(getTranslation("userEditor.saved", saved.getUsername()), NotificationVariant.SUCCESS);
             onSaved.accept(saved);
         } catch (AccountRuleException e) {

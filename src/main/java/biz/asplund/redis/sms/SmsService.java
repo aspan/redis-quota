@@ -17,6 +17,7 @@ package biz.asplund.redis.sms;
 
 import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaStatus;
+import biz.asplund.redis.security.UserAccountService;
 import com.google.i18n.phonenumbers.NumberParseException;
 import com.google.i18n.phonenumbers.PhoneNumberUtil;
 import org.slf4j.Logger;
@@ -32,7 +33,8 @@ import java.util.regex.Pattern;
 
 // Sends SMS for a user, charged to their quota: one unit per part per recipient. The whole cost is charged before
 // anything is sent, so a send either fits the quota or sends nothing, and the units of recipients the gateway does
-// not accept are refunded. Like the API, it fails open when Redis cannot be reached
+// not accept are refunded. Like the API, it fails open when Redis cannot be reached. Only the sender ids an admin
+// has approved for the user can be sent from
 @Service
 @EnableConfigurationProperties(SmsProperties.class)
 public class SmsService {
@@ -60,11 +62,14 @@ public class SmsService {
 
     private final QuotaManager quotaManager;
     private final SmsSender smsSender;
+    private final UserAccountService userAccountService;
     private final String defaultRegion;
 
-    public SmsService(QuotaManager quotaManager, SmsSender smsSender, SmsProperties properties) {
+    public SmsService(QuotaManager quotaManager, SmsSender smsSender, UserAccountService userAccountService,
+            SmsProperties properties) {
         this.quotaManager = quotaManager;
         this.smsSender = smsSender;
+        this.userAccountService = userAccountService;
         this.defaultRegion = properties.defaultRegion();
     }
 
@@ -110,6 +115,9 @@ public class SmsService {
         validate(senderId, recipients, text);
         var parts = SmsParts.count(text);
         var cost = parts * recipients.size();
+        if (!userAccountService.findSenderIds(username).contains(senderId)) {
+            return new SmsSendResult(SmsSendResult.Outcome.SENDER_NOT_APPROVED, cost, List.of(), List.of(), null);
+        }
 
         QuotaStatus quota;
         try {

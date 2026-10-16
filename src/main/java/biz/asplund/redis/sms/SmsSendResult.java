@@ -29,7 +29,9 @@ public record SmsSendResult(Outcome outcome, int cost, List<String> sent, List<S
         // The quota does not have room for the cost, so nothing was charged or sent
         QUOTA_EXCEEDED,
         // The user has no quota, so nothing was sent
-        NO_QUOTA
+        NO_QUOTA,
+        // The sender id is not one of the user's approved ones, so nothing was charged or sent
+        SENDER_NOT_APPROVED
     }
 
     public SmsSendResult {

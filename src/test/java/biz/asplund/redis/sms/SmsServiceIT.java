@@ -20,6 +20,7 @@ import biz.asplund.redis.quota.QuotaManager;
 import biz.asplund.redis.quota.QuotaPeriod;
 import biz.asplund.redis.security.UserAccountRepository;
 import biz.asplund.redis.security.UserAccountService;
+import biz.asplund.redis.security.UserProfile;
 import biz.asplund.testcontainers.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,10 +70,11 @@ class SmsServiceIT {
 	void storeUsers() {
 		if (!userAccountRepository.existsByUsername(WITH_QUOTA)) {
 			userAccountService.createUser(WITH_QUOTA, "password1", true, List.of("USER"),
-					new QuotaConfig(10, QuotaPeriod.DAILY));
+					new QuotaConfig(10, QuotaPeriod.DAILY), UserProfile.NONE, List.of(SENDER, "+46701234500"));
 		}
 		if (!userAccountRepository.existsByUsername(WITHOUT_QUOTA)) {
-			userAccountService.createUser(WITHOUT_QUOTA, "password1", true, List.of("USER"), null);
+			userAccountService.createUser(WITHOUT_QUOTA, "password1", true, List.of("USER"), null,
+					UserProfile.NONE, List.of(SENDER));
 		}
 		quotaManager.resetQuota(WITH_QUOTA);
 	}
@@ -184,6 +186,15 @@ class SmsServiceIT {
 		assertThat(result.sent()).containsExactly("+46701234567", "+46701234569");
 		assertThat(result.failed()).containsExactly("+46701234568");
 		assertThat(quotaManager.getUsage(WITH_QUOTA)).isEqualTo(2);
+	}
+
+	@Test
+	void sendsNothingFromSenderIdNotApproved() {
+		var result = smsService.send(WITH_QUOTA, "Other", List.of("+46701234567"), TEXT);
+
+		assertThat(result.outcome()).isEqualTo(SmsSendResult.Outcome.SENDER_NOT_APPROVED);
+		assertThat(quotaManager.getUsage(WITH_QUOTA)).isZero();
+		verify(smsSender, never()).send(anyString(), anyString(), any());
 	}
 
 	@Test

@@ -26,6 +26,7 @@ public class AccountRuleException extends RuntimeException {
         PASSWORD_TOO_SHORT,
         WRONG_PASSWORD,
         QUOTA_LIMIT_INVALID,
+        SENDER_ID_INVALID,
         OWN_ACCOUNT_DELETE,
         OWN_ACCOUNT_DISABLE,
         OWN_ADMIN_ROLE,
