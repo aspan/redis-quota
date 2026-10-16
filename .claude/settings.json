@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "blockReadsOutsideWorkingDirectories": false,
     "allow": [
       "Bash(./mvnw versions:display-dependency-updates *)",
       "Bash(./mvnw -q versions:display-dependency-updates *)",
