@@ -21,6 +21,7 @@ import biz.asplund.redis.security.UserAccountService;
 import biz.asplund.redis.sms.SmsParts;
 import biz.asplund.redis.sms.SmsSendResult;
 import biz.asplund.redis.sms.SmsService;
+import com.vaadin.flow.component.HasValidation;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
@@ -29,6 +30,7 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
+import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.i18n.LocaleChangeEvent;
 import com.vaadin.flow.i18n.LocaleChangeObserver;
@@ -68,6 +70,7 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
     // Created in localeChange, so the page is built in the current language
     private QuotaPeriod period;
     private Div quotaHolder;
+    private TextField senderField;
     private TextArea recipientsField;
     private TextArea messageField;
     private Span costSummary;
@@ -98,6 +101,10 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
             return;
         }
 
+        senderField = new TextField(getTranslation("sms.sender"));
+        senderField.setHelperText(getTranslation("sms.senderHint", SmsService.MAX_ALPHANUMERIC_SENDER_ID_LENGTH));
+        senderField.setWidthFull();
+
         recipientsField = new TextArea(getTranslation("sms.recipients"));
         recipientsField.setHelperText(getTranslation("sms.recipientsHint", SmsService.MAX_RECIPIENTS));
         recipientsField.setPlaceholder("+46701234567");
@@ -117,7 +124,8 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
 
         quotaHolder = new Div();
         quotaHolder.setWidthFull();
-        add(new Span(getTranslation("sms.hint")), quotaHolder, recipientsField, messageField, costSummary, send);
+        add(new Span(getTranslation("sms.hint")), quotaHolder, senderField, recipientsField,
+                messageField, costSummary, send);
         showQuota();
         updateCost();
     }
@@ -162,11 +170,19 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
     }
 
     private void send() {
+        senderField.setInvalid(false);
         recipientsField.setInvalid(false);
         messageField.setInvalid(false);
+        var senderId = SmsService.normalizeSenderId(senderField.getValue());
         var recipients = parseRecipients();
         var text = messageField.getValue();
         var valid = true;
+        if (senderField.getValue().isBlank()) {
+            valid = invalid(senderField, getTranslation("sms.senderRequired"));
+        } else if (senderId.isEmpty()) {
+            valid = invalid(senderField, getTranslation("sms.senderInvalid",
+                    SmsService.MAX_ALPHANUMERIC_SENDER_ID_LENGTH));
+        }
         if (!recipients.invalid().isEmpty()) {
             valid = invalid(recipientsField, getTranslation("sms.recipientsInvalid",
                     String.join(", ", recipients.invalid())));
@@ -184,7 +200,7 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
             return;
         }
 
-        var result = smsService.send(username, recipients.valid(), text);
+        var result = smsService.send(username, senderId.orElseThrow(), recipients.valid(), text);
         switch (result.outcome()) {
             case SENT -> sent(result);
             case QUOTA_EXCEEDED -> notify(getTranslation("sms.quotaExceeded", result.cost(),
@@ -206,7 +222,7 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
                 NotificationVariant.ERROR);
     }
 
-    private static boolean invalid(TextArea field, String message) {
+    private static boolean invalid(HasValidation field, String message) {
         field.setInvalid(true);
         field.setErrorMessage(message);
         return false;

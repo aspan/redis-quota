@@ -26,6 +26,7 @@ import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.textfield.TextArea;
+import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.RouteNotFoundError;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -104,16 +105,19 @@ class SendSmsViewIT extends SpringBrowserlessTest {
 		navigate("sms", SendSmsView.class);
 		assertThat(usageSummary()).isEqualTo("0 of 10 used, 10 left");
 
+		test(sender()).setValue(" Lekab ");
 		test(recipients()).setValue("+46 70 123 45 67, +46701234568\n+46701234567");
 		test(message()).setValue("Hello");
 		assertThat(find(Span.class).withText("2 recipient(s) × 1 part(s) = 2 unit(s) of your quota").exists())
 				.isTrue();
 		test(find(Button.class).withText("Send").single()).click();
 
-		verify(smsSender).send("+46701234567", "Hello");
-		verify(smsSender).send("+46701234568", "Hello");
+		verify(smsSender).send("Lekab", "+46701234567", "Hello");
+		verify(smsSender).send("Lekab", "+46701234568", "Hello");
 		assertThat(usageSummary()).isEqualTo("2 of 10 used, 8 left");
 		assertThat(message().getValue()).isEmpty();
+		// The sender and recipients are kept for the next message
+		assertThat(sender().getValue()).isEqualTo(" Lekab ");
 	}
 
 	@Test
@@ -133,13 +137,15 @@ class SendSmsViewIT extends SpringBrowserlessTest {
 	void rejectsInvalidInput() {
 		navigate("sms", SendSmsView.class);
 
+		test(sender()).setValue("Far too long");
 		test(recipients()).setValue("+46701234567, not a number");
 		test(find(Button.class).withText("Send").single()).click();
 
+		assertThat(sender().isInvalid()).isTrue();
 		assertThat(recipients().isInvalid()).isTrue();
 		assertThat(recipients().getErrorMessage()).isEqualTo("Not phone numbers: not a number");
 		assertThat(message().isInvalid()).isTrue();
-		verify(smsSender, never()).send(anyString(), any());
+		verify(smsSender, never()).send(anyString(), anyString(), any());
 		assertThat(quotaManager.getUsage(WITH_QUOTA)).isZero();
 	}
 
@@ -149,11 +155,12 @@ class SendSmsViewIT extends SpringBrowserlessTest {
 		quotaManager.setUsage(WITH_QUOTA, 9);
 		navigate("sms", SendSmsView.class);
 
+		test(sender()).setValue("+46701234500");
 		test(recipients()).setValue("+46701234567, +46701234568");
 		test(message()).setValue("Hello");
 		test(find(Button.class).withText("Send").single()).click();
 
-		verify(smsSender, never()).send(anyString(), any());
+		verify(smsSender, never()).send(anyString(), anyString(), any());
 		assertThat(usageSummary()).isEqualTo("9 of 10 used, 1 left");
 		assertThat(message().getValue()).isEqualTo("Hello");
 	}
@@ -164,9 +171,14 @@ class SendSmsViewIT extends SpringBrowserlessTest {
 		navigate("sms", SendSmsView.class);
 
 		assertThat(find(TextArea.class).exists()).isFalse();
+		assertThat(find(TextField.class).withLabel("Sender").exists()).isFalse();
 		assertThat(find(Span.class)
 				.withText("You have no quota, so you cannot send SMS. Ask an admin to give you one.").exists())
 				.isTrue();
+	}
+
+	private TextField sender() {
+		return find(TextField.class).withLabel("Sender").single();
 	}
 
 	private TextArea recipients() {

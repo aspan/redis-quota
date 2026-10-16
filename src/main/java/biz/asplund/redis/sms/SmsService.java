@@ -41,6 +41,11 @@ public class SmsService {
     // An international number with an optional +, after spaces, dashes, dots and parentheses are removed
     private static final Pattern PHONE_NUMBER = Pattern.compile("\\+?[0-9]{6,15}");
     private static final Pattern NUMBER_SEPARATORS = Pattern.compile("[\\s\\-.()]");
+    // An alphanumeric sender id: at most 11 characters, the most the SMS header holds, of letters, digits, spaces
+    // and . - _ &, with at least one letter, so it cannot be taken for a phone number
+    public static final int MAX_ALPHANUMERIC_SENDER_ID_LENGTH = 11;
+    private static final Pattern ALPHANUMERIC_SENDER_ID =
+            Pattern.compile("(?=.*[A-Za-z])[A-Za-z0-9 ._&-]{1," + MAX_ALPHANUMERIC_SENDER_ID_LENGTH + "}");
 
     private final QuotaManager quotaManager;
     private final SmsSender smsSender;
@@ -56,14 +61,25 @@ public class SmsService {
         return PHONE_NUMBER.matcher(number).matches() ? Optional.of(number) : Optional.empty();
     }
 
+    // The sender id as sent: a phone number, normalized as a recipient is, or an alphanumeric id without spaces
+    // around it, such as "Lekab"; empty if it is neither
+    public static Optional<String> normalizeSenderId(String senderId) {
+        var trimmed = senderId.strip();
+        if (ALPHANUMERIC_SENDER_ID.matcher(trimmed).matches()) {
+            return Optional.of(trimmed);
+        }
+        return normalizeRecipient(trimmed);
+    }
+
     // The units a text to the recipients uses up
     public static int cost(String text, int recipients) {
         return SmsParts.count(text) * recipients;
     }
 
-    // The recipients must be normalized and distinct, at most MAX_RECIPIENTS, and the text at most MAX_PARTS parts
-    public SmsSendResult send(String username, List<String> recipients, String text) {
-        validate(recipients, text);
+    // The sender id and recipients must be normalized, the recipients distinct and at most MAX_RECIPIENTS, and the
+    // text at most MAX_PARTS parts
+    public SmsSendResult send(String username, String senderId, List<String> recipients, String text) {
+        validate(senderId, recipients, text);
         var parts = SmsParts.count(text);
         var cost = parts * recipients.size();
 
@@ -81,7 +97,7 @@ public class SmsService {
         var failed = new ArrayList<String>();
         for (var recipient : recipients) {
             try {
-                smsSender.send(recipient, text);
+                smsSender.send(senderId, recipient, text);
                 sent.add(recipient);
             } catch (RuntimeException e) {
                 LOGGER.warn("Could not send SMS for {} to {}", username, recipient, e);
@@ -94,7 +110,10 @@ public class SmsService {
         return new SmsSendResult(SmsSendResult.Outcome.SENT, cost, sent, failed, quota);
     }
 
-    private static void validate(List<String> recipients, String text) {
+    private static void validate(String senderId, List<String> recipients, String text) {
+        if (!normalizeSenderId(senderId).equals(Optional.of(senderId))) {
+            throw new IllegalArgumentException("Not a normalized sender id: " + senderId);
+        }
         if (recipients.isEmpty() || recipients.size() > MAX_RECIPIENTS) {
             throw new IllegalArgumentException("Between 1 and " + MAX_RECIPIENTS + " recipients are needed, not "
                     + recipients.size());

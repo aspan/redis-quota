@@ -48,6 +48,7 @@ class SmsServiceIT {
 	static final String WITH_QUOTA = "sms-with-quota";
 	static final String WITHOUT_QUOTA = "sms-without-quota";
 	static final String TEXT = "Hello";
+	static final String SENDER = "Lekab";
 
 	@Autowired
 	private SmsService smsService;
@@ -106,10 +107,34 @@ class SmsServiceIT {
 	}
 
 	@Test
+	void normalizesSenderIds() {
+		assertThat(SmsService.normalizeSenderId(" Lekab ")).contains("Lekab");
+		assertThat(SmsService.normalizeSenderId("Lekab & Co")).contains("Lekab & Co");
+		assertThat(SmsService.normalizeSenderId("Shop-24.se")).contains("Shop-24.se");
+		assertThat(SmsService.normalizeSenderId("A".repeat(11))).contains("A".repeat(11));
+		// A phone number is normalized as a recipient is
+		assertThat(SmsService.normalizeSenderId("+46 70-123 45 67")).contains("+46701234567");
+		assertThat(SmsService.normalizeSenderId("A".repeat(12))).isEmpty();
+		assertThat(SmsService.normalizeSenderId("12345")).isEmpty();
+		assertThat(SmsService.normalizeSenderId("Lekab!")).isEmpty();
+		assertThat(SmsService.normalizeSenderId("Läkab")).isEmpty();
+		assertThat(SmsService.normalizeSenderId(" ")).isEmpty();
+	}
+
+	@Test
+	void sendsFromPhoneNumber() {
+		var result = smsService.send(WITH_QUOTA, "+46701234500", List.of("+46701234567"), TEXT);
+
+		assertThat(result.outcome()).isEqualTo(SmsSendResult.Outcome.SENT);
+		verify(smsSender).send("+46701234500", "+46701234567", TEXT);
+	}
+
+	@Test
 	void chargesEachPartToEachRecipient() {
 		var text = "a".repeat(161);
 
-		var result = smsService.send(WITH_QUOTA, List.of("+46701234567", "+46701234568", "+46701234569"), text);
+		var result = smsService.send(WITH_QUOTA, SENDER,
+				List.of("+46701234567", "+46701234568", "+46701234569"), text);
 
 		assertThat(result.outcome()).isEqualTo(SmsSendResult.Outcome.SENT);
 		assertThat(result.cost()).isEqualTo(6);
@@ -118,29 +143,31 @@ class SmsServiceIT {
 		assertThat(result.quota().remaining()).isEqualTo(4);
 		assertThat(quotaManager.getUsage(WITH_QUOTA)).isEqualTo(6);
 		assertThat(quotaManager.getLastUsed(WITH_QUOTA)).isPresent();
-		verify(smsSender).send("+46701234567", text);
-		verify(smsSender).send("+46701234568", text);
-		verify(smsSender).send("+46701234569", text);
+		verify(smsSender).send(SENDER, "+46701234567", text);
+		verify(smsSender).send(SENDER, "+46701234568", text);
+		verify(smsSender).send(SENDER, "+46701234569", text);
 	}
 
 	@Test
 	void sendsNothingWhenQuotaHasNoRoom() {
 		quotaManager.setUsage(WITH_QUOTA, 8);
 
-		var result = smsService.send(WITH_QUOTA, List.of("+46701234567", "+46701234568", "+46701234569"), TEXT);
+		var result = smsService.send(WITH_QUOTA, SENDER,
+				List.of("+46701234567", "+46701234568", "+46701234569"), TEXT);
 
 		assertThat(result.outcome()).isEqualTo(SmsSendResult.Outcome.QUOTA_EXCEEDED);
 		assertThat(result.cost()).isEqualTo(3);
 		assertThat(result.quota().remaining()).isEqualTo(2);
 		assertThat(quotaManager.getUsage(WITH_QUOTA)).isEqualTo(8);
-		verify(smsSender, never()).send(anyString(), any());
+		verify(smsSender, never()).send(anyString(), anyString(), any());
 	}
 
 	@Test
 	void refundsRecipientsTheGatewayRejects() {
-		doThrow(new SmsSendException("Unknown number")).when(smsSender).send("+46701234568", TEXT);
+		doThrow(new SmsSendException("Unknown number")).when(smsSender).send(SENDER, "+46701234568", TEXT);
 
-		var result = smsService.send(WITH_QUOTA, List.of("+46701234567", "+46701234568", "+46701234569"), TEXT);
+		var result = smsService.send(WITH_QUOTA, SENDER,
+				List.of("+46701234567", "+46701234568", "+46701234569"), TEXT);
 
 		assertThat(result.outcome()).isEqualTo(SmsSendResult.Outcome.SENT);
 		assertThat(result.sent()).containsExactly("+46701234567", "+46701234569");
@@ -150,24 +177,29 @@ class SmsServiceIT {
 
 	@Test
 	void sendsNothingWithoutQuota() {
-		var result = smsService.send(WITHOUT_QUOTA, List.of("+46701234567"), TEXT);
+		var result = smsService.send(WITHOUT_QUOTA, SENDER, List.of("+46701234567"), TEXT);
 
 		assertThat(result.outcome()).isEqualTo(SmsSendResult.Outcome.NO_QUOTA);
-		verify(smsSender, never()).send(anyString(), any());
+		verify(smsSender, never()).send(anyString(), anyString(), any());
 	}
 
 	@Test
 	void rejectsInvalidInput() {
-		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA, List.of(), TEXT));
-		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA,
+		assertThatIllegalArgumentException()
+				.isThrownBy(() -> smsService.send(WITH_QUOTA, SENDER, List.of(), TEXT));
+		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA, "Far too long",
+				List.of("+46701234567"), TEXT));
+		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA, "+46 70 123 45 00",
+				List.of("+46701234567"), TEXT));
+		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA, SENDER,
 				List.of("+46701234567", "+46701234567"), TEXT));
-		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA,
+		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA, SENDER,
 				List.of("+46 70 123 45 67"), TEXT));
-		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA,
+		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA, SENDER,
 				List.of("+46701234567"), " "));
-		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA,
+		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA, SENDER,
 				List.of("+46701234567"), "a".repeat(153 * SmsService.MAX_PARTS + 1)));
 		assertThat(quotaManager.getUsage(WITH_QUOTA)).isZero();
-		verify(smsSender, never()).send(anyString(), any());
+		verify(smsSender, never()).send(anyString(), anyString(), any());
 	}
 }

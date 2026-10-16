@@ -15,8 +15,10 @@
  */
 package biz.asplund.redis.sms;
 
-// Hands one message to an SMS gateway. Throws SmsSendException when the gateway does not accept it
+// Hands one message to an SMS gateway. The sender id is what the recipient sees the message come from: a phone
+// number, or an alphanumeric id such as a company name, already checked by SmsService. Throws SmsSendException
+// when the gateway does not accept the message
 public interface SmsSender {
 
-    void send(String recipient, String text);
+    void send(String senderId, String recipient, String text);
 }

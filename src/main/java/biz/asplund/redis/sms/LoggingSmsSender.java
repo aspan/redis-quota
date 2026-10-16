@@ -26,7 +26,7 @@ public class LoggingSmsSender implements SmsSender {
     private static final Logger LOGGER = LoggerFactory.getLogger(LoggingSmsSender.class);
 
     @Override
-    public void send(String recipient, String text) {
-        LOGGER.info("SMS to {} ({} characters): {}", recipient, text.length(), text);
+    public void send(String senderId, String recipient, String text) {
+        LOGGER.info("SMS from {} to {} ({} characters): {}", senderId, recipient, text.length(), text);
     }
 }
