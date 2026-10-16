@@ -15,13 +15,15 @@
  */
 package biz.asplund.redis.sms;
 
-// A message the gateway did not accept
+/// A message the gateway did not accept.
 public class SmsSendException extends RuntimeException {
 
+    /// Creates an exception with the gateway's error as its cause.
     public SmsSendException(String message, Throwable cause) {
         super(message, cause);
     }
 
+    /// Creates an exception with only a message.
     public SmsSendException(String message) {
         super(message);
     }

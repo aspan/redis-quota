@@ -36,10 +36,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-// The usage of one quota id in its current period, with actions to set, adjust or reset it and to run a request
-// as a client would. Shown in the quota editor and, for a user with a quota, in the user editor. After a change
-// the card calls onChanged, which rebuilds it with the new status. Without onChanged, as on the home view, the card
-// only shows the usage
+/// The usage of one quota id in its current period, with actions to set, adjust or reset it and to run a request
+/// as a client would.
+///
+/// Shown in the quota editor and, for a user with a quota, in the user editor. After a change the card calls
+/// `onChanged`, which rebuilds it with the new status. Without `onChanged`, as on the home view, the card only shows
+/// the usage.
 class QuotaUsageCard extends Card {
 
     private static final String PROGRESS_COLOR = "--vaadin-progress-bar-value-background";
@@ -49,6 +51,15 @@ class QuotaUsageCard extends Card {
     private final QuotaManager quotaManager;
     private final Runnable onChanged;
 
+    /// Creates the card for the given status.
+    ///
+    /// @param id the quota id
+    /// @param period the period of the quota, shown as the title
+    /// @param status the usage to show
+    /// @param lastUsed when the quota was last used, if ever
+    /// @param quotaManager changes the usage
+    /// @param dateTimeFormatter formats the reset and last use times
+    /// @param onChanged called after the usage was changed, to rebuild the card; `null` shows the usage only
     QuotaUsageCard(String id, QuotaPeriod period, QuotaStatus status, Optional<Instant> lastUsed,
             QuotaManager quotaManager, DateTimeFormatter dateTimeFormatter, Runnable onChanged) {
         this.id = id;
@@ -127,8 +138,10 @@ class QuotaUsageCard extends Card {
         addToFooter(footer);
     }
 
-    // Matches the usage badge in the list. Progress Bar has no warning variant, and the docs list its success
-    // and error variants for Lumo only, so the Aura palette color is set as well
+    /// Matches the usage badge in the list.
+    ///
+    /// Progress Bar has no warning variant, and the docs list its success and error variants for Lumo only, so the
+    /// Aura palette color is set as well.
     private static void colorProgress(ProgressBar progress, QuotaStatus status) {
         if (QuotaView.isUsedUp(status)) {
             progress.addThemeVariants(ProgressBarVariant.ERROR);

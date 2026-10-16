@@ -16,6 +16,8 @@
 
 package biz.asplund.redis.quota;
 
+/// How often a quota's usage resets: at the start of each hour, day, week (on Monday), month or year, in the time
+/// zone of the application's clock.
 public enum QuotaPeriod {
     HOURLY,
     DAILY,

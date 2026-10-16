@@ -26,9 +26,11 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-// Records the final usage of each user's finished periods in PostgreSQL, from the counters in Redis, which are kept
-// for quota.counter.retention after their period ends. UserQuotaSync runs it at startup, hourly and before it
-// deletes stale counters, so periods that ended while the application was down are recorded when it is back
+/// Records the final usage of each user's finished periods in PostgreSQL, from the counters in Redis, which are
+/// kept for `quota.counter.retention` after their period ends.
+///
+/// [UserQuotaSync] runs it at startup, hourly and before it deletes stale counters, so periods that ended while the
+/// application was down are recorded when it is back.
 @Service
 @EnableConfigurationProperties(QuotaHistoryProperties.class)
 public class QuotaHistoryService {
@@ -39,6 +41,7 @@ public class QuotaHistoryService {
     private final QuotaHistoryProperties properties;
     private final Clock clock;
 
+    /// Creates the service, which reads the counters through `quotaManager` and the time from `clock`.
     public QuotaHistoryService(UserAccountRepository userAccountRepository,
             QuotaUsageRecordRepository quotaUsageRecordRepository, QuotaManager quotaManager,
             QuotaHistoryProperties properties, Clock clock) {
@@ -49,9 +52,10 @@ public class QuotaHistoryService {
         this.clock = clock;
     }
 
-    // Records each user's finished periods that still have a counter, with the current limit; recording a period
-    // again updates its row. Periods without a counter, because nothing was counted, get no row. Returns how many
-    // periods it recorded
+    /// Records each user's finished periods that still have a counter, with the current limit; recording a period
+    /// again updates its row. Periods without a counter, because nothing was counted, get no row.
+    ///
+    /// @return how many periods it recorded
     @Transactional
     public int recordFinishedPeriods() {
         var recorded = 0;
@@ -80,13 +84,14 @@ public class QuotaHistoryService {
         return recorded;
     }
 
-    // Deletes the periods that started longer ago than quota.history.retention; returns how many
+    /// Deletes the periods that started longer ago than `quota.history.retention`; returns how many.
     @Transactional
     public int deleteExpired() {
         return quotaUsageRecordRepository.deleteByPeriodStartBefore(clock.instant().minus(properties.retention()));
     }
 
-    // The recorded periods of the user with the username, which is also the id of their quota, newest first
+    /// Returns the recorded periods of the user with the username, which is also the id of their quota, newest
+    /// first.
     @Transactional(readOnly = true)
     public List<QuotaUsageRecord> findHistory(String username) {
         return quotaUsageRecordRepository.findByUserUsernameOrderByPeriodStartDesc(username);

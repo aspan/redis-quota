@@ -27,17 +27,21 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.time.Clock;
 
+/// The Spring Boot application, and the Vaadin app shell that sets the Aura theme in both light and dark.
 @SpringBootApplication
-// For the daily UserQuotaSync
+// For the daily sync and hourly history of UserQuotaSync
 @EnableScheduling
 @StyleSheet(Aura.STYLESHEET)
 @ColorScheme(ColorScheme.Value.LIGHT_DARK)
 public class QuotaApplication implements AppShellConfigurator {
 
+	/// Starts the application.
 	public static void main(String[] args) {
 		SpringApplication.run(QuotaApplication.class, args);
 	}
 
+	/// The clock in the system time zone, which is what quota periods start and reset in. Tests replace it with a
+	/// fixed one.
 	@Bean
 	Clock clock() {
 		return Clock.systemDefaultZone();

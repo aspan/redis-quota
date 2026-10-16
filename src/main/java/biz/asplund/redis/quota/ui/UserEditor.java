@@ -55,8 +55,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
-// Detail panel for creating or editing one user: password, whether it may log in, its roles, quota, the sender ids it
-// may send SMS from and settings, and for a user with a quota, its usage in the current period and in finished periods
+/// Detail panel for creating or editing one user: password, whether it may log in, its roles, quota, the sender ids
+/// it may send SMS from and settings, and for a user with a quota, its usage in the current period and in finished
+/// periods.
 class UserEditor extends VerticalLayout {
 
     private final UserAccount account;
@@ -77,12 +78,20 @@ class UserEditor extends VerticalLayout {
     private final Select<QuotaPeriod> quotaPeriodField = new Select<>();
     private final IntegerField quotaLimitField = new IntegerField();
     private final MultiSelectComboBox<String> senderIdsField = new MultiSelectComboBox<>();
-    // The sender ids to choose from: the user's own and those typed in since the editor opened
+    /// The sender ids to choose from: the user's own and those typed in since the editor opened.
     private final List<String> senderIdItems = new ArrayList<>();
-    // Validates with the constraints on UserAccount and the rules below, and writes the fields into a new
-    // UserAccount, so the user shown in the grid is not changed before the service has accepted the change
+    /// Validates with the constraints on [UserAccount] and the rules below, and writes the fields into a new
+    /// [UserAccount], so the user shown in the grid is not changed before the service has accepted the change.
     private final BeanValidationBinder<UserAccount> binder = new BeanValidationBinder<>(UserAccount.class);
 
+    /// Creates the panel for `account`, or for a new user if it is `null`.
+    ///
+    /// @param roles the roles the user can be given
+    /// @param locales the languages the user's settings can choose from
+    /// @param actingUsername the logged-in user, who cannot disable, delete or take the `ADMIN` role from themselves
+    /// @param onSaved run with the saved user after a save, and with `account` after its usage has been changed
+    /// @param onDeleted run after the user has been deleted
+    /// @param onClose run when the panel's close button is clicked
     UserEditor(UserAccount account, List<Role> roles, List<Locale> locales, UserAccountService userAccountService,
             QuotaManager quotaManager, QuotaHistoryService quotaHistoryService, DateTimeFormatter dateTimeFormatter,
             String actingUsername, Consumer<UserAccount> onSaved, Runnable onDeleted, Runnable onClose) {
@@ -116,7 +125,7 @@ class UserEditor extends VerticalLayout {
         quotaLimitField.setEnabled(quotaPeriodField.getValue() != null);
     }
 
-    // Id of the edited user, or null for a new one
+    /// Returns the id of the edited user, or `null` for a new one.
     Long userId() {
         return account == null ? null : account.getId();
     }
@@ -190,7 +199,8 @@ class UserEditor extends VerticalLayout {
         return form;
     }
 
-    // The quota counted under the username, as the QuotaDefinition the quotas view lists; no period means none
+    /// Creates the form for the quota counted under the username, as the `QuotaDefinition` the quotas view lists; no
+    /// period means none.
     private Component createQuotaForm() {
         var form = new FormLayout();
         form.setAutoResponsive(true);
@@ -228,7 +238,8 @@ class UserEditor extends VerticalLayout {
         return form;
     }
 
-    // The sender ids the user may send SMS from, typed in and normalized as the service stores them
+    /// Creates the field for the sender ids the user may send SMS from, typed in and normalized as the service stores
+    /// them.
     private Component createSenderIdsForm() {
         if (account != null) {
             senderIdItems.addAll(account.getSenderIds().stream().sorted().toList());
@@ -256,8 +267,9 @@ class UserEditor extends VerticalLayout {
         return senderIdsField;
     }
 
-    // The usage of the saved quota, which the quota form above may since have been changed from. The quota is read
-    // from Redis, where it is copied when the user is saved
+    /// Adds the usage of the saved quota, which the quota form above may since have been changed from.
+    ///
+    /// The quota is read from Redis, where it is copied when the user is saved.
     private void addUsage() {
         if (account == null || account.getQuota().isEmpty()) {
             return;
@@ -274,7 +286,7 @@ class UserEditor extends VerticalLayout {
         }
     }
 
-    // The final usage of the user's finished periods, for a user who has or had a quota
+    /// Adds the final usage of the user's finished periods, for a user who has or had a quota.
     private void addHistory() {
         if (account == null) {
             return;
@@ -285,8 +297,10 @@ class UserEditor extends VerticalLayout {
         }
     }
 
-    // The field checks the address itself before the binder does, with its own message, so it gets the same one as
-    // the @Email constraint on UserAccount
+    /// Sets the label and error message of an email field, here and on the profile page.
+    ///
+    /// The field checks the address itself before the binder does, with its own message, so it gets the same one as
+    /// the `@Email` constraint on [UserAccount].
     static void configureEmailField(EmailField field) {
         field.setLabel(field.getTranslation("userEditor.email"));
         field.setClearButtonVisible(true);
@@ -294,7 +308,8 @@ class UserEditor extends VerticalLayout {
                 .setPatternErrorMessage(field.getTranslation("userEditor.emailInvalid")));
     }
 
-    // The language and appearance the user's pages open in, also set from the toolbar while the user is logged in
+    /// Creates the field for the language and appearance the user's pages open in, also set from the toolbar while
+    /// the user is logged in.
     private Component createSettingsForm(List<Locale> locales) {
         var settingsField = new UserSettingsField(locales);
         binder.forField(settingsField).bind(UserAccount::getSettings, UserAccount::setSettings);

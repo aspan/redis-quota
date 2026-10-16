@@ -21,15 +21,14 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 
 import java.util.Locale;
 
-/**
- * Sending SMS.
- *
- * @param defaultRegion the region, as an ISO 3166 country code such as SE, that a recipient's number is read in when
- *                      it has no country code, such as 070-123 45 67
- */
+/// Sending SMS.
+///
+/// @param defaultRegion the region, as an ISO 3166 country code such as `SE`, that a recipient's number is read in
+///                      when it has no country code, such as `070-123 45 67`
 @ConfigurationProperties("quota.sms")
 public record SmsProperties(@DefaultValue("SE") String defaultRegion) {
 
+    /// Strips and upper-cases the region, and rejects one that libphonenumber does not support.
     public SmsProperties {
         defaultRegion = defaultRegion.strip().toUpperCase(Locale.ROOT);
         if (!PhoneNumberUtil.getInstance().getSupportedRegions().contains(defaultRegion)) {

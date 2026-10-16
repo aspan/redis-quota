@@ -38,8 +38,8 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 
-// The page every logged-in user lands on: their own quota, its usage in the current period, read-only, and its
-// usage history
+/// The page every logged-in user lands on: their own quota, its usage in the current period, read-only, and its
+/// usage history.
 @Route("")
 @PageTitle("home.title")
 @Menu(title = "home.title", icon = "vaadin:home", order = 0)
@@ -52,6 +52,7 @@ public class HomeView extends VerticalLayout implements BeforeEnterObserver, Loc
     private final ZoneId zone;
     private final String username;
 
+    /// Creates the view for the logged-in user; the page itself is built on every navigation and language change.
     public HomeView(UserAccountService userAccountService, QuotaManager quotaManager,
             QuotaHistoryService quotaHistoryService, Clock clock, AuthenticationContext authenticationContext) {
         this.userAccountService = userAccountService;
@@ -62,19 +63,20 @@ public class HomeView extends VerticalLayout implements BeforeEnterObserver, Loc
         setMaxWidth("40rem");
     }
 
-    // On every navigation, including to this view when it is already shown, so the usage is current
+    /// Builds the page on every navigation, including to this view when it is already shown, so the usage is
+    /// current.
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
         build();
     }
 
-    // Called when attached and whenever the language changes
+    /// Called when attached and whenever the language changes.
     @Override
     public void localeChange(LocaleChangeEvent event) {
         build();
     }
 
-    // Reads the quota again each time
+    /// Builds the page, reading the quota again each time.
     private void build() {
         removeAll();
         var dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)

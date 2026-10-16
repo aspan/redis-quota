@@ -47,11 +47,21 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
+/// Counts the usage of quotas in Redis, one counter per id and period instance, and the time each id last used its
+/// quota.
+///
+/// A counter's key is `quota:<id>:<period>:<instance>`, such as `quota:alice:daily:20261014`, and it is kept for
+/// `quota.counter.retention` after its period ends, so the usage history can record it. Checks and reads of the
+/// current usage fail open when Redis cannot be reached; changes, deletions and reads of finished periods do not.
 @Component
 @EnableConfigurationProperties(QuotaCounterProperties.class)
 public class QuotaManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuotaManager.class);
-    // Lua script for atomic operations
+    /// The Lua script that atomically adds an amount to a counter if the result stays within the limit, and then
+    /// refreshes the counter's expiry and the last-used time.
+    ///
+    /// Takes the counter and last-used keys, and the amount, the expiry in seconds, the limit and the current time in
+    /// milliseconds. Returns `{1, new usage}` when the amount was counted, and `{0, current usage}` when it was not.
     public static final String QUOTA_SCRIPT = """
         local current = tonumber(redis.call('GET', KEYS[1]) or '0')
         local amount = tonumber(ARGV[1])
@@ -71,12 +81,14 @@ public class QuotaManager {
 
     private static final String QUOTA_PREFIX = "quota";
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHxx");
-    // What follows quota:<id>: in a usage key: last-used, or a period and its instance, digits with the UTC offset
-    // for an hour. Matching the digits keeps the last-used key of an id like "alice:daily" from passing as a counter
+    /// What follows `quota:<id>:` in a usage key: `last-used`, or a period and its instance, digits with the UTC
+    /// offset for an hour.
+    ///
+    /// Matching the digits keeps the last-used key of an id like `alice:daily` from passing as a counter.
     private static final Pattern USAGE_SUFFIX =
             Pattern.compile("last-used|(hourly|daily|weekly|monthly|yearly):[0-9]+([+-][0-9]{4})?");
 
-    // Adds a (possibly negative) delta to the usage, never going below zero
+    /// Adds a (possibly negative) delta to the usage, never going below zero.
     private static final RedisScript<Long> ADJUST_USAGE_SCRIPT = RedisScript.of("""
             local usage = tonumber(redis.call('GET', KEYS[1]) or '0') + tonumber(ARGV[1])
             if usage < 0 then
@@ -89,9 +101,10 @@ public class QuotaManager {
     private final RedisTemplate<String, String> redisTemplate;
     private final QuotaDefinitionRepository quotaDefinitionRepository;
     private final Clock clock;
-    // How long a counter is kept after its period ends
+    /// How long a counter is kept after its period ends.
     private final Duration counterRetention;
 
+    /// Creates a manager that keeps counters for the retention in `properties` after their period ends.
     public QuotaManager(RedisTemplate<String, String> redisTemplate,
             QuotaDefinitionRepository quotaDefinitionRepository, Clock clock, QuotaCounterProperties properties) {
         this.redisTemplate = redisTemplate;
@@ -100,11 +113,24 @@ public class QuotaManager {
         this.counterRetention = properties.retention();
     }
 
-    // Uses the period and limit stored for the id in its QuotaDefinition
+    /// Counts `amount` against the id's quota, using the period and limit stored for the id in its
+    /// [QuotaDefinition].
+    ///
+    /// Fails open, with a limit of `0` and a reset time of now, when the definition cannot be loaded from Redis.
+    ///
+    /// @throws IllegalArgumentException if no quota is defined for the id
+    /// @see #checkAndIncrement(String, QuotaConfig, int)
     public QuotaStatus checkAndIncrement(String id, int amount) {
         return withDefinition(id, config -> checkAndIncrement(id, config, amount));
     }
 
+    /// Counts `amount` against the id's usage in the current period if it fits within the limit, and then records
+    /// the current time as the id's last use. When it does not fit, nothing is counted or recorded.
+    ///
+    /// Fails open, allowing the amount without counting it, when Redis cannot be reached.
+    ///
+    /// @return the status after the check, whose `used` is the usage after counting, or as it was if nothing was
+    ///         counted
     public QuotaStatus checkAndIncrement(String id, QuotaConfig config, int amount) {
         var key = getPeriodKey(id, config.period());
         var lastUsedKey = getLastUsedKey(id);
@@ -143,19 +169,26 @@ public class QuotaManager {
         return new QuotaStatus(false, config.limit(), 0, 0, resetAt);
     }
 
-    // Current status for the stored definition, without consuming quota
+    /// Returns the current status for the stored definition, without consuming quota.
+    ///
+    /// @throws IllegalArgumentException if no quota is defined for the id
+    /// @see #getStatus(String, QuotaConfig)
     public QuotaStatus getStatus(String id) {
         return withDefinition(id, config -> getStatus(id, config));
     }
 
-    // Current status without consuming quota; allowed means at least one unit is left
+    /// Returns the current status without consuming quota; `allowed` means at least one unit is left.
+    ///
+    /// A usage that cannot be read from Redis counts as `0`.
     public QuotaStatus getStatus(String id, QuotaConfig config) {
         var used = readUsage(id, config.period());
         return new QuotaStatus(used < config.limit(), config.limit(), used,
                 Math.max(0, config.limit() - used), getResetTime(config.period()));
     }
 
-    // Usage in the current period of the stored definition
+    /// Returns the usage in the current period of the stored definition, or `0` when Redis cannot be reached.
+    ///
+    /// @throws IllegalArgumentException if no quota is defined for the id
     public int getUsage(String id) {
         try {
             return readUsage(id, definition(id).period());
@@ -165,6 +198,7 @@ public class QuotaManager {
         }
     }
 
+    /// Returns when the id last had an amount counted, or empty if it never had or Redis cannot be reached.
     public Optional<Instant> getLastUsed(String id) {
         try {
             var value = redisTemplate.opsForValue().get(getLastUsedKey(id));
@@ -175,12 +209,18 @@ public class QuotaManager {
         }
     }
 
-    // Clears the usage in the current period of the stored definition
+    /// Clears the usage in the current period of the stored definition.
+    ///
+    /// @throws IllegalArgumentException if no quota is defined for the id
     public void resetQuota(String id) {
         redisTemplate.delete(getPeriodKey(id, definition(id).period()));
     }
 
-    // Adds a (possibly negative) delta to the usage in the current period of the stored definition
+    /// Adds a (possibly negative) delta to the usage in the current period of the stored definition, never going
+    /// below zero, such as to refund units.
+    ///
+    /// @return the usage after the change
+    /// @throws IllegalArgumentException if no quota is defined for the id
     public int adjustUsage(String id, int delta) {
         var period = definition(id).period();
         var usage = redisTemplate.execute(
@@ -192,7 +232,9 @@ public class QuotaManager {
         return usage.intValue();
     }
 
-    // Overwrites the usage in the current period of the stored definition
+    /// Overwrites the usage in the current period of the stored definition.
+    ///
+    /// @throws IllegalArgumentException if `usage` is negative, or no quota is defined for the id
     public void setUsage(String id, int usage) {
         if (usage < 0) {
             throw new IllegalArgumentException("usage must not be negative: " + usage);
@@ -229,8 +271,11 @@ public class QuotaManager {
         }
     }
 
-    // Deletes all usage of the id: its counters in every period, current or earlier, and its last-used time. Like
-    // resetQuota, it does not fail open. Returns how many keys it deleted
+    /// Deletes all usage of the id: its counters in every period, current or earlier, and its last-used time.
+    ///
+    /// Like [#resetQuota(String)], it does not fail open.
+    ///
+    /// @return how many keys it deleted
     public int deleteUsage(String id) {
         var prefix = QUOTA_PREFIX + ":" + id + ":";
         var keys = new HashSet<String>();
@@ -250,14 +295,19 @@ public class QuotaManager {
         return deleted == null ? 0 : deleted.intValue();
     }
 
-    // Escapes the characters that SCAN's MATCH pattern treats as wildcards
+    /// Escapes the characters that `SCAN`'s `MATCH` pattern treats as wildcards.
     private static String escapeGlob(String text) {
         return text.replaceAll("([*?\\[\\]\\\\])", "\\\\$1");
     }
 
-    // Deletes the usage keys of everything but the given quotas: counters and last-used times of other ids, and
-    // counters of other periods or earlier period instances. Expired counters would go by themselves, but the
-    // last-used times have no expiry. Like resetQuota, it does not fail open. Returns how many keys it deleted
+    /// Deletes the usage keys of everything but the given quotas: counters and last-used times of other ids, and
+    /// counters of other periods or earlier period instances.
+    ///
+    /// Expired counters would go by themselves, but the last-used times have no expiry. Like [#resetQuota(String)],
+    /// it does not fail open.
+    ///
+    /// @param quotas the period of each id whose current usage is kept
+    /// @return how many keys it deleted
     public int deleteStaleUsage(Map<String, QuotaPeriod> quotas) {
         var keep = keysToKeep(quotas);
         var candidates = new HashSet<String>();
@@ -283,13 +333,17 @@ public class QuotaManager {
         return keep;
     }
 
-    // The usage of a finished period: when it started, and the final count
+    /// The usage of a finished period.
+    ///
+    /// @param start when the period started
+    /// @param used the final count
     public record PeriodUsage(Instant start, int used) {
     }
 
-    // The final usage of the finished periods whose counters have not yet expired, which happens
-    // quota.counter.retention after the period ends, oldest first. Periods in which nothing was counted, or whose
-    // counter was deleted, are left out. Does not fail open
+    /// Returns the final usage of the finished periods whose counters have not yet expired, which happens
+    /// `quota.counter.retention` after the period ends, oldest first.
+    ///
+    /// Periods in which nothing was counted, or whose counter was deleted, are left out. Does not fail open.
     public List<PeriodUsage> getFinishedPeriodUsage(String id, QuotaPeriod period) {
         var now = ZonedDateTime.now(clock);
         var current = getPeriodStart(period, now);

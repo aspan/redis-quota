@@ -25,9 +25,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-// Stores the user of spring.security.user.* in the database at startup, if it is not there yet, so a first
-// admin can log in. Nothing is stored unless the password is set; Spring Boot's generated password is never
-// shown once the users come from the database. An existing user is left as it is
+/// Stores the user of `spring.security.user.*` in the database at startup, if it is not there yet, so a first
+/// admin can log in.
+///
+/// Nothing is stored unless the password is set; Spring Boot's generated password is never shown once the users
+/// come from the database. An existing user is left as it is. Roles the user has that do not exist yet are
+/// created.
 @Component
 public class AdminAccountInitializer implements ApplicationRunner {
 
@@ -38,6 +41,7 @@ public class AdminAccountInitializer implements ApplicationRunner {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
 
+    /// Creates the initializer for the user in `securityProperties`.
     public AdminAccountInitializer(SecurityProperties securityProperties, UserAccountRepository userAccountRepository,
             RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
         this.securityProperties = securityProperties;

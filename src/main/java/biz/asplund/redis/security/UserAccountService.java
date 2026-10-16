@@ -40,24 +40,31 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-// Manages the admin UI's users, their roles and quotas. The acting user cannot delete or disable their own
-// account or take the ADMIN role from it, and the built-in ADMIN and USER roles cannot be deleted, so at least one admin always
-// remains. A user's quota is kept in PostgreSQL and copied to Redis as the QuotaDefinition under the username,
-// which QuotaManager reads. The copy is written inside the transaction, so a Redis error rolls back the change.
-// Quotas belong to users: Redis holds no other definitions, and syncQuotasToRedis removes any that appear. A user's
-// sender ids, the ones they may send SMS from, are set only by createUser and updateUser, which only the admin-only
-// users view calls; the methods a user changes their own account with leave them alone
+/// Manages the admin UI's users, their roles and quotas.
+///
+/// The acting user cannot delete or disable their own account or take the `ADMIN` role from it, and the built-in
+/// `ADMIN` and `USER` roles cannot be deleted, so at least one admin always remains.
+///
+/// A user's quota is kept in PostgreSQL and copied to Redis as the [QuotaDefinition] under the username, which
+/// [QuotaManager] reads. The copy is written inside the transaction, so a Redis error rolls back the change.
+/// Quotas belong to users: Redis holds no other definitions, and [#syncQuotasToRedis()] removes any that appear.
+///
+/// A user's sender ids, the ones they may send SMS from, are set only by `createUser` and `updateUser`, which only
+/// the admin-only users view calls; the methods a user changes their own account with leave them alone.
 @Service
 public class UserAccountService {
 
+    /// The role the views require.
     public static final String ADMIN_ROLE = "ADMIN";
+    /// The role for users who are not admins.
     public static final String USER_ROLE = "USER";
-    // The roles the migrations create, which cannot be deleted: the views require ADMIN, and USER is the role
-    // for users who are not admins
+    /// The roles the migrations create, which cannot be deleted: the views require `ADMIN`, and `USER` is the role
+    /// for users who are not admins.
     public static final Set<String> BUILT_IN_ROLES = Set.of(ADMIN_ROLE, USER_ROLE);
+    /// The fewest characters a password may have.
     public static final int MIN_PASSWORD_LENGTH = 8;
 
-    // Upper case, as role names are conventionally written in hasRole and @RolesAllowed
+    /// Upper case, as role names are conventionally written in `hasRole` and `@RolesAllowed`.
     private static final Pattern ROLE_NAME = Pattern.compile("[A-Z][A-Z0-9_]{0,49}");
 
     private final UserAccountRepository userAccountRepository;
@@ -66,6 +73,7 @@ public class UserAccountService {
     private final QuotaDefinitionRepository quotaDefinitionRepository;
     private final QuotaManager quotaManager;
 
+    /// Creates the service, which keeps the users in PostgreSQL and copies their quotas to Redis.
     public UserAccountService(UserAccountRepository userAccountRepository, RoleRepository roleRepository,
             PasswordEncoder passwordEncoder, QuotaDefinitionRepository quotaDefinitionRepository,
             QuotaManager quotaManager) {
@@ -76,45 +84,54 @@ public class UserAccountService {
         this.quotaManager = quotaManager;
     }
 
+    /// Returns all users, sorted by username.
     @Transactional(readOnly = true)
     public List<UserAccount> findAllUsers() {
         return userAccountRepository.findAll(Sort.by("username"));
     }
 
+    /// Returns all roles, sorted by name.
     @Transactional(readOnly = true)
     public List<Role> findAllRoles() {
         return roleRepository.findAll(Sort.by("name"));
     }
 
-    // Number of users holding each role, by role id
+    /// Returns the number of users holding each role, by role id; roles no user holds are left out.
     @Transactional(readOnly = true)
     public Map<Long, Long> countUsersByRole() {
         return roleRepository.countUsersByRole().stream()
                 .collect(Collectors.toMap(count -> (Long) count[0], count -> (Long) count[1]));
     }
 
-    // Usernames of the users with a quota, whose QuotaDefinitions this service owns
+    /// Returns the usernames of the users with a quota, whose [QuotaDefinition]s this service owns.
     @Transactional(readOnly = true)
     public Set<String> findQuotaUsernames() {
         return userAccountRepository.findAll().stream().filter(account -> account.getQuota().isPresent())
                 .map(UserAccount::getUsername).collect(Collectors.toSet());
     }
 
-    // A null quota means none; the user starts without a name, email address or settings
+    /// Creates a user without a name, email address, settings or sender ids; a `null` quota means none.
+    ///
+    /// @throws AccountRuleException if the change breaks one of the [AccountRuleException.Rule]s
     @Transactional
     public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota) {
         return createUser(username, password, enabled, roleNames, quota, UserProfile.NONE);
     }
 
-    // The user starts without sender ids
+    /// Creates a user with the profile, without sender ids; a `null` quota means none.
+    ///
+    /// @throws AccountRuleException if the change breaks one of the [AccountRuleException.Rule]s
     @Transactional
     public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota, UserProfile profile) {
         return createUser(username, password, enabled, roleNames, quota, profile, Set.of());
     }
 
-    // The sender ids are normalized as SmsService.normalizeSenderId does
+    /// Creates a user and copies their quota to Redis; a `null` quota means none. The username is trimmed, and the
+    /// sender ids are normalized as [SmsService#normalizeSenderId(String)] does.
+    ///
+    /// @throws AccountRuleException if the change breaks one of the [AccountRuleException.Rule]s
     @Transactional
     public UserAccount createUser(String username, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota, UserProfile profile, Collection<String> senderIds) {
@@ -140,21 +157,31 @@ public class UserAccountService {
         return saved;
     }
 
-    // A null or empty password keeps the current one; a null quota removes it. The profile is kept
+    /// Changes the user with the id; a `null` or empty password keeps the current one, and a `null` quota removes
+    /// it. The profile and the sender ids are kept.
+    ///
+    /// @throws AccountRuleException if the change breaks one of the [AccountRuleException.Rule]s
     @Transactional
     public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota, String actingUsername) {
         return updateUser(id, password, enabled, roleNames, quota, null, actingUsername);
     }
 
-    // As above, with the profile, where a null profile keeps the current one. The sender ids are kept
+    /// As [#updateUser(long, String, boolean, Collection, QuotaConfig, String)], with the profile, where a `null`
+    /// profile keeps the current one. The sender ids are kept.
+    ///
+    /// @throws AccountRuleException if the change breaks one of the [AccountRuleException.Rule]s
     @Transactional
     public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota, UserProfile profile, String actingUsername) {
         return updateUser(id, password, enabled, roleNames, quota, profile, null, actingUsername);
     }
 
-    // As above, with the sender ids, normalized as SmsService.normalizeSenderId does, where null keeps the current ones
+    /// As [#updateUser(long, String, boolean, Collection, QuotaConfig, UserProfile, String)], with the sender ids,
+    /// normalized as [SmsService#normalizeSenderId(String)] does, where `null` keeps the current ones. The quota is
+    /// copied to Redis.
+    ///
+    /// @throws AccountRuleException if the change breaks one of the [AccountRuleException.Rule]s
     @Transactional
     public UserAccount updateUser(long id, String password, boolean enabled, Collection<String> roleNames,
             QuotaConfig quota, UserProfile profile, Collection<String> senderIds, String actingUsername) {
@@ -187,32 +214,36 @@ public class UserAccountService {
         return account;
     }
 
-    // The quota of the user with the username, or empty when the user has none or does not exist
+    /// Returns the quota of the user with the username, or empty when the user has none or does not exist.
     @Transactional(readOnly = true)
     public Optional<QuotaConfig> findQuota(String username) {
         return userAccountRepository.findByUsername(username).flatMap(UserAccount::getQuota);
     }
 
-    // The sender ids the user with the username may send SMS from, sorted, or none when no user has the username
+    /// Returns the sender ids the user with the username may send SMS from, sorted, or none when no user has the
+    /// username.
     @Transactional(readOnly = true)
     public List<String> findSenderIds(String username) {
         return userAccountRepository.findByUsername(username)
                 .map(account -> account.getSenderIds().stream().sorted().toList()).orElse(List.of());
     }
 
-    // The name people read for the user with the username: their name, or else the username itself
+    /// Returns the name people read for the user with the username: their name, or else the username itself.
     @Transactional(readOnly = true)
     public String findDisplayName(String username) {
         return userAccountRepository.findByUsername(username).map(UserAccount::getDisplayName).orElse(username);
     }
 
-    // The name of the user with the username, or null when not set or no user has the username
+    /// Returns the name of the user with the username, or `null` when not set or no user has the username.
     @Transactional(readOnly = true)
     public String findName(String username) {
         return userAccountRepository.findByUsername(username).map(UserAccount::getName).orElse(null);
     }
 
-    // Changes the profile of the user with the username, as the user does on their profile page
+    /// Changes the profile of the user with the username, as the user does on their profile page.
+    ///
+    /// @throws AccountRuleException with [AccountRuleException.Rule#NOT_FOUND] or
+    ///         [AccountRuleException.Rule#EMAIL_TAKEN]
     @Transactional
     public void changeOwnProfile(String username, UserProfile profile) {
         var account = userAccountRepository.findByUsername(username)
@@ -221,28 +252,31 @@ public class UserAccountService {
         account.setProfile(profile);
     }
 
-    // The profile of the user with the username, or none for a name no user has
+    /// Returns the profile of the user with the username, or [UserProfile#NONE] for a name no user has.
     @Transactional(readOnly = true)
     public UserProfile findProfile(String username) {
         return userAccountRepository.findByUsername(username).map(UserAccount::getProfile).orElse(UserProfile.NONE);
     }
 
-    // The settings of the user with the username, or none for a name no user has
+    /// Returns the settings of the user with the username, or [UserSettings#NONE] for a name no user has.
     @Transactional(readOnly = true)
     public UserSettings findSettings(String username) {
         return userAccountRepository.findByUsername(username).map(UserAccount::getSettings).orElse(UserSettings.NONE);
     }
 
-    // Changes the settings of the user with the username, as the toolbar does for the logged-in user; a name no
-    // user has, such as one from spring.security.user before it is stored, is left alone
+    /// Changes the settings of the user with the username, as the toolbar does for the logged-in user; a name no
+    /// user has, such as one from `spring.security.user` before it is stored, is left alone.
     @Transactional
     public void changeSettings(String username, UnaryOperator<UserSettings> change) {
         userAccountRepository.findByUsername(username)
                 .ifPresent(account -> account.setSettings(change.apply(account.getSettings())));
     }
 
-    // Changes the password of the user with the username, as the user does on their profile page, which takes
-    // their current password to confirm it is them
+    /// Changes the password of the user with the username, as the user does on their profile page, which takes
+    /// their current password to confirm it is them.
+    ///
+    /// @throws AccountRuleException with [AccountRuleException.Rule#NOT_FOUND],
+    ///         [AccountRuleException.Rule#WRONG_PASSWORD] or [AccountRuleException.Rule#PASSWORD_TOO_SHORT]
     @Transactional
     public void changeOwnPassword(String username, String currentPassword, String newPassword) {
         var account = userAccountRepository.findByUsername(username)
@@ -253,6 +287,11 @@ public class UserAccountService {
         account.setPassword(encode(newPassword));
     }
 
+    /// Deletes the user with the id, unless it is the acting user, along with their quota and the usage counted
+    /// under it in Redis.
+    ///
+    /// @throws AccountRuleException with [AccountRuleException.Rule#NOT_FOUND] or
+    ///         [AccountRuleException.Rule#OWN_ACCOUNT_DELETE]
     @Transactional
     public void deleteUser(long id, String actingUsername) {
         var account = userAccountRepository.findById(id).orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
@@ -263,13 +302,17 @@ public class UserAccountService {
         removeQuota(account.getUsername());
     }
 
-    // How many definitions syncQuotasToRedis wrote and removed, and how many stale usage keys it deleted
+    /// How many definitions [#syncQuotasToRedis()] wrote and removed, and how many stale usage keys it deleted.
+    ///
+    /// @param copied     the users' quotas written to Redis
+    /// @param removed    the definitions removed as they were no user's quota
+    /// @param staleUsage the stale usage keys deleted
     public record SyncResult(int copied, int removed, int staleUsage) {
     }
 
-    // Makes Redis match the users' quotas: writes every user's quota again, for when Redis has lost them, removes
-    // every definition that is not a user's quota, and deletes stale usage: the counters and last-used times of
-    // ids that are not users with a quota, and counters of periods the users' quotas no longer have
+    /// Makes Redis match the users' quotas: writes every user's quota again, for when Redis has lost them, removes
+    /// every definition that is not a user's quota, and deletes stale usage: the counters and last-used times of
+    /// ids that are not users with a quota, and counters of periods the users' quotas no longer have.
     @Transactional(readOnly = true)
     public SyncResult syncQuotasToRedis() {
         var definitions = userAccountRepository.findAll().stream()
@@ -286,7 +329,10 @@ public class UserAccountService {
         return new SyncResult(definitions.size(), others.size(), staleUsage);
     }
 
-    // Names are stored in upper case, without the ROLE_ prefix
+    /// Creates a role with the name, trimmed and stored in upper case, without the `ROLE_` prefix.
+    ///
+    /// @throws AccountRuleException with [AccountRuleException.Rule#ROLE_NAME_INVALID] or
+    ///         [AccountRuleException.Rule#ROLE_EXISTS]
     @Transactional
     public Role createRole(String name) {
         var roleName = name == null ? "" : name.trim().toUpperCase(Locale.ROOT);
@@ -299,7 +345,11 @@ public class UserAccountService {
         return roleRepository.save(new Role(roleName));
     }
 
-    // Users holding the role lose it; the database removes their rows in user_roles
+    /// Deletes the role with the id. Users holding the role lose it; the database removes their rows in
+    /// `user_roles`.
+    ///
+    /// @throws AccountRuleException with [AccountRuleException.Rule#NOT_FOUND] or
+    ///         [AccountRuleException.Rule#BUILT_IN_ROLE_DELETE]
     @Transactional
     public void deleteRole(long id) {
         var role = roleRepository.findById(id).orElseThrow(() -> new AccountRuleException(Rule.NOT_FOUND));
@@ -309,9 +359,9 @@ public class UserAccountService {
         roleRepository.delete(role);
     }
 
-    // Another user's address, whatever its case, is refused; the database's unique index backs this up. So is
-    // another user's username, as both log in. Checked before the user is changed, as the queries would otherwise
-    // first flush the change and fail on the index
+    /// Refuses another user's address, whatever its case; the database's unique index backs this up. So is
+    /// another user's username, as both log in. Checked before the user is changed, as the queries would otherwise
+    /// first flush the change and fail on the index.
     private void checkEmailFree(String email, String username) {
         if (email == null || email.isBlank()) {
             return;
@@ -336,7 +386,7 @@ public class UserAccountService {
         }
     }
 
-    // Saves the user's quota as their QuotaDefinition, or removes the quota when the user has none
+    /// Saves the user's quota as their [QuotaDefinition], or removes the quota when the user has none.
     private void copyQuota(UserAccount account) {
         account.getQuota().ifPresentOrElse(
                 quota -> quotaDefinitionRepository.save(
@@ -344,7 +394,7 @@ public class UserAccountService {
                 () -> removeQuota(account.getUsername()));
     }
 
-    // Deletes the definition and the usage counted under the username, so a quota given later starts from zero
+    /// Deletes the definition and the usage counted under the username, so a quota given later starts from zero.
     private void removeQuota(String username) {
         quotaDefinitionRepository.deleteById(username);
         quotaManager.deleteUsage(username);

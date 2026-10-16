@@ -26,17 +26,19 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+/// The security of the admin UI, whose users [DatabaseUserDetailsService] logs in.
 @EnableWebSecurity
 @Configuration
 public class SecurityConfiguration {
 
-    // Encodes new passwords with bcrypt and still reads stored passwords of other encodings, by their {id} prefix
+    /// Encodes new passwords with bcrypt and still reads stored passwords of other encodings, by their `{id}`
+    /// prefix.
     @Bean
     PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 
-    // The admin UI; views declare who may open them
+    /// The admin UI, with [LoginView] as the login page; views declare who may open them.
     @Bean
     SecurityFilterChain uiSecurityFilterChain(HttpSecurity http) throws Exception {
         return http.with(VaadinSecurityConfigurer.vaadin(), configurer -> configurer.loginView(LoginView.class))

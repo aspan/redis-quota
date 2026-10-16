@@ -21,15 +21,14 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
 
-/**
- * The daily sync of the users' quotas to Redis, which also runs at startup.
- *
- * @param cron when the daily sync runs: a Spring cron expression in the server's time zone, or "-" to run it only
- *             at startup
- */
+/// The daily sync of the users' quotas to Redis, which also runs at startup.
+///
+/// @param cron when the daily sync runs: a Spring cron expression in the server's time zone, or `-` to run it only
+///             at startup
 @ConfigurationProperties("quota.sync")
 public record QuotaSyncProperties(@DefaultValue("0 30 3 * * *") String cron) {
 
+    /// @throws IllegalArgumentException if `cron` is neither a cron expression nor `-`
     public QuotaSyncProperties {
         if (!Scheduled.CRON_DISABLED.equals(cron) && !CronExpression.isValidExpression(cron)) {
             throw new IllegalArgumentException(
@@ -37,6 +36,7 @@ public record QuotaSyncProperties(@DefaultValue("0 30 3 * * *") String cron) {
         }
     }
 
+    /// Returns whether the daily sync runs, that is whether `cron` is not `-`.
     boolean daily() {
         return !Scheduled.CRON_DISABLED.equals(cron);
     }

@@ -23,10 +23,12 @@ import com.vaadin.flow.server.VaadinSession;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-// Applies the color scheme stored by ColorSchemePreference to each page load and new UI
+/// Applies the color scheme stored by [ColorSchemePreference] to each page load and new UI.
 @Configuration
 public class ColorSchemeConfiguration {
 
+    /// Sets the resolved color scheme in the page Vaadin sends first, so it does not flash in the wrong scheme, and
+    /// stores it in the session for each new UI.
     @Bean
     VaadinServiceInitListener colorSchemeFromCookie(ColorSchemePreference colorSchemePreference) {
         return event -> {

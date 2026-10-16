@@ -23,14 +23,20 @@ import biz.asplund.redis.quota.QuotaStatus;
 import java.time.Instant;
 import java.util.Optional;
 
-// A quota definition with its current status, read once per refresh
+/// A quota definition with its current status, read once per refresh.
+///
+/// @param definition the quota's period and limit
+/// @param status the usage in the current period
+/// @param lastUsed when the quota was last used, or empty if never
 record QuotaRow(QuotaDefinition definition, QuotaStatus status, Optional<Instant> lastUsed) {
 
+    /// Reads the current status and last use of `definition` from [QuotaManager].
     static QuotaRow load(QuotaDefinition definition, QuotaManager quotaManager) {
         return new QuotaRow(definition, quotaManager.getStatus(definition.id(), definition.config()),
                 quotaManager.getLastUsed(definition.id()));
     }
 
+    /// Returns the id of the quota, which is the username of its user.
     String id() {
         return definition.id();
     }

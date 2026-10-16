@@ -29,47 +29,55 @@ import com.vaadin.flow.i18n.LocaleChangeObserver;
 
 import java.util.List;
 
-// A toolbar button that opens a menu of choices, with the current choice checked
+/// A toolbar button that opens a menu of choices, with the current choice checked.
+///
+/// @param <T> the type of the choices
 abstract class PreferenceMenuButton<T> extends Button implements LocaleChangeObserver {
 
     private final ContextMenu menu = new ContextMenu(this);
 
+    /// Creates the button with a menu that opens on click, below its end.
     PreferenceMenuButton() {
         addThemeVariants(ButtonVariant.TERTIARY);
         menu.setOpenOnClick(true);
         menu.setPosition(ContextMenuPosition.BOTTOM_END);
     }
 
+    /// Returns the choices, in the order they are listed in the menu.
     abstract List<T> choices();
 
+    /// Returns the current choice, which is checked in the menu.
     abstract T current();
 
+    /// Returns the label of a choice in the menu, in the current language.
     abstract String label(T choice);
 
+    /// Applies a choice picked in the menu.
     abstract void select(T choice);
 
-    // An icon shown before a choice's label in the menu, or null for none
+    /// An icon shown before a choice's label in the menu, or `null` for none.
     Component prefix(T choice) {
         return null;
     }
 
-    // Shows the current choice on the button itself
+    /// Shows the current choice on the button itself.
     abstract void showOnButton(T current);
 
-    // Translation key of the button's accessible name and tooltip
+    /// Translation key of the button's accessible name and tooltip.
     abstract String labelKey();
 
+    /// Returns the menu of choices.
     ContextMenu menu() {
         return menu;
     }
 
-    // Labels are translated, so the menu is rebuilt whenever the language changes
+    /// Labels are translated, so the menu is rebuilt whenever the language changes.
     @Override
     public void localeChange(LocaleChangeEvent event) {
         update();
     }
 
-    // The icon and the label side by side
+    /// The icon and the label side by side.
     static Component withPrefix(Component prefix, String label) {
         var layout = new HorizontalLayout(prefix, new Span(label));
         layout.setSpacing("var(--vaadin-gap-s)");
@@ -77,6 +85,7 @@ abstract class PreferenceMenuButton<T> extends Button implements LocaleChangeObs
         return layout;
     }
 
+    /// Rebuilds the menu with the current choice checked, and updates the button to show it.
     void update() {
         var current = current();
         menu.removeAll();

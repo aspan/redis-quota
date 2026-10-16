@@ -21,13 +21,15 @@ import com.vaadin.flow.component.ComponentUtil;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.server.VaadinSession;
 
-// Fired on each UI of the session when the logged-in user's name changes, so MainLayout shows the new one
+/// Fired on each UI of the session when the logged-in user's name changes, so [MainLayout] shows the new one.
 class DisplayNameChangeEvent extends ComponentEvent<UI> {
 
+    /// Creates the event for `ui`, as fired from the server.
     DisplayNameChangeEvent(UI ui) {
         super(ui, false);
     }
 
+    /// Fires the event on every UI of the current session.
     static void fire() {
         VaadinSession.getCurrent().getUIs().forEach(ui -> ComponentUtil.fireEvent(ui, new DisplayNameChangeEvent(ui)));
     }

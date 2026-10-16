@@ -31,31 +31,37 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-// Sends SMS for a user, charged to their quota: one unit per part per recipient. The whole cost is charged before
-// anything is sent, so a send either fits the quota or sends nothing, and the units of recipients the gateway does
-// not accept are refunded. It fails open when Redis cannot be reached. Only the sender ids an admin
-// has approved for the user can be sent from
+/// Sends SMS for a user, charged to their quota: one unit per part per recipient.
+///
+/// The whole cost is charged before anything is sent, so a send either fits the quota or sends nothing, and the units
+/// of recipients the gateway does not accept are refunded. It fails open when Redis cannot be reached. Only the sender
+/// ids an admin has approved for the user can be sent from.
 @Service
 @EnableConfigurationProperties(SmsProperties.class)
 public class SmsService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SmsService.class);
 
+    /// The most recipients one send can have.
     public static final int MAX_RECIPIENTS = 100;
+    /// The most parts, as [SmsParts] counts them, a text can take.
     public static final int MAX_PARTS = 10;
 
-    // The number types a recipient may have; in some regions, such as the US, mobile and fixed-line numbers cannot
-    // be told apart
+    /// The number types a recipient may have; in some regions, such as the US, mobile and fixed-line numbers cannot
+    /// be told apart.
     private static final Set<PhoneNumberUtil.PhoneNumberType> MOBILE_TYPES = Set.of(
             PhoneNumberUtil.PhoneNumberType.MOBILE, PhoneNumberUtil.PhoneNumberType.FIXED_LINE_OR_MOBILE);
     private static final PhoneNumberUtil PHONE_NUMBER_UTIL = PhoneNumberUtil.getInstance();
 
-    // A sender's number, with an optional +, after spaces, dashes, dots and parentheses are removed. Not checked
-    // with libphonenumber, since a sender can also be a fixed-line number or a short code
+    /// A sender's number, with an optional `+`, after spaces, dashes, dots and parentheses are removed.
+    ///
+    /// Not checked with libphonenumber, since a sender can also be a fixed-line number or a short code.
     private static final Pattern PHONE_NUMBER = Pattern.compile("\\+?[0-9]{6,15}");
     private static final Pattern NUMBER_SEPARATORS = Pattern.compile("[\\s\\-.()]");
-    // An alphanumeric sender id: at most 11 characters, the most the SMS header holds, of letters, digits, spaces
-    // and . - _ &, with at least one letter, so it cannot be taken for a phone number
+    /// The longest an alphanumeric sender id can be: 11 characters, the most the SMS header holds.
+    ///
+    /// An alphanumeric sender id is letters, digits, spaces and `.` `-` `_` `&`, with at least one letter, so it
+    /// cannot be taken for a phone number.
     public static final int MAX_ALPHANUMERIC_SENDER_ID_LENGTH = 11;
     private static final Pattern ALPHANUMERIC_SENDER_ID =
             Pattern.compile("(?=.*[A-Za-z])[A-Za-z0-9 ._&-]{1," + MAX_ALPHANUMERIC_SENDER_ID_LENGTH + "}");
@@ -65,6 +71,8 @@ public class SmsService {
     private final UserAccountService userAccountService;
     private final String defaultRegion;
 
+    /// Creates a service that reads recipients' numbers without a country code in the default region of
+    /// `properties`.
     public SmsService(QuotaManager quotaManager, SmsSender smsSender, UserAccountService userAccountService,
             SmsProperties properties) {
         this.quotaManager = quotaManager;
@@ -73,13 +81,14 @@ public class SmsService {
         this.defaultRegion = properties.defaultRegion();
     }
 
-    // The region a recipient's number without a country code is read in, such as SE
+    /// Returns the region a recipient's number without a country code is read in, such as `SE`.
     public String defaultRegion() {
         return defaultRegion;
     }
 
-    // The mobile number in E.164 as sent, such as +46701234567 for "+46 70-123 45 67", or for "070-123 45 67" when
-    // the default region is SE; empty if it is not a valid mobile number, as libphonenumber judges it
+    /// Returns the mobile number in E.164 as sent, such as `+46701234567` for `+46 70-123 45 67`, or for
+    /// `070-123 45 67` when the default region is `SE`; empty if it is not a valid mobile number, as libphonenumber
+    /// judges it.
     public Optional<String> normalizeRecipient(String recipient) {
         try {
             var number = PHONE_NUMBER_UTIL.parse(recipient, defaultRegion);
@@ -93,8 +102,8 @@ public class SmsService {
         return Optional.empty();
     }
 
-    // The sender id as sent: a phone number, with spaces, dashes, dots and parentheses removed, or an alphanumeric
-    // id without spaces around it, such as "Lekab"; empty if it is neither
+    /// Returns the sender id as sent: a phone number, with spaces, dashes, dots and parentheses removed, or an
+    /// alphanumeric id without spaces around it, such as `Lekab`; empty if it is neither.
     public static Optional<String> normalizeSenderId(String senderId) {
         var trimmed = senderId.strip();
         if (ALPHANUMERIC_SENDER_ID.matcher(trimmed).matches()) {
@@ -104,13 +113,19 @@ public class SmsService {
         return PHONE_NUMBER.matcher(number).matches() ? Optional.of(number) : Optional.empty();
     }
 
-    // The units a text to the recipients uses up
+    /// Returns the units a text to the given number of recipients uses up.
     public static int cost(String text, int recipients) {
         return SmsParts.count(text) * recipients;
     }
 
-    // The sender id and recipients must be normalized, the recipients distinct and at most MAX_RECIPIENTS, and the
-    // text at most MAX_PARTS parts
+    /// Sends the text from the sender id to each recipient, charged to the user's quota.
+    ///
+    /// The sender id and recipients must be normalized, the recipients distinct and at most [#MAX_RECIPIENTS], and
+    /// the text at most [#MAX_PARTS] parts.
+    ///
+    /// @throws IllegalArgumentException if the sender id, recipients or text break these rules, or the text is blank
+    /// @see #normalizeSenderId(String)
+    /// @see #normalizeRecipient(String)
     public SmsSendResult send(String username, String senderId, List<String> recipients, String text) {
         validate(senderId, recipients, text);
         var parts = SmsParts.count(text);
@@ -170,7 +185,8 @@ public class SmsService {
         }
     }
 
-    // The messages are already sent, so a refund that fails is only logged
+    /// Gives the units of failed recipients back to the user's quota. The messages are already sent, so a refund
+    /// that fails is only logged.
     private void refund(String username, int units) {
         try {
             quotaManager.adjustUsage(username, -units);

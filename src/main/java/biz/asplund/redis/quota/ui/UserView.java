@@ -60,7 +60,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-// Lists the admin UI's users, and creates, edits and deletes them, their roles and quotas
+/// Lists the admin UI's users, and creates, edits and deletes them, their roles and quotas.
 @Route("users")
 @PageTitle("users.title")
 @Menu(title = "users.title", icon = "vaadin:users", order = 2)
@@ -93,6 +93,8 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
     private List<UserAccount> users = List.of();
     private List<Role> roles = List.of();
 
+    /// Creates the view; `clock` gives the time zone that quota times are shown in, and `authenticationContext` the
+    /// acting user, whom the editor keeps from locking themselves out.
     public UserView(UserAccountService userAccountService, QuotaManager quotaManager,
             QuotaHistoryService quotaHistoryService, LanguagePreference languagePreference,
             ColorSchemePreference colorSchemePreference, Clock clock, AuthenticationContext authenticationContext) {
@@ -119,7 +121,7 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
         add(masterDetail);
     }
 
-    // Called when attached and whenever the language changes
+    /// Called when attached and whenever the language changes.
     @Override
     public void localeChange(LocaleChangeEvent event) {
         dateTimeFormatter = createDateTimeFormatter(event.getLocale());
@@ -145,12 +147,12 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
         }
     }
 
-    // As in the quotas view, for the reset and last-used times of a user's quota
+    /// Creates the formatter for the reset and last-used times of a user's quota, as in the quotas view.
     private DateTimeFormatter createDateTimeFormatter(Locale locale) {
         return DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone);
     }
 
-    // Reload on every navigation, including to this view when it is already shown
+    /// Reloads on every navigation, including to this view when it is already shown.
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
         refresh();
@@ -249,12 +251,13 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
         refresh();
     }
 
-    // The editor in the detail area, or null
+    /// Returns the editor in the detail area, or `null`.
     private Component openEditor() {
         return masterDetail.getDetail() instanceof Scroller scroller ? scroller.getContent() : null;
     }
 
-    // Deselecting on the server does not close the editor by itself, as refreshes deselect too
+    /// Closes the editor and deselects its row; deselecting on the server does not close the editor by itself, as
+    /// refreshes deselect too.
     private void closeEditor() {
         grid.deselectAll();
         masterDetail.setDetail(null);
@@ -299,13 +302,13 @@ public class UserView extends VerticalLayout implements BeforeEnterObserver, Loc
                 .setIdentifierProvider(UserAccount::getId);
     }
 
-    // The filter matches the username, the name or the email address
+    /// Returns whether `user` matches the filter `term`, by the username, the name or the email address.
     private static boolean matches(UserAccount user, String term) {
         return Stream.of(user.getUsername(), user.getName(), user.getEmail())
                 .anyMatch(text -> text != null && text.toLowerCase(Locale.ROOT).contains(term));
     }
 
-    // The translated message for a rule the service refused a change by
+    /// Returns the translated message for the rule the service refused a change by.
     static String ruleMessage(Component component, AccountRuleException e) {
         return component.getTranslation("users.rule." + e.rule().name());
     }

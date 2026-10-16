@@ -28,9 +28,10 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 
-// The settings of the logged-in user, for LanguagePreference and ColorSchemePreference. Read from the security
-// context, so it also works while a page is being sent, before any UI exists. A database error is logged and
-// treated as no settings, so the page still loads with the browser's cookie or language
+/// The settings of the logged-in user, for [LanguagePreference] and [ColorSchemePreference].
+///
+/// Read from the security context, so it also works while a page is being sent, before any UI exists. A database
+/// error is logged and treated as no settings, so the page still loads with the browser's cookie or language.
 @Component
 class LoggedInUserSettings {
 
@@ -42,6 +43,8 @@ class LoggedInUserSettings {
         this.userAccountService = userAccountService;
     }
 
+    /// Returns the settings of the logged-in user, or [UserSettings#NONE] when no one is logged in or they cannot be
+    /// read.
     UserSettings get() {
         return username().map(username -> {
             try {
@@ -53,7 +56,7 @@ class LoggedInUserSettings {
         }).orElse(UserSettings.NONE);
     }
 
-    // Saves a change for the logged-in user; without one, as on the login page, only the cookie keeps the choice
+    /// Saves a change for the logged-in user; without one, as on the login page, only the cookie keeps the choice.
     void change(UnaryOperator<UserSettings> change) {
         username().ifPresent(username -> {
             try {

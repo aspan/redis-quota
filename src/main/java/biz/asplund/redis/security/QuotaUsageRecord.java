@@ -33,7 +33,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 
 import java.time.Instant;
 
-// The final usage of one finished period of a user's quota
+/// The final usage of one finished period of a user's quota, which [QuotaHistoryService] records.
 @Entity
 @Table(name = "quota_usage_history")
 public class QuotaUsageRecord {
@@ -64,31 +64,39 @@ public class QuotaUsageRecord {
     @Column(name = "quota_limit", nullable = false)
     private int quotaLimit;
 
+    /// For JPA.
     protected QuotaUsageRecord() {
     }
 
+    /// A record of the user's period that starts at `periodStart`, with no usage until
+    /// [#update(int, int)] sets it.
     public QuotaUsageRecord(UserAccount user, QuotaPeriod period, Instant periodStart) {
         this.user = user;
         this.period = period;
         this.periodStart = periodStart;
     }
 
+    /// Returns the period of the user's quota at the time it was recorded.
     public QuotaPeriod getPeriod() {
         return period;
     }
 
+    /// Returns when the period started.
     public Instant getPeriodStart() {
         return periodStart;
     }
 
+    /// Returns the final count of the period.
     public int getUsed() {
         return used;
     }
 
+    /// Returns the limit of the user's quota when the period was last recorded.
     public int getQuotaLimit() {
         return quotaLimit;
     }
 
+    /// Sets the final count of the period and the limit of the user's quota, each time the period is recorded.
     public void update(int used, int quotaLimit) {
         this.used = used;
         this.quotaLimit = quotaLimit;

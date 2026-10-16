@@ -21,15 +21,14 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 
 import java.time.Duration;
 
-/**
- * The usage counters in Redis.
- *
- * @param retention how long the counter of a period is kept after the period ends, so the usage history can still
- *                  record it when the application was down when the period ended
- */
+/// The usage counters in Redis.
+///
+/// @param retention how long the counter of a period is kept after the period ends, so the usage history can still
+///                  record it when the application was down when the period ended
 @ConfigurationProperties("quota.counter")
 public record QuotaCounterProperties(@DefaultValue("7d") Duration retention) {
 
+    /// Rejects a `quota.counter.retention` that is not positive.
     public QuotaCounterProperties {
         if (retention.isNegative() || retention.isZero()) {
             throw new IllegalArgumentException("quota.counter.retention must be positive: " + retention);

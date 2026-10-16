@@ -18,5 +18,13 @@ package biz.asplund.redis.quota;
 
 import java.time.Instant;
 
+/// The state of a quota in its current period, as checked or read by [QuotaManager].
+///
+/// @param allowed for a check, whether the amount fit and was counted, or was let through because Redis could not be
+///                reached; for a status that only reads, whether at least one unit is left
+/// @param limit the most units that can be used in the period
+/// @param used the units used in the period
+/// @param remaining the units left in the period, never negative
+/// @param resetAt when the current period ends and the usage starts over
 public record QuotaStatus(boolean allowed, int limit, int used, int remaining, Instant resetAt) {
 }

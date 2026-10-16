@@ -43,7 +43,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
-// A login of the admin UI; named UserAccount so it does not clash with Spring Security's User
+/// A login of the admin UI; named `UserAccount` so it does not clash with Spring Security's `User`.
 @Entity
 @Table(name = "users")
 public class UserAccount {
@@ -57,18 +57,18 @@ public class UserAccount {
     @Column(nullable = false, unique = true, length = 100)
     private String username;
 
-    // The name people read, or null when not set
+    /// The name people read, or `null` when not set.
     @Size(max = 200, message = "{userAccount.name.size}")
     @Column(length = 200)
     private String name;
 
-    // Unique whatever its case, or null when not set
+    /// Unique whatever its case, or `null` when not set.
     @Email(message = "{userAccount.email.invalid}")
     @Size(max = 254, message = "{userAccount.email.size}")
     @Column(length = 254)
     private String email;
 
-    // Encoded, with the encoding id prefix of the DelegatingPasswordEncoder
+    /// Encoded, with the encoding id prefix of the `DelegatingPasswordEncoder`.
     @NotBlank(message = "{userAccount.password.notBlank}")
     @Column(nullable = false)
     private String password;
@@ -76,13 +76,14 @@ public class UserAccount {
     @Column(nullable = false)
     private boolean enabled = true;
 
-    // A user has few roles and every login needs them, so they are loaded with the user
+    /// A user has few roles and every login needs them, so they are loaded with the user.
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();
 
-    // The user's quota, or both null for none; Redis holds a copy as the QuotaDefinition under the username
+    /// The user's quota, or both `null` for none; Redis holds a copy as the
+    /// [biz.asplund.redis.quota.QuotaDefinition] under the username.
     @Enumerated(EnumType.STRING)
     @Column(name = "quota_period", length = 10)
     private QuotaPeriod quotaPeriod;
@@ -91,14 +92,14 @@ public class UserAccount {
     @Column(name = "quota_limit")
     private Integer quotaLimit;
 
-    // The sender ids the user may send SMS from, normalized; only admins change them. Few, and every send checks
-    // them, so they are loaded with the user
+    /// The sender ids the user may send SMS from, normalized; only admins change them. Few, and every send checks
+    /// them, so they are loaded with the user.
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_sender_ids", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "sender_id", nullable = false, length = 16)
     private Set<String> senderIds = new HashSet<>();
 
-    // The appearance and language the user picked, or null when not set; see UserSettings
+    /// The appearance and language the user picked, or `null` when not set; see [UserSettings].
     @Pattern(regexp = "system|light|dark")
     @Column(name = "color_scheme", length = 10)
     private String colorScheme;
@@ -107,10 +108,11 @@ public class UserAccount {
     @Column(name = "locale", length = 35)
     private String locale;
 
-    // An empty user, for forms to write into
+    /// An empty user, for forms to write into.
     public UserAccount() {
     }
 
+    /// A user with the username and the already encoded password, enabled, without roles or quota.
     public UserAccount(String username, String password) {
         this.username = username;
         this.password = password;
@@ -132,12 +134,12 @@ public class UserAccount {
         return name;
     }
 
-    // Blank is stored as not set
+    /// Sets the name, trimmed; blank is stored as not set.
     public void setName(String name) {
         this.name = name == null || name.isBlank() ? null : name.trim();
     }
 
-    // The name, or the username when no name is set
+    /// Returns the name, or the username when no name is set.
     public String getDisplayName() {
         return name != null ? name : username;
     }
@@ -146,15 +148,17 @@ public class UserAccount {
         return email;
     }
 
-    // Blank is stored as not set
+    /// Sets the email address, trimmed; blank is stored as not set.
     public void setEmail(String email) {
         this.email = email == null || email.isBlank() ? null : email.trim();
     }
 
+    /// Returns the name, email address and settings.
     public UserProfile getProfile() {
         return new UserProfile(name, email, getSettings());
     }
 
+    /// Sets the name, email address and settings, as [#setName(String)] and [#setEmail(String)] do.
     public void setProfile(UserProfile profile) {
         setName(profile.name());
         setEmail(profile.email());
@@ -181,6 +185,7 @@ public class UserAccount {
         return roles;
     }
 
+    /// Replaces the roles with a copy of `roles`.
     public void setRoles(Set<Role> roles) {
         this.roles = new HashSet<>(roles);
     }
@@ -189,6 +194,7 @@ public class UserAccount {
         return senderIds;
     }
 
+    /// Replaces the sender ids with a copy of `senderIds`, which must already be normalized.
     public void setSenderIds(Set<String> senderIds) {
         this.senderIds = new HashSet<>(senderIds);
     }
@@ -209,26 +215,30 @@ public class UserAccount {
         this.quotaLimit = quotaLimit;
     }
 
+    /// Returns the appearance and language.
     public UserSettings getSettings() {
         return new UserSettings(colorScheme, locale);
     }
 
+    /// Sets the appearance and language.
     public void setSettings(UserSettings settings) {
         this.colorScheme = settings.colorScheme();
         this.locale = settings.locale();
     }
 
-    // As the users_quota_complete check in the database: both the period and the limit, or neither
+    /// Returns whether the quota is complete, as the `users_quota_complete` check in the database requires: both
+    /// the period and the limit, or neither.
     @AssertTrue(message = "{userAccount.quota.complete}")
     public boolean isQuotaComplete() {
         return (quotaPeriod == null) == (quotaLimit == null);
     }
 
+    /// Returns the quota, or empty when the user has none.
     public Optional<QuotaConfig> getQuota() {
         return quotaPeriod == null ? Optional.empty() : Optional.of(new QuotaConfig(quotaLimit, quotaPeriod));
     }
 
-    // Null removes the quota
+    /// Sets the period and the limit from the quota; `null` removes the quota.
     public void setQuota(QuotaConfig quota) {
         this.quotaPeriod = quota == null ? null : quota.period();
         this.quotaLimit = quota == null ? null : quota.limit();

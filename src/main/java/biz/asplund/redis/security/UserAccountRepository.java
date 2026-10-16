@@ -20,13 +20,18 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
 
+/// The users of the admin UI, stored in the `users` table.
 public interface UserAccountRepository extends JpaRepository<UserAccount, Long> {
 
+    /// Finds the user with exactly this username.
     Optional<UserAccount> findByUsername(String username);
 
+    /// Returns whether a user has exactly this username.
     boolean existsByUsername(String username);
 
+    /// Finds the user with this email address, whatever its case.
     Optional<UserAccount> findByEmailIgnoreCase(String email);
 
+    /// Finds the user with this username, whatever its case.
     Optional<UserAccount> findByUsernameIgnoreCase(String username);
 }

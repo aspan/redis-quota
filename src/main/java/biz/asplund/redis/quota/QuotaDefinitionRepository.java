@@ -18,5 +18,6 @@ package biz.asplund.redis.quota;
 
 import org.springframework.data.repository.CrudRepository;
 
+/// The [QuotaDefinition]s in Redis, by id.
 public interface QuotaDefinitionRepository extends CrudRepository<QuotaDefinition, String> {
 }

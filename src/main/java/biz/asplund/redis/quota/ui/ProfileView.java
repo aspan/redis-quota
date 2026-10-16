@@ -42,8 +42,8 @@ import com.vaadin.flow.spring.security.AuthenticationContext;
 import jakarta.annotation.security.PermitAll;
 import org.springframework.dao.DataAccessException;
 
-// The logged-in user's own page, open to every user: their language and appearance, which apply at once when
-// saved, and a new password, for which they confirm their current one
+/// The logged-in user's own page, open to every user: their language and appearance, which apply at once when
+/// saved, and a new password, for which they confirm their current one.
 @Route("profile")
 @PageTitle("profile.title")
 @Menu(title = "profile.title", icon = "vaadin:user", order = 3)
@@ -64,6 +64,7 @@ public class ProfileView extends VerticalLayout implements LocaleChangeObserver 
     private PasswordField newPasswordField;
     private PasswordField repeatPasswordField;
 
+    /// Creates the view for the logged-in user; the page itself is built in [#localeChange(LocaleChangeEvent)].
     public ProfileView(UserAccountService userAccountService, LanguagePreference languagePreference,
             ColorSchemePreference colorSchemePreference, AuthenticationContext authenticationContext) {
         this.userAccountService = userAccountService;
@@ -73,8 +74,8 @@ public class ProfileView extends VerticalLayout implements LocaleChangeObserver 
         setMaxWidth("36rem");
     }
 
-    // Called when attached and whenever the language changes, as when the settings saved here change it; input
-    // not yet saved is lost
+    /// Called when attached and whenever the language changes, as when the settings saved here change it; input
+    /// not yet saved is lost.
     @Override
     public void localeChange(LocaleChangeEvent event) {
         removeAll();
@@ -131,7 +132,8 @@ public class ProfileView extends VerticalLayout implements LocaleChangeObserver 
         return layout;
     }
 
-    // Saved for the user and applied to the session at once, as when saving your own account in the user editor
+    /// Saves the settings for the user and applies them to the session at once, as when saving your own account in
+    /// the user editor.
     private void saveSettings() {
         var changed = new UserAccount();
         try {

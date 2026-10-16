@@ -19,7 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-// Sends nothing, only logs the message; replace it with an SmsSender for a real gateway
+/// Sends nothing, only logs the message; replace it with an [SmsSender] for a real gateway.
 @Component
 public class LoggingSmsSender implements SmsSender {
 

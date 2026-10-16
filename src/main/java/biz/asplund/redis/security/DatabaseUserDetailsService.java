@@ -23,14 +23,16 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-// Logs in the users stored in the users table, with their roles from user_roles. Being a UserDetailsService
-// bean, it replaces Spring Boot's in-memory user from spring.security.user.*, which AdminAccountInitializer
-// stores here instead
+/// Logs in the users stored in the `users` table, with their roles from `user_roles`.
+///
+/// Being a [UserDetailsService] bean, it replaces Spring Boot's in-memory user from `spring.security.user.*`,
+/// which [AdminAccountInitializer] stores here instead.
 @Service
 public class DatabaseUserDetailsService implements UserDetailsService {
 
     private final UserAccountRepository userAccountRepository;
 
+    /// Creates the service on the users in the repository.
     public DatabaseUserDetailsService(UserAccountRepository userAccountRepository) {
         this.userAccountRepository = userAccountRepository;
     }

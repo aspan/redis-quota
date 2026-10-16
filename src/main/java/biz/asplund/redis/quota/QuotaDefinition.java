@@ -24,14 +24,24 @@ import org.springframework.data.redis.core.RedisHash;
 
 import java.util.Objects;
 
-// The quota of one id: a limit for a single period. The constraints are for forms, which validate them with
-// Vaadin's BeanValidationBinder; the constructor still rejects a missing period and a negative limit
+/// The quota of one id: a limit for a single period.
+///
+/// The constraints are for forms, which validate them with Vaadin's `BeanValidationBinder`; the constructor still
+/// rejects a missing period and a negative limit.
+///
+/// @param id the id the quota is for, such as a username
+/// @param period how often the usage resets
+/// @param limit the most units that can be used in one period
 @RedisHash("quota-definitions")
 public record QuotaDefinition(
         @Id @NotBlank(message = "{quotaDefinition.id.notBlank}") String id,
         @NotNull(message = "{quotaDefinition.period.notNull}") QuotaPeriod period,
         @PositiveOrZero(message = "{quotaDefinition.limit.positiveOrZero}") int limit) {
 
+    /// Rejects a missing period and a negative limit.
+    ///
+    /// @throws NullPointerException if `period` is `null`
+    /// @throws IllegalArgumentException if `limit` is negative
     public QuotaDefinition {
         Objects.requireNonNull(period, "period");
         if (limit < 0) {
@@ -39,6 +49,7 @@ public record QuotaDefinition(
         }
     }
 
+    /// Returns the limit and period to check usage against.
     public QuotaConfig config() {
         return new QuotaConfig(limit, period);
     }

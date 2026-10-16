@@ -31,12 +31,14 @@ import java.time.format.FormatStyle;
 import java.util.List;
 import java.util.Locale;
 
-// The final usage of a user's latest finished periods as a bar chart, oldest on the left, with the limit at the
-// time as a dashed line. Bars are colored as the usage badges: red when the limit was reached, orange when less
-// than 20% was left, green otherwise. Chart.js draws on a canvas, so the colors are fixed rather than theme colors
+/// The final usage of a user's latest finished periods as a bar chart, oldest on the left, with the limit at the
+/// time as a dashed line.
+///
+/// Bars are colored as the usage badges: red when the limit was reached, orange when less than 20% was left, green
+/// otherwise. Chart.js draws on a canvas, so the colors are fixed rather than theme colors.
 class UsageHistoryChart extends ChartJs {
 
-    // More bars would get too thin for the editor
+    /// The most periods shown; more bars would get too thin for the editor.
     static final int MAX_PERIODS = 30;
 
     private static final String GREEN = "rgba(46, 158, 91, 0.8)";
@@ -47,7 +49,12 @@ class UsageHistoryChart extends ChartJs {
     private final ZoneId zone;
     private final Locale locale;
 
-    // The records newest first, as QuotaHistoryService returns them
+    /// Creates the chart of the latest [#MAX_PERIODS] records.
+    ///
+    /// @param records the records newest first, as
+    ///     [QuotaHistoryService][biz.asplund.redis.security.QuotaHistoryService] returns them
+    /// @param zone the time zone the periods are shown in
+    /// @param locale the language the periods are shown in
     UsageHistoryChart(List<QuotaUsageRecord> records, ZoneId zone, Locale locale) {
         this.zone = zone;
         this.locale = locale;
@@ -74,10 +81,12 @@ class UsageHistoryChart extends ChartJs {
         setHeight("16rem");
     }
 
-    // Replaces the add-on's own setup, which looks the canvas up by id with document.getElementById as soon as the
-    // component is attached. In the editor, which MasterDetailLayout puts into the page only after that, the lookup
-    // fails and no chart is drawn. This setup runs on the chart's own element and waits until it is in the page.
-    // The chart is kept on the element as the add-on keeps it, so its update and destroy still find it
+    /// Replaces the add-on's own setup, which looks the canvas up by id with `document.getElementById` as soon as
+    /// the component is attached.
+    ///
+    /// In the editor, which `MasterDetailLayout` puts into the page only after that, the lookup fails and no chart is
+    /// drawn. This setup runs on the chart's own element and waits until it is in the page. The chart is kept on the
+    /// element as the add-on keeps it, so its update and destroy still find it.
     @Override
     protected void onAttach(AttachEvent attachEvent) {
         getElement().executeJs("""
@@ -102,7 +111,7 @@ class UsageHistoryChart extends ChartJs {
         return record.getQuotaLimit() - record.getUsed() < record.getQuotaLimit() * 0.2 ? ORANGE : GREEN;
     }
 
-    // The period in the UI language, as precise as its length needs
+    /// The period in the UI language, as precise as its length needs.
     String label(QuotaUsageRecord record) {
         var start = record.getPeriodStart().atZone(zone);
         return switch (record.getPeriod()) {

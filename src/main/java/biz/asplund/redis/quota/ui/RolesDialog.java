@@ -40,7 +40,7 @@ import org.springframework.dao.DataAccessException;
 import java.util.Locale;
 import java.util.Map;
 
-// Adds and deletes the roles that can be given to users; the built-in ADMIN and USER roles stay
+/// Adds and deletes the roles that can be given to users; the built-in `ADMIN` and `USER` roles stay.
 class RolesDialog extends Dialog {
 
     private final UserAccountService userAccountService;
@@ -48,10 +48,13 @@ class RolesDialog extends Dialog {
 
     private final Grid<Role> grid = new Grid<>();
     private final TextField nameField = new TextField();
-    // Validates the name with the constraint on Role, after storing it in upper case
+    /// Validates the name with the constraint on [Role], after storing it in upper case.
     private final BeanValidationBinder<Role> binder = new BeanValidationBinder<>(Role.class);
     private Map<Long, Long> userCounts = Map.of();
 
+    /// Creates the dialog, which lists the roles at once.
+    ///
+    /// @param onChanged run after a role has been added or deleted
     RolesDialog(UserAccountService userAccountService, Runnable onChanged) {
         this.userAccountService = userAccountService;
         this.onChanged = onChanged;

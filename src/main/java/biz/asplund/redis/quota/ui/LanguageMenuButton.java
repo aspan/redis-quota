@@ -21,11 +21,12 @@ import com.vaadin.flow.component.Component;
 import java.util.List;
 import java.util.Locale;
 
-// Picks the UI language; the choice applies to every open tab of the session and is remembered in a cookie
+/// Picks the UI language; the choice applies to every open tab of the session and is remembered in a cookie.
 class LanguageMenuButton extends PreferenceMenuButton<Locale> {
 
     private final LanguagePreference languagePreference;
 
+    /// Creates the button for the languages of the given preference.
     LanguageMenuButton(LanguagePreference languagePreference) {
         this.languagePreference = languagePreference;
     }
@@ -50,14 +51,14 @@ class LanguageMenuButton extends PreferenceMenuButton<Locale> {
         return new LanguageFlag(locale);
     }
 
-    // Switching the language calls localeChange, which updates this button
+    /// Switching the language calls `localeChange`, which updates this button.
     @Override
     void select(Locale locale) {
         languagePreference.select(locale);
     }
 
+    /// The current language's flag; the button's accessible name and tooltip say it chooses the language.
     @Override
-    // The current language's flag; the button's accessible name and tooltip say it chooses the language
     void showOnButton(Locale current) {
         var flag = new LanguageFlag(current);
         // As high as the other icons at the top right, and 4:3 like the SVGs

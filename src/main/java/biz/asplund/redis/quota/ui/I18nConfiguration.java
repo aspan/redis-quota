@@ -30,26 +30,30 @@ import org.springframework.web.servlet.i18n.CookieLocaleResolver;
 
 import java.time.Duration;
 
-// Translations live in src/main/resources/vaadin-i18n, for the locales in I18nProperties. The language is the one
-// picked in the UI, remembered in a cookie by Spring's LocaleResolver, or else the best match for the browser's languages
+/// Translations live in `src/main/resources/vaadin-i18n`, for the locales in [I18nProperties].
+///
+/// The language is the one picked in the UI, remembered in a cookie by Spring's [LocaleResolver], or else the best
+/// match for the browser's languages.
 @Configuration
 @EnableConfigurationProperties(I18nProperties.class)
 public class I18nConfiguration {
 
+    /// The name of the cookie that remembers the language, for a year.
     static final String LOCALE_COOKIE = "locale";
 
+    /// Reads the translations of the configured locales.
     @Bean
     I18NProvider i18nProvider(I18nProperties properties) {
         return new DefaultI18NProvider(properties.locales());
     }
 
-    // Views declare their title as a translation key in @PageTitle
+    /// Views declare their title as a translation key in `@PageTitle`.
     @Bean
     PageTitleGenerator pageTitleGenerator() {
         return context -> context.value() == null ? "" : I18NProvider.translate(context.value());
     }
 
-    // Named localeResolver so that Spring MVC uses it too
+    /// Named `localeResolver` so that Spring MVC uses it too.
     @Bean
     LocaleResolver localeResolver(I18nProperties properties) {
         var localeResolver = new CookieLocaleResolver(LOCALE_COOKIE);
@@ -60,7 +64,7 @@ public class I18nConfiguration {
         return localeResolver;
     }
 
-    // Each new UI, such as a page load or a new tab, starts in the resolved language
+    /// Each new UI, such as a page load or a new tab, starts in the resolved language.
     @Bean
     VaadinServiceInitListener localeFromResolver(LanguagePreference languagePreference) {
         return event -> event.getSource().addUIInitListener(uiEvent -> {

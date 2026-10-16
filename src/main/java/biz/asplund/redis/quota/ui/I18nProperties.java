@@ -23,15 +23,16 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * Languages of the admin UI.
- *
- * @param locales the locales the UI is translated to, each with a translations file in vaadin-i18n, such as
- *                translations_sv.properties for sv; the first is used for browsers that accept none of them
- */
+/// Languages of the admin UI.
+///
+/// @param locales the locales the UI is translated to, each with a translations file in `vaadin-i18n`, such as
+///                `translations_sv.properties` for `sv`; the first is used for browsers that accept none of them
 @ConfigurationProperties("quota.ui.i18n")
 public record I18nProperties(@DefaultValue({"en", "sv"}) List<Locale> locales) {
 
+    /// Checks that at least one locale is configured.
+    ///
+    /// @throws IllegalArgumentException if `quota.ui.i18n.locales` is empty
     public I18nProperties {
         if (locales == null || locales.isEmpty()) {
             throw new IllegalArgumentException("quota.ui.i18n.locales must name at least one locale");
@@ -39,11 +40,12 @@ public record I18nProperties(@DefaultValue({"en", "sv"}) List<Locale> locales) {
         locales = List.copyOf(locales);
     }
 
+    /// Returns the first configured locale, used when no other matches.
     Locale fallback() {
         return locales.getFirst();
     }
 
-    // A configured locale for the given one, such as sv for sv_SE, or the fallback
+    /// A configured locale for the given one, such as `sv` for `sv_SE`, or the [#fallback()].
     Locale supported(Locale locale) {
         if (locale == null) {
             return fallback();
@@ -53,7 +55,7 @@ public record I18nProperties(@DefaultValue({"en", "sv"}) List<Locale> locales) {
                 .orElse(fallback());
     }
 
-    // The best configured match for the Accept-Language header, honouring its quality values
+    /// The best configured match for the `Accept-Language` header, honouring its quality values.
     Locale fromAcceptLanguage(HttpServletRequest request) {
         var header = request.getHeader("Accept-Language");
         if (header == null || header.isBlank()) {

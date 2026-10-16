@@ -27,14 +27,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-// A user's language and appearance, each with Not set, which leaves it to the browser's cookie or language. Used in
-// the user editor and on the profile page
+/// A user's language and appearance, each with Not set, which leaves it to the browser's cookie or language.
+///
+/// Used in the user editor and on the profile page.
 class UserSettingsField extends CustomField<UserSettings> {
 
     private final List<Locale> locales;
     private final Select<Locale> localeField = new Select<>();
     private final Select<ColorSchemeChoice> colorSchemeField = new Select<>();
 
+    /// Creates the field with `locales` as the languages to choose from.
     UserSettingsField(List<Locale> locales) {
         super(UserSettings.NONE);
         this.locales = locales;
@@ -80,7 +82,7 @@ class UserSettingsField extends CustomField<UserSettings> {
         return new UserSettings(choice == null ? null : choice.key(), locale == null ? null : locale.toLanguageTag());
     }
 
-    // A stored language that is no longer configured shows as not set
+    /// Shows `settings` in the selects; a stored language that is no longer configured shows as not set.
     @Override
     protected void setPresentationValue(UserSettings settings) {
         var value = settings == null ? UserSettings.NONE : settings;
@@ -90,7 +92,8 @@ class UserSettingsField extends CustomField<UserSettings> {
                 .orElse(null));
     }
 
-    // The scheme names are written in lower case, to fit in the toolbar's "switch to" text
+    /// Capitalizes the first letter of `text`, as the scheme names are written in lower case, to fit in the
+    /// toolbar's "switch to" text.
     private String capitalize(String text) {
         return text.isEmpty() ? text : text.substring(0, 1).toUpperCase(getLocale()) + text.substring(1);
     }

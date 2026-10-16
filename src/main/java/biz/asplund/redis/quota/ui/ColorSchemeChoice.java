@@ -22,10 +22,14 @@ import com.vaadin.flow.component.page.ColorScheme;
 import java.util.Arrays;
 import java.util.Locale;
 
-// The color schemes a user can pick; SYSTEM follows the operating system, like @ColorScheme on QuotaApplication
+/// The color schemes a user can pick; [#SYSTEM] follows the operating system, like `@ColorScheme` on
+/// `QuotaApplication`.
 enum ColorSchemeChoice {
+    /// Follows the operating system.
     SYSTEM(ColorScheme.Value.LIGHT_DARK, VaadinIcon.CONTRAST),
+    /// Always light.
     LIGHT(ColorScheme.Value.LIGHT, VaadinIcon.SUN),
+    /// Always dark.
     DARK(ColorScheme.Value.DARK, VaadinIcon.MOON);
 
     private final ColorScheme.Value value;
@@ -36,19 +40,22 @@ enum ColorSchemeChoice {
         this.icon = icon;
     }
 
+    /// Returns the Vaadin color scheme this choice applies.
     ColorScheme.Value value() {
         return value;
     }
 
+    /// Returns the icon that shows this choice on the toggle button.
     VaadinIcon icon() {
         return icon;
     }
 
-    // Stored in the cookie and used in translation keys
+    /// The lower-case name, stored in the cookie and the user's settings and used in translation keys.
     String key() {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    /// Returns the choice with the given [#key()], or [#SYSTEM] for an unknown key or `null`.
     static ColorSchemeChoice fromKey(String key) {
         return Arrays.stream(values()).filter(choice -> choice.key().equals(key)).findFirst().orElse(SYSTEM);
     }

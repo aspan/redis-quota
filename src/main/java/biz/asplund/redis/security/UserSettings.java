@@ -16,20 +16,21 @@
 
 package biz.asplund.redis.security;
 
-/**
- * A user's appearance and language. Each is null when not set, so the browser's cookie or language decides.
- *
- * @param colorScheme system, light or dark
- * @param locale      a language tag, such as sv
- */
+/// A user's appearance and language. Each is `null` when not set, so the browser's cookie or language decides.
+///
+/// @param colorScheme `system`, `light` or `dark`
+/// @param locale      a language tag, such as `sv`
 public record UserSettings(String colorScheme, String locale) {
 
+    /// Neither appearance nor language set.
     public static final UserSettings NONE = new UserSettings(null, null);
 
+    /// Returns these settings with the color scheme replaced.
     public UserSettings withColorScheme(String colorScheme) {
         return new UserSettings(colorScheme, locale);
     }
 
+    /// Returns these settings with the language replaced.
     public UserSettings withLocale(String locale) {
         return new UserSettings(colorScheme, locale);
     }

@@ -16,5 +16,9 @@
 
 package biz.asplund.redis.quota;
 
+/// The limit and period that a quota is checked against.
+///
+/// @param limit the most units that can be used in one period
+/// @param period how often the usage resets
 public record QuotaConfig(int limit, QuotaPeriod period) {
 }

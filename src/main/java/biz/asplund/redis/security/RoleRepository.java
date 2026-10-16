@@ -22,11 +22,13 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 import java.util.Optional;
 
+/// The roles granted to users, stored in the `roles` table.
 public interface RoleRepository extends JpaRepository<Role, Long> {
 
+    /// Finds the role with exactly this name.
     Optional<Role> findByName(String name);
 
-    // Pairs of role id and the number of users holding it; roles no user holds are left out
+    /// Returns pairs of role id and the number of users holding it; roles no user holds are left out.
     @Query("select r.id, count(u) from UserAccount u join u.roles r group by r.id")
     List<Object[]> countUsersByRole();
 }

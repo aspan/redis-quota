@@ -26,12 +26,18 @@ import org.springframework.dao.DataAccessException;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-// The usage history of one user's quota, under its heading: the chart, or a text when no period is recorded yet
-// or the history cannot be read. Shown in the user editor and the quota editor
+/// The usage history of one user's quota, under its heading: the chart, or a text when no period is recorded yet
+/// or the history cannot be read.
+///
+/// Shown in the user editor and the quota editor.
 class UsageHistorySection extends VerticalLayout {
 
     private final boolean hasHistory;
 
+    /// Reads the history of the user and creates the section.
+    ///
+    /// @param username the user whose history is shown
+    /// @param dateTimeFormatter gives the time zone and language the periods are shown in
     UsageHistorySection(QuotaHistoryService quotaHistoryService, String username,
             DateTimeFormatter dateTimeFormatter) {
         setPadding(false);
@@ -52,7 +58,7 @@ class UsageHistorySection extends VerticalLayout {
                 : new Span(getTranslation("history.empty")));
     }
 
-    // Whether any finished period is recorded
+    /// Whether any finished period is recorded.
     boolean hasHistory() {
         return hasHistory;
     }

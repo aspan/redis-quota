@@ -25,13 +25,14 @@ import com.vaadin.flow.i18n.LocaleChangeEvent;
 import com.vaadin.flow.i18n.LocaleChangeObserver;
 import com.vaadin.flow.shared.Registration;
 
-// Cycles through the system, light and dark color schemes; the choice applies to the session and is remembered
-// in a cookie
+/// Cycles through the system, light and dark color schemes; the choice applies to the session and is remembered
+/// in a cookie.
 class ColorSchemeToggleButton extends Button implements LocaleChangeObserver {
 
     private final ColorSchemePreference colorSchemePreference;
     private Registration changeRegistration;
 
+    /// Creates the button, which switches to the next color scheme on click.
     ColorSchemeToggleButton(ColorSchemePreference colorSchemePreference) {
         this.colorSchemePreference = colorSchemePreference;
         addThemeVariants(ButtonVariant.TERTIARY);
@@ -41,7 +42,7 @@ class ColorSchemeToggleButton extends Button implements LocaleChangeObserver {
         });
     }
 
-    // System, light, dark and back to system, in the order of the enum
+    /// System, light, dark and back to system, in the order of the enum.
     private static ColorSchemeChoice next(ColorSchemeChoice current) {
         var choices = ColorSchemeChoice.values();
         return choices[(current.ordinal() + 1) % choices.length];
@@ -52,7 +53,8 @@ class ColorSchemeToggleButton extends Button implements LocaleChangeObserver {
         update();
     }
 
-    // Follows changes made elsewhere, such as saving your own settings in the user editor or toggling in another tab
+    /// Follows changes made elsewhere, such as saving your own settings in the user editor or toggling in another
+    /// tab.
     @Override
     protected void onAttach(AttachEvent attachEvent) {
         super.onAttach(attachEvent);
@@ -66,7 +68,7 @@ class ColorSchemeToggleButton extends Button implements LocaleChangeObserver {
         super.onDetach(detachEvent);
     }
 
-    // Shows the current scheme, and names the one a click switches to
+    /// Shows the current scheme, and names the one a click switches to.
     private void update() {
         var current = colorSchemePreference.current();
         setIcon(MainLayout.toolbarIcon(current.icon()));

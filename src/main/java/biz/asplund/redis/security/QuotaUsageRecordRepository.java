@@ -24,14 +24,17 @@ import org.springframework.data.jpa.repository.Query;
 import java.time.Instant;
 import java.util.List;
 
+/// The recorded periods of the users' quotas, stored in the `quota_usage_history` table.
 public interface QuotaUsageRecordRepository extends JpaRepository<QuotaUsageRecord, Long> {
 
+    /// Finds the user's records of the period that started at or after `periodStart`.
     List<QuotaUsageRecord> findByUserAndPeriodAndPeriodStartGreaterThanEqual(UserAccount user, QuotaPeriod period,
             Instant periodStart);
 
-    // Newest first
+    /// Finds the records of the user with the username, newest first.
     List<QuotaUsageRecord> findByUserUsernameOrderByPeriodStartDesc(String username);
 
+    /// Deletes the records of the periods that started before `before`; returns how many.
     @Modifying
     @Query("delete from QuotaUsageRecord r where r.periodStart < :before")
     int deleteByPeriodStartBefore(Instant before);

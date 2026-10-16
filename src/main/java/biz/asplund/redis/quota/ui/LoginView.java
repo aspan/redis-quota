@@ -28,6 +28,10 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
 
+/// The login page, open to everyone and shown without the main layout.
+///
+/// It has its own language menu and appearance toggle, so the language and color scheme can be chosen before
+/// logging in. Spring Security redirects here with an `error` query parameter after a failed login.
 @Route(value = "login", autoLayout = false)
 @PageTitle("login.title")
 @AnonymousAllowed
@@ -35,6 +39,7 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver, Lo
 
     private final LoginForm login = new LoginForm();
 
+    /// Creates the login form with the language menu and appearance toggle in the top right corner.
     public LoginView(LanguagePreference languagePreference, ColorSchemePreference colorSchemePreference) {
         setSizeFull();
         setAlignItems(Alignment.CENTER);

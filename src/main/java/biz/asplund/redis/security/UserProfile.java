@@ -16,14 +16,13 @@
 
 package biz.asplund.redis.security;
 
-/**
- * What a user tells about themselves, which they can also change on their profile page.
- *
- * @param name     the name shown instead of the username, or null when not set
- * @param email    the email address, unique whatever its case, or null when not set
- * @param settings the language and appearance
- */
+/// What a user tells about themselves, which they can also change on their profile page.
+///
+/// @param name     the name shown instead of the username, or `null` when not set
+/// @param email    the email address, unique whatever its case, or `null` when not set
+/// @param settings the language and appearance
 public record UserProfile(String name, String email, UserSettings settings) {
 
+    /// No name, email address or settings.
     public static final UserProfile NONE = new UserProfile(null, null, UserSettings.NONE);
 }

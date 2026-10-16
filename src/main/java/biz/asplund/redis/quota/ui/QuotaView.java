@@ -62,6 +62,10 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
+/// Lists the users' quotas with their usage in the current period, and shows one in a [QuotaEditor] to change its
+/// usage.
+///
+/// Quotas are created and deleted with their users in [UserView].
 @Route("quotas")
 @PageTitle("quotas.title")
 @Menu(title = "quotas.title", icon = "vaadin:dashboard", order = 1)
@@ -88,6 +92,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
 
     private List<QuotaRow> rows = List.of();
 
+    /// Creates the view; `clock` gives the time zone that reset and last-used times are shown in.
     public QuotaView(QuotaDefinitionRepository quotaDefinitionRepository, QuotaManager quotaManager,
             UserAccountService userAccountService, QuotaHistoryService quotaHistoryService, Clock clock) {
         this.quotaDefinitionRepository = quotaDefinitionRepository;
@@ -111,7 +116,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         add(masterDetail);
     }
 
-    // Called when attached and whenever the language changes
+    /// Called when attached and whenever the language changes.
     @Override
     public void localeChange(LocaleChangeEvent event) {
         dateTimeFormatter = createDateTimeFormatter(event.getLocale());
@@ -139,7 +144,7 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         return DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone);
     }
 
-    // Reload on every navigation, including to this view when it is already shown
+    /// Reloads on every navigation, including to this view when it is already shown.
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
         refresh();
@@ -213,12 +218,13 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
         });
     }
 
-    // The editor in the detail area, or null
+    /// Returns the editor in the detail area, or `null`.
     private Component openEditor() {
         return masterDetail.getDetail() instanceof Scroller scroller ? scroller.getContent() : null;
     }
 
-    // Deselecting on the server does not close the editor by itself, as refreshes deselect too
+    /// Closes the editor and deselects its row; deselecting on the server does not close the editor by itself, as
+    /// refreshes deselect too.
     private void closeEditor() {
         grid.deselectAll();
         masterDetail.setDetail(null);
@@ -261,16 +267,17 @@ public class QuotaView extends VerticalLayout implements BeforeEnterObserver, Lo
                 .setIdentifierProvider(QuotaRow::id);
     }
 
+    /// Returns whether nothing of the limit is left.
     static boolean isUsedUp(QuotaStatus status) {
         return status.used() >= status.limit();
     }
 
-    // Less than 20% of the limit is left
+    /// Returns whether less than 20% of the limit is left.
     static boolean isRunningLow(QuotaStatus status) {
         return status.remaining() < status.limit() * 0.2;
     }
 
-    // Translated name of a period, for the current UI locale
+    /// Returns the translated name of `period`, for the current UI locale.
     static String label(QuotaPeriod period) {
         return I18NProvider.translate("period." + period.name().toLowerCase(Locale.ROOT));
     }

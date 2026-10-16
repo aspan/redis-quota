@@ -34,12 +34,16 @@ import com.vaadin.flow.component.textfield.IntegerField;
 
 import java.time.format.DateTimeFormatter;
 
-// Detail panel for one user's quota: its period and limit, read-only as they are set on the user in the users view,
-// its usage in the current period, which can be changed here, and its usage history
+/// Detail panel for one user's quota: its period and limit, read-only as they are set on the user in the users view,
+/// its usage in the current period, which can be changed here, and its usage history.
 class QuotaEditor extends VerticalLayout {
 
     private final QuotaRow row;
 
+    /// Creates the panel for `row`.
+    ///
+    /// @param onUsageChanged run after the usage has been changed in the panel
+    /// @param onClose run when the panel's close button is clicked
     QuotaEditor(QuotaRow row, QuotaManager quotaManager, QuotaHistoryService quotaHistoryService,
             DateTimeFormatter dateTimeFormatter, Runnable onUsageChanged, Runnable onClose) {
         this.row = row;
@@ -63,7 +67,7 @@ class QuotaEditor extends VerticalLayout {
         add(new UsageHistorySection(quotaHistoryService, row.id(), dateTimeFormatter));
     }
 
-    // Id of the shown definition
+    /// Returns the id of the shown definition.
     String quotaId() {
         return row.id();
     }

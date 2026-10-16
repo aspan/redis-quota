@@ -21,14 +21,13 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 
 import java.time.Duration;
 
-/**
- * The history of the users' quota usage.
- *
- * @param retention how long the usage of a finished period is kept, counted from the start of the period
- */
+/// The history of the users' quota usage.
+///
+/// @param retention how long the usage of a finished period is kept, counted from the start of the period
 @ConfigurationProperties("quota.history")
 public record QuotaHistoryProperties(@DefaultValue("365d") Duration retention) {
 
+    /// @throws IllegalArgumentException if `retention` is not positive
     public QuotaHistoryProperties {
         if (retention.isNegative() || retention.isZero()) {
             throw new IllegalArgumentException("quota.history.retention must be positive: " + retention);

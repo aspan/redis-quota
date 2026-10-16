@@ -32,20 +32,22 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 
-// Reads and stores the user's color scheme: the logged-in user's setting, or else a cookie, like the language in
-// LanguagePreference
+/// Reads and stores the user's color scheme: the logged-in user's setting, or else a cookie, like the language in
+/// [LanguagePreference].
 @Component
 public class ColorSchemePreference {
 
+    /// The name of the cookie that remembers the choice, for a year.
     static final String COOKIE = "color-scheme";
 
     private final LoggedInUserSettings loggedInUserSettings;
 
+    /// Creates the preference, which reads and saves the logged-in user's setting through `loggedInUserSettings`.
     ColorSchemePreference(LoggedInUserSettings loggedInUserSettings) {
         this.loggedInUserSettings = loggedInUserSettings;
     }
 
-    // The logged-in user's choice, or else the one stored in the cookie, or SYSTEM
+    /// The logged-in user's choice, or else the one stored in the cookie, or [ColorSchemeChoice#SYSTEM].
     ColorSchemeChoice resolve(HttpServletRequest request) {
         var userChoice = loggedInUserSettings.get().colorScheme();
         if (userChoice != null) {
@@ -57,13 +59,13 @@ public class ColorSchemePreference {
                 .orElse(ColorSchemeChoice.SYSTEM);
     }
 
-    // The choice of the current session, as resolved when its UIs started or picked since
+    /// The choice of the current session, as resolved when its UIs started or picked since.
     ColorSchemeChoice current() {
         var choice = VaadinSession.getCurrent().getAttribute(ColorSchemeChoice.class);
         return choice != null ? choice : ColorSchemeChoice.SYSTEM;
     }
 
-    // Applies the choice to every UI of the session and remembers it for the logged-in user and in the cookie
+    /// Applies the choice to every UI of the session and remembers it for the logged-in user and in the cookie.
     void select(ColorSchemeChoice choice) {
         loggedInUserSettings.change(settings -> settings.withColorScheme(choice.key()));
         applyToSession(choice);
@@ -78,8 +80,10 @@ public class ColorSchemePreference {
         }
     }
 
-    // Applies the scheme the logged-in user's settings were just saved with: a set scheme as if picked in the
-    // toolbar, or, when not set, the one the cookie gives
+    /// Applies the scheme the logged-in user's settings were just saved with: a set scheme as if picked in the
+    /// toolbar, or, when not set, the one the cookie gives.
+    ///
+    /// @param key the [ColorSchemeChoice#key()] saved, or `null` when not set
     void applySetting(String key) {
         if (key != null) {
             select(ColorSchemeChoice.fromKey(key));
@@ -88,7 +92,7 @@ public class ColorSchemePreference {
         }
     }
 
-    // Also tells each UI, so the toggle buttons in every open tab show the new scheme
+    /// Also tells each UI, so the toggle buttons in every open tab show the new scheme.
     private static void applyToSession(ColorSchemeChoice choice) {
         var session = VaadinSession.getCurrent();
         session.setAttribute(ColorSchemeChoice.class, choice);
@@ -98,16 +102,17 @@ public class ColorSchemePreference {
         });
     }
 
-    // Fired on each UI of the session when its color scheme changes
+    /// Fired on each UI of the session when its color scheme changes.
     static class ColorSchemeChangeEvent extends ComponentEvent<UI> {
 
+        /// Creates the event for the given UI, as a change from the server.
         ColorSchemeChangeEvent(UI ui) {
             super(ui, false);
         }
     }
 
-    // Sets the scheme in the page Vaadin sends first, the same way Page.setColorScheme does in the browser,
-    // so a stored dark scheme does not flash light while the app loads
+    /// Sets the scheme in the page Vaadin sends first, the same way `Page.setColorScheme` does in the browser, so a
+    /// stored dark scheme does not flash light while the app loads.
     static void apply(Document document, ColorSchemeChoice choice) {
         var html = document.selectFirst("html");
         if (html == null) {

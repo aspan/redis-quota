@@ -47,8 +47,10 @@ import com.vaadin.flow.shared.Registration;
 import jakarta.annotation.security.PermitAll;
 import org.springframework.dao.DataAccessException;
 
-// Shell around every view except the login view; the menu lists the @Menu views the user may open,
-// whose titles are translation keys. Texts are set in localeChange, so they follow the language picker
+/// Shell around every view except the login view; the menu lists the `@Menu` views the user may open, whose titles
+/// are translation keys.
+///
+/// Texts are set in [#localeChange(LocaleChangeEvent)], so they follow the language picker.
 @Layout
 @PermitAll
 public class MainLayout extends AppLayout implements AfterNavigationObserver, LocaleChangeObserver {
@@ -56,7 +58,8 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
     private final H1 viewTitle = new H1();
     private final Span appName = new Span();
     private final SideNav nav = new SideNav();
-    // The size of the icons at the top right: the appearance toggle's, log out's and the height of the language flag
+    /// The size of the icons at the top right: the appearance toggle's, log out's and the height of the language
+    /// flag.
     static final String TOOLBAR_ICON_SIZE = "1.5em";
 
     private final Button logout = new Button(toolbarIcon(VaadinIcon.SIGN_OUT));
@@ -66,6 +69,7 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
     private final String username;
     private Registration nameChangeRegistration;
 
+    /// Creates the navbar, the drawer with the menu and the logged-in user, and the preference buttons.
     public MainLayout(AuthenticationContext authenticationContext, LanguagePreference languagePreference,
             ColorSchemePreference colorSchemePreference, UserAccountService userAccountService) {
         this.userAccountService = userAccountService;
@@ -104,6 +108,7 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
         addToDrawer(drawer);
     }
 
+    /// Returns the icon at the size of the icons at the top right, [#TOOLBAR_ICON_SIZE].
     static Icon toolbarIcon(VaadinIcon vaadinIcon) {
         var icon = vaadinIcon.create();
         icon.setSize(TOOLBAR_ICON_SIZE);
@@ -135,7 +140,7 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
         return item;
     }
 
-    // The logged-in user, by name if set
+    /// The logged-in user, by name if set.
     private HorizontalLayout createUserFooter(AuthenticationContext authenticationContext) {
         showDisplayName();
         var footer = new HorizontalLayout(avatar, userName);
@@ -157,7 +162,7 @@ public class MainLayout extends AppLayout implements AfterNavigationObserver, Lo
         userName.setText(name);
     }
 
-    // Shows a new name at once, when the user changes it on the profile page or in the user editor
+    /// Shows a new name at once, when the user changes it on the profile page or in the user editor.
     @Override
     protected void onAttach(AttachEvent attachEvent) {
         super.onAttach(attachEvent);

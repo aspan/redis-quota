@@ -28,7 +28,7 @@ import org.springframework.web.servlet.LocaleResolver;
 import java.util.List;
 import java.util.Locale;
 
-// Reads and stores the user's language: the logged-in user's setting, or else through Spring's LocaleResolver
+/// Reads and stores the user's language: the logged-in user's setting, or else through Spring's [LocaleResolver].
 @Component
 public class LanguagePreference {
 
@@ -36,6 +36,7 @@ public class LanguagePreference {
     private final I18nProperties properties;
     private final LoggedInUserSettings loggedInUserSettings;
 
+    /// Creates the preference for the languages configured in `properties`.
     LanguagePreference(LocaleResolver localeResolver, I18nProperties properties,
             LoggedInUserSettings loggedInUserSettings) {
         this.localeResolver = localeResolver;
@@ -43,31 +44,32 @@ public class LanguagePreference {
         this.loggedInUserSettings = loggedInUserSettings;
     }
 
+    /// Returns the configured languages, in the order they are offered.
     List<Locale> locales() {
         return properties.locales();
     }
 
-    // The language named in itself, such as Svenska, so it can be found whatever the current language is
+    /// The language named in itself, such as `Svenska`, so it can be found whatever the current language is.
     static String displayName(Locale locale) {
         var name = locale.getDisplayLanguage(locale);
         return name.isEmpty() ? locale.toLanguageTag() : name.substring(0, 1).toUpperCase(locale) + name.substring(1);
     }
 
-    // A configured locale for the given one, such as sv for sv_SE, or the fallback
+    /// A configured locale for the given one, such as `sv` for `sv_SE`, or the fallback.
     Locale supported(Locale locale) {
         return properties.supported(locale);
     }
 
-    // The logged-in user's language, or else the choice stored in the cookie, or else the best match for the
-    // browser's languages
+    /// The logged-in user's language, or else the choice stored in the cookie, or else the best match for the
+    /// browser's languages.
     Locale resolve(HttpServletRequest request) {
         var userLocale = loggedInUserSettings.get().locale();
         return properties.supported(userLocale != null ? Locale.forLanguageTag(userLocale)
                 : localeResolver.resolveLocale(request));
     }
 
-    // Switches every UI of the session, which notifies each LocaleChangeObserver, and remembers the choice for the
-    // logged-in user and in the cookie
+    /// Switches every UI of the session, which notifies each `LocaleChangeObserver`, and remembers the choice for the
+    /// logged-in user and in the cookie.
     void select(Locale locale) {
         VaadinSession.getCurrent().setLocale(locale);
         loggedInUserSettings.change(settings -> settings.withLocale(locale.toLanguageTag()));
@@ -77,8 +79,10 @@ public class LanguagePreference {
         }
     }
 
-    // Applies the language the logged-in user's settings were just saved with: a set language as if picked in the
-    // toolbar, or, when not set, the one the cookie or the browser gives
+    /// Applies the language the logged-in user's settings were just saved with: a set language as if picked in the
+    /// toolbar, or, when not set, the one the cookie or the browser gives.
+    ///
+    /// @param localeTag the language tag saved, or `null` when not set
     void applySetting(String localeTag) {
         if (localeTag != null) {
             select(supported(Locale.forLanguageTag(localeTag)));

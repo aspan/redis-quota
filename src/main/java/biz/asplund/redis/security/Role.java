@@ -26,7 +26,8 @@ import jakarta.validation.constraints.Pattern;
 
 import java.util.Objects;
 
-// A role granted to users, named in upper case without the ROLE_ prefix. Roles are equal by name, which is unique
+/// A role granted to users, named in upper case without the `ROLE_` prefix. Roles are equal by name, which is
+/// unique.
 @Entity
 @Table(name = "roles")
 public class Role {
@@ -35,14 +36,16 @@ public class Role {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Also limits the length to 50, the column's
+    /// Also limits the length to 50, the column's.
     @Pattern(regexp = "(?!ROLE_)[A-Z][A-Z0-9_]{0,49}", message = "{role.name.pattern}")
     @Column(nullable = false, unique = true, length = 50)
     private String name;
 
+    /// An empty role, for forms to write into.
     public Role() {
     }
 
+    /// A role with the name, which must already be in upper case without the `ROLE_` prefix.
     public Role(String name) {
         this.name = name;
     }

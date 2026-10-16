@@ -51,9 +51,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-// Sends an SMS to one or more recipients, charged to the logged-in user's own quota: each part to each recipient
-// uses one unit. It requires the USER or ADMIN role. Only a user with a quota and at least one sender id approved
-// by an admin can send, and only from those sender ids
+/// Sends an SMS to one or more recipients, charged to the logged-in user's own quota: each part to each recipient
+/// uses one unit.
+///
+/// It requires the `USER` or `ADMIN` role. Only a user with a quota and at least one sender id approved by an admin
+/// can send, and only from those sender ids.
 @Route("sms")
 @PageTitle("sms.title")
 @Menu(title = "sms.title", icon = "vaadin:envelope", order = 0.5)
@@ -77,6 +79,7 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
     private TextArea messageField;
     private Span costSummary;
 
+    /// Creates the view for the logged-in user; the page itself is built in [#localeChange(LocaleChangeEvent)].
     public SendSmsView(UserAccountService userAccountService, QuotaManager quotaManager, SmsService smsService,
             Clock clock, AuthenticationContext authenticationContext) {
         this.userAccountService = userAccountService;
@@ -87,7 +90,7 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
         setMaxWidth("40rem");
     }
 
-    // Called when attached and whenever the language changes; input not yet sent is lost
+    /// Called when attached and whenever the language changes; input not yet sent is lost.
     @Override
     public void localeChange(LocaleChangeEvent event) {
         removeAll();
@@ -143,7 +146,7 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
         updateCost();
     }
 
-    // Reads the usage again, read-only as on the home view
+    /// Reads the usage again, read-only as on the home view.
     private void showQuota() {
         var dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
                 .withLocale(getLocale()).withZone(zone);
@@ -166,10 +169,14 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
         costSummary.setText(getTranslation("sms.cost", recipients, parts, SmsService.cost(text, recipients)));
     }
 
+    /// The recipients entered, split into phone numbers and entries that are not.
+    ///
+    /// @param valid the distinct normalized numbers, in the order entered
+    /// @param invalid the entries that are not phone numbers
     private record Recipients(List<String> valid, List<String> invalid) {
     }
 
-    // Distinct numbers in the order entered, and the entries that are not phone numbers
+    /// Distinct numbers in the order entered, and the entries that are not phone numbers.
     private Recipients parseRecipients() {
         var valid = new LinkedHashSet<String>();
         var invalid = new ArrayList<String>();
