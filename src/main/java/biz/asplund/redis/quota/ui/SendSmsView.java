@@ -52,9 +52,8 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 // Sends an SMS to one or more recipients, charged to the logged-in user's own quota: each part to each recipient
-// uses one unit. It requires the USER or ADMIN role; Vaadin's view access check does not apply the
-// role hierarchy in which ADMIN implies USER, so both are listed. Only a user with a quota and at least one sender
-// id approved by an admin can send, and only from those sender ids
+// uses one unit. It requires the USER or ADMIN role. Only a user with a quota and at least one sender id approved
+// by an admin can send, and only from those sender ids
 @Route("sms")
 @PageTitle("sms.title")
 @Menu(title = "sms.title", icon = "vaadin:envelope", order = 0.5)

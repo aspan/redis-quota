@@ -16,6 +16,7 @@
 
 package biz.asplund.redis.security;
 
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -60,7 +61,7 @@ public class UserQuotaSync implements ApplicationRunner, SchedulingConfigurer {
 
     // The sync daily at 03:30 by default, where "-" as quota.sync.cron turns it off, and the history every hour
     @Override
-    public void configureTasks(ScheduledTaskRegistrar registrar) {
+    public void configureTasks(@NonNull ScheduledTaskRegistrar registrar) {
         if (properties.daily()) {
             registrar.addCronTask(this::sync, properties.cron());
         }
