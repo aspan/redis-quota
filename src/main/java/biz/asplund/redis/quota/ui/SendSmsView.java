@@ -48,6 +48,7 @@ import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 // Sends an SMS to one or more recipients, charged to the logged-in user's own quota: each part to each recipient
@@ -106,7 +107,8 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
         senderField.setWidthFull();
 
         recipientsField = new TextArea(getTranslation("sms.recipients"));
-        recipientsField.setHelperText(getTranslation("sms.recipientsHint", SmsService.MAX_RECIPIENTS));
+        recipientsField.setHelperText(getTranslation("sms.recipientsHint",
+                Locale.of("", smsService.defaultRegion()).getDisplayCountry(getLocale()), SmsService.MAX_RECIPIENTS));
         recipientsField.setPlaceholder("+46701234567");
         recipientsField.setValueChangeMode(ValueChangeMode.LAZY);
         recipientsField.addValueChangeListener(_ -> updateCost());
@@ -163,7 +165,7 @@ public class SendSmsView extends VerticalLayout implements LocaleChangeObserver 
         for (var entry : RECIPIENT_SEPARATORS.split(recipientsField.getValue())) {
             var trimmed = entry.strip();
             if (!trimmed.isEmpty()) {
-                SmsService.normalizeRecipient(trimmed).ifPresentOrElse(valid::add, () -> invalid.add(trimmed));
+                smsService.normalizeRecipient(trimmed).ifPresentOrElse(valid::add, () -> invalid.add(trimmed));
             }
         }
         return new Recipients(List.copyOf(valid), invalid);

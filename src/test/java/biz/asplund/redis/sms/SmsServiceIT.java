@@ -98,12 +98,23 @@ class SmsServiceIT {
 	}
 
 	@Test
-	void normalizesRecipients() {
-		assertThat(SmsService.normalizeRecipient("+46 70-123 45 67")).contains("+46701234567");
-		assertThat(SmsService.normalizeRecipient("(070) 123.45.67")).contains("0701234567");
-		assertThat(SmsService.normalizeRecipient("12345")).isEmpty();
-		assertThat(SmsService.normalizeRecipient("+46 70 abc")).isEmpty();
-		assertThat(SmsService.normalizeRecipient("++46701234567")).isEmpty();
+	void normalizesMobileNumbers() {
+		assertThat(smsService.defaultRegion()).isEqualTo("SE");
+		assertThat(smsService.normalizeRecipient("+46 70-123 45 67")).contains("+46701234567");
+		// Without a country code, read in the default region
+		assertThat(smsService.normalizeRecipient("(070) 123.45.67")).contains("+46701234567");
+		assertThat(smsService.normalizeRecipient("0046701234567")).contains("+46701234567");
+		assertThat(smsService.normalizeRecipient("+44 7400 123456")).contains("+447400123456");
+		// A fixed-line number, one too short, and no number at all
+		assertThat(smsService.normalizeRecipient("08-123 456 78")).isEmpty();
+		assertThat(smsService.normalizeRecipient("+46 70 123")).isEmpty();
+		assertThat(smsService.normalizeRecipient("not a number")).isEmpty();
+	}
+
+	@Test
+	void checksDefaultRegion() {
+		assertThat(new SmsProperties(" no ").defaultRegion()).isEqualTo("NO");
+		assertThatIllegalArgumentException().isThrownBy(() -> new SmsProperties("XX"));
 	}
 
 	@Test
@@ -195,6 +206,8 @@ class SmsServiceIT {
 				List.of("+46701234567", "+46701234567"), TEXT));
 		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA, SENDER,
 				List.of("+46 70 123 45 67"), TEXT));
+		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA, SENDER,
+				List.of("+46812345678"), TEXT));
 		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA, SENDER,
 				List.of("+46701234567"), " "));
 		assertThatIllegalArgumentException().isThrownBy(() -> smsService.send(WITH_QUOTA, SENDER,

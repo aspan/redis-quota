@@ -106,7 +106,7 @@ class SendSmsViewIT extends SpringBrowserlessTest {
 		assertThat(usageSummary()).isEqualTo("0 of 10 used, 10 left");
 
 		test(sender()).setValue(" Lekab ");
-		test(recipients()).setValue("+46 70 123 45 67, +46701234568\n+46701234567");
+		test(recipients()).setValue("+46 70 123 45 67, 070-123 45 68\n+46701234567");
 		test(message()).setValue("Hello");
 		assertThat(find(Span.class).withText("2 recipient(s) × 1 part(s) = 2 unit(s) of your quota").exists())
 				.isTrue();
@@ -138,12 +138,12 @@ class SendSmsViewIT extends SpringBrowserlessTest {
 		navigate("sms", SendSmsView.class);
 
 		test(sender()).setValue("Far too long");
-		test(recipients()).setValue("+46701234567, not a number");
+		test(recipients()).setValue("+46701234567, not a number\n08-123 456 78");
 		test(find(Button.class).withText("Send").single()).click();
 
 		assertThat(sender().isInvalid()).isTrue();
 		assertThat(recipients().isInvalid()).isTrue();
-		assertThat(recipients().getErrorMessage()).isEqualTo("Not phone numbers: not a number");
+		assertThat(recipients().getErrorMessage()).isEqualTo("Not mobile phone numbers: not a number, 08-123 456 78");
 		assertThat(message().isInvalid()).isTrue();
 		verify(smsSender, never()).send(anyString(), anyString(), any());
 		assertThat(quotaManager.getUsage(WITH_QUOTA)).isZero();
