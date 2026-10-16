@@ -33,7 +33,7 @@ import java.util.regex.Pattern;
 
 // Sends SMS for a user, charged to their quota: one unit per part per recipient. The whole cost is charged before
 // anything is sent, so a send either fits the quota or sends nothing, and the units of recipients the gateway does
-// not accept are refunded. Like the API, it fails open when Redis cannot be reached. Only the sender ids an admin
+// not accept are refunded. It fails open when Redis cannot be reached. Only the sender ids an admin
 // has approved for the user can be sent from
 @Service
 @EnableConfigurationProperties(SmsProperties.class)

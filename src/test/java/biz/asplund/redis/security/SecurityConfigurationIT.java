@@ -31,16 +31,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.unauthenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Import(TestcontainersConfiguration.class)
@@ -90,10 +85,6 @@ class SecurityConfigurationIT {
 
 		mockMvc.perform(formLogin("/login").user(email.toUpperCase(Locale.ROOT)).password("password1"))
 				.andExpect(authenticated().withUsername(username));
-		// The API's HTTP Basic login too, counted against the quota under the username
-		mockMvc.perform(get("/api/quota").with(httpBasic(email, "password1")))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.id").value(username));
 	}
 
 	@Test
@@ -105,22 +96,5 @@ class SecurityConfigurationIT {
 		mockMvc.perform(formLogin("/login").user(account.getUsername()).password("secret"))
 				.andExpect(unauthenticated())
 				.andExpect(redirectedUrl("/login?error"));
-	}
-
-	@Test
-	void requiresBasicLoginForApi() throws Exception {
-		mockMvc.perform(get("/api/quota"))
-				.andExpect(status().isUnauthorized())
-				.andExpect(header().string("WWW-Authenticate", startsWith("Basic")));
-	}
-
-	@Test
-	void acceptsBasicLoginForApiWithoutSession() throws Exception {
-		// ADMIN implies the USER role the API requires, so the request gets past security; the admin has no quota
-		mockMvc.perform(get("/api/quota").with(httpBasic("admin", "secret")))
-				.andExpect(authenticated().withUsername("admin"))
-				.andExpect(request().sessionAttributeDoesNotExist("SPRING_SECURITY_CONTEXT"))
-				.andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.error").value("No Quota"));
 	}
 }

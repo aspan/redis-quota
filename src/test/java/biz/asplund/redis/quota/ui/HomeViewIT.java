@@ -110,7 +110,7 @@ class HomeViewIT extends SpringBrowserlessTest {
 
 		assertThat(find(QuotaUsageCard.class).exists()).isFalse();
 		assertThat(find(Span.class)
-				.withText("You have no quota, so you cannot use the API. Ask an admin to give you one.").exists())
+				.withText("You have no quota, so you cannot send SMS. Ask an admin to give you one.").exists())
 				.isTrue();
 	}
 }
